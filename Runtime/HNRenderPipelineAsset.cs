@@ -4,47 +4,69 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-[CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline")]
-public class HNRenderPipelineAsset : RenderPipelineAsset
+namespace HN.HNRP
 {
-    [SerializeField]
-    public bool useDynamicBatching;
-
-    [SerializeField]
-    public bool useGPUInstancing;
-
-    [SerializeField]
-    public bool useSRPBatcher;
-
-    [SerializeField]
-    public bool useLightsPerObjectData;
-
-    [SerializeField]
-    public RenderGraphViews renderGraphViews;
-
-    [SerializeField]
-    public ShadowSettings shadowSettings;
-
-    [SerializeField]
-    public PostProcessingSettings postProcessingSettings;
-
-
-    public HNRenderPipelineAsset()
+    [CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline")]
+    public class HNRenderPipelineAsset : RenderPipelineAsset
     {
-        useDynamicBatching = false;
-        useGPUInstancing = true;
-        useSRPBatcher = true;
-        useLightsPerObjectData = true;
+        [SerializeField]
+        public bool useDynamicBatching;
 
-        renderGraphViews = new RenderGraphViews();
-        shadowSettings = default;
-        postProcessingSettings = default;
+        [SerializeField]
+        public bool useGPUInstancing;
+
+        [SerializeField]
+        public bool useSRPBatcher;
+
+        [SerializeField]
+        public bool useLightsPerObjectData;
+
+#if UNITY_EDITOR
+        [SerializeField]
+        public RenderGraphViewBlock editorRenderGraphViews;
+#endif
+
+        [SerializeField]
+        public RenderGraphViewBlock runtimeRenderGraphViews;
+
+        [SerializeField]
+        public ShadowSettings shadowSettings;
+
+        [SerializeField]
+        public PostProcessingSettings postProcessingSettings;
+
+
+        public HNRenderPipelineAsset()
+        {
+            useDynamicBatching = false;
+            useGPUInstancing = true;
+            useSRPBatcher = true;
+            useLightsPerObjectData = true;
+
+#if UNITY_EDITOR
+            editorRenderGraphViews = new RenderGraphViewBlock(EditorDefaultViews);
+#endif
+            runtimeRenderGraphViews = new RenderGraphViewBlock(RuntimeDefaultViews);
+            shadowSettings = default;
+            postProcessingSettings = default;
+        }
+
+        protected override RenderPipeline CreatePipeline()
+        {
+            return new HNRenderPipeline(this);
+        }
+
+
+        public static string[] EditorDefaultViews = new string[]
+        {
+            "SceneView",
+            "Preview",
+            "Reflection",
+        };
+
+        public static string[] RuntimeDefaultViews = new string[]
+        {
+            "MainGameView",
+        };
     }
-
-    protected override RenderPipeline CreatePipeline()
-    {
-        return new HNRenderPipeline();
-    }
-
-
 }

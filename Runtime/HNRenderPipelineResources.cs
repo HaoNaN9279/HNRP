@@ -3,21 +3,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-public class HNRenderPipelineResources
+namespace HN.HNRP
 {
-    public static HNRenderPipelineResources Instance;
-
-
-    public HNRenderGraph defaultRenderGraph;
-    
-
-    public HNRenderPipelineResources()
+    public class HNRenderPipelineResources
     {
-        AssetDatabase.CreateAsset(defaultRenderGraph, defaultGraphPath);
+        public static HNRenderPipelineResources Instance;
 
-        Instance = this;
+
+        public HNRenderGraph defaultRenderGraph;
+        
+
+        public HNRenderPipelineResources()
+        {
+            AssetDatabase.CreateAsset(defaultRenderGraph, defaultGraphPath);
+
+            Instance = this;
+        }
+
+
+        public static string defaultGraphPath = "";
     }
-
-
-    public static string defaultGraphPath = "";
 }

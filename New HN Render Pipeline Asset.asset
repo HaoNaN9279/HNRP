@@ -16,8 +16,20 @@ MonoBehaviour:
   useGPUInstancing: 1
   useSRPBatcher: 1
   useLightsPerObjectData: 1
-  renderGraphViews:
-    renderGraphViews: []
+  editorRenderGraphViews:
+    renderGraphViews:
+      list:
+      - Key: SceneView
+        Value: {fileID: -5475051401550479605, guid: 7a15e0337d5b5d04c9d7aed265922f92, type: 3}
+      - Key: Preview
+        Value: {fileID: 0}
+      - Key: Reflection
+        Value: {fileID: 0}
+  runtimeRenderGraphViews:
+    renderGraphViews:
+      list:
+      - Key: MainGameView
+        Value: {fileID: -5475051401550479605, guid: 7a15e0337d5b5d04c9d7aed265922f92, type: 3}
   shadowSettings:
     maxDistance: 100
     distanceFade: 0.1
