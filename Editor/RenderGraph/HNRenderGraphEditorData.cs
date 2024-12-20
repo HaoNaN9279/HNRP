@@ -6,24 +6,64 @@ using HN.Graph;
 using HN.Graph.Editor;
 using UnityEngine;
 using UnityEditor;
+using System.Linq;
 
 namespace HN.HNRP.Editor
 {
     [Serializable]
     public class HNRenderGraphEditorData : HNGraphEditorData
     {
-        public HNRenderGraph Graph => GraphData as HNRenderGraph;
-
+        public HNRenderGraph Graph => GraphObject as HNRenderGraph;
+        public IReadOnlyDictionary<string, HNRenderGraphNode> NodeDataDict => nodeDataDict;
         public HNRenderGraphNodeInspector NodeInspector => nodeInspector;
 
+
+
+        [SerializeField]
+        private SerializableRenderGraphNode nodeDataDict;
 
         [SerializeField]
         private HNRenderGraphNodeInspector nodeInspector;
 
 
-        public HNRenderGraphEditorData()
+        public void OnEnable()
         {
+            nodeDataDict = new SerializableRenderGraphNode();
+        }
+
+        public void AddNodeData(Type nodeDataType, string nodeGuid)
+        {
+            Debug.Log("node data type:" + nodeDataType);
+            var nodeDataRaw = Activator.CreateInstance(nodeDataType);
+            Debug.Log("node data raw:" + nodeDataRaw);
+            var nodeData = (HNRenderGraphNode)nodeDataRaw;
+            Debug.Log("node data" + nodeData);
+            if(nodeData == null)
+            {
+                Debug.LogError($"Node data {nodeDataType} did not create sucessfully.");
+                return;
+            }
+
+            if(nodeDataDict.ContainsKey(nodeGuid))
+                return;
+
+            nodeDataDict.Add(nodeGuid, nodeData);
+        }
+
+        public HNRenderGraphNode GetNodeData(string nodeGuid)
+        {
+            if(!nodeDataDict.ContainsKey(nodeGuid))
+                return null;
             
+            return nodeDataDict[nodeGuid];
+        }
+
+        public void RemoveNodeData(string nodeGuid)
+        {
+            if(!nodeDataDict.ContainsKey(nodeGuid))
+                return;
+
+            nodeDataDict.Remove(nodeGuid);
         }
 
         public override void Initialize(HNGraphObject graphData)
@@ -50,7 +90,7 @@ namespace HN.HNRP.Editor
 
             CleanRenderNode();
 
-            List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutputInfo>();
+            List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutput>();
             if(outputNodes.Count == 0)
                 return;
             
@@ -61,10 +101,22 @@ namespace HN.HNRP.Editor
             }
         }
 
+        public override void AddNode(HNGraphNode node)
+        {
+            base.AddNode(node);
+            AddNodeData(node.NodeDataType, node.Guid);
+        }
+
+        public override void RemoveNode(HNGraphNode node)
+        {
+            base.RemoveNode(node);
+            RemoveNodeData(node.Guid);
+        }
+
 
         private void PushRenderNode(HNGraphNode node)
         {
-            var rendererNode = node?.NodeViewData as HNRenderGraphNodeInfo;
+            var rendererNode = GetNodeData(node.Guid);
             if(rendererNode == null)
                 return;
             
@@ -72,6 +124,7 @@ namespace HN.HNRP.Editor
         }
 
         private void CleanRenderNode() => Graph.ClearRenderStack();
+
     }
 
 
@@ -96,4 +149,8 @@ namespace HN.HNRP.Editor
         }
 
     }
+
+
+    [Serializable]
+    public class SerializableRenderGraphNode : SerializableDictionary<string, HNRenderGraphNode> {}
 }

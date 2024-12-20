@@ -6,24 +6,8 @@ using UnityEngine;
 
 namespace HN.HNRP
 {
-    public abstract class HNRenderGraphNodeInfo : IHNGraphNode
+    [Serializable]
+    public abstract class HNRenderGraphNode
     {
-        public HNRenderGraphNodeParams param;
-
-
-        [SerializeField]
-        public string name;
-
-
-        public string GetName()
-        {
-            return name;
-        }
-    }
-
-
-    public abstract class HNRenderGraphNodeParams : ScriptableObject
-    {
-
     }
 }

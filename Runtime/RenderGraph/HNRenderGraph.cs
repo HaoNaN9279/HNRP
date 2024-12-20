@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using HN.Graph;
 using HN.Serialize;
 using Unity.VisualScripting;
@@ -13,20 +15,22 @@ namespace HN.HNRP
     {
         public const string HNRenderGraphExtension = "hnrg";
 
+        public IReadOnlyList<HNRenderGraphNode> RenderStack => renderStack;
+        
 
-        public IReadOnlyList<HNRenderGraphNodeInfo> RenderStack => renderStack;
-        
-        
+
+
         [SerializeField]
-        private List<HNRenderGraphNodeInfo> renderStack;
+        private List<HNRenderGraphNode> renderStack;
 
 
-        public HNRenderGraph()
+
+        public void OnEnable()
         {
-            renderStack = new List<HNRenderGraphNodeInfo>();
+            renderStack = new List<HNRenderGraphNode>();    
         }
-
-        public void AddToRenderStack(HNRenderGraphNodeInfo renderGraphNode)
+        
+        public void AddToRenderStack(HNRenderGraphNode renderGraphNode)
         {
             if(renderGraphNode == null)
                 return;

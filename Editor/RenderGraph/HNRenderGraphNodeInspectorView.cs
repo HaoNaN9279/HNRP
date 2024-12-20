@@ -1,7 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using HN.HNRP;
+using HN.HNRP.Editor;
+using Unity.Properties;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEditor.UIElements;
@@ -30,21 +33,48 @@ namespace HN.Graph.Editor
                 return;
             
             var graphNodeView = selection[0] as HNGraphNodeView;
-            var renderGraphNode = graphNodeView?.NodeData?.NodeViewData as HNRenderGraphNodeInfo;
-            if(renderGraphNode == null)
+            if(graphNodeView == null)
                 return;
-
-            var editor = UnityEditor.Editor.CreateEditor(renderGraphNode.param);
-            scrollView.Add(GetDefaultInspector(editor));
+            string nodeGuid = graphNodeView.NodeData.Guid;
+            
+            SerializedObject renderGraphSerializedObject = new SerializedObject(graphView.GraphEditorData);
+            scrollView.Add(GetDefaultInspector(renderGraphSerializedObject, nodeGuid));
 
             MarkDirtyRepaint();
         }
 
-        public VisualElement GetDefaultInspector(UnityEditor.Editor editor)
+        public VisualElement GetDefaultInspector(SerializedObject serializedObject, string nodeGuid)
         {
+            // var nodeDataDictProperty = serializedObject.FindProperty("nodeDataDict");
+            // var nodeDataGuidListProperty = nodeDataDictProperty.FindPropertyRelative("keys");
+            // int index = -1;
+            // for(int i = 0; i < nodeDataGuidListProperty.arraySize; i++)
+            // {
+            //     var nodeGuidProperty = nodeDataGuidListProperty.GetArrayElementAtIndex(i);
+            //     Debug.Log(nodeGuidProperty.stringValue);
+            //     if(nodeGuidProperty.stringValue == nodeGuid)
+            //     {
+            //         index = i;
+            //         break;
+            //     }
+            // }
+            // var nodeDataListProperty = nodeDataDictProperty.FindPropertyRelative("values");
+            // var nodeDataProperty = nodeDataListProperty.GetArrayElementAtIndex(index);
+
             IMGUIContainer container = new IMGUIContainer(() =>
             {
-                editor.OnInspectorGUI();
+                // if(index == -1)
+                //     return;
+                
+                // serializedObject.Update();
+
+                // var iterator = serializedObject.GetIterator();
+                // iterator.NextVisible(false);
+                // do
+                // {
+                //     EditorGUILayout.PropertyField(iterator);
+                // }while(iterator.NextVisible(false));
+                // serializedObject.ApplyModifiedProperties();
             });
 
             return container;

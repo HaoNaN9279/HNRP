@@ -1,16 +1,12 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace HN.HNRP
 {
-    public abstract class RendererNodeInfo : HNRenderGraphNodeInfo
-    {
-
-    }
-
-
-    public abstract class RendererNodeParams : HNRenderGraphNodeParams
+    [Serializable]
+    public abstract class RendererNode : HNRenderGraphNode
     {
         public abstract void Execute();
     }
