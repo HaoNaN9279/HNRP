@@ -20,7 +20,7 @@ namespace HN.HNRP.Editor
         public override void CreateSearchWindowProvider()
         {
             SearchWindowProvider = ScriptableObject.CreateInstance<HNGraphSearchWindowProvider>();
-            SearchWindowProvider.GraphNodeInfoAttributeType = typeof(HNRenderGraphNodeInfoAttribute);
+            SearchWindowProvider.GraphNodeInfoAttributeType = typeof(HNRenderGraphNodeInfo);
         }
 
         public override void AdditionalToolButton(Toolbar toolbar)
@@ -34,7 +34,7 @@ namespace HN.HNRP.Editor
 
         private void OnInspectorToggle(ChangeEvent<bool> env)
         {
-            HNRenderGraphEditorData editorData = GraphEditorData as HNRenderGraphEditorData;
+            HNRenderGraphData editorData = GraphData as HNRenderGraphData;
             if(editorData == null)
                 return;
             

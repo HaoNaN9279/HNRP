@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HN.HNRP;
 using HN.HNRP.Editor;
+using HN.Serialize;
 using Unity.Properties;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
@@ -15,9 +17,26 @@ namespace HN.Graph.Editor
 {
     public class HNRenderGraphNodeInspectorView : HNGraphFloatingPanelView
     {
+        private static readonly string nodeInspectorPanelTree = "Elements/NodeInspector";
+        private static readonly string nodeInspectorPanelStyle = "Elements/NodeInspector";
+
+
+        private VisualElement nodeSettingsContainer;
+        private VisualElement graphSettingsContainer;
+
+
         public HNRenderGraphNodeInspectorView(HNGraphView graphView, IHNGraphFloatingPanel floatingPanelData) : base(graphView, floatingPanelData)
         {
+            var tpl = Resources.Load<VisualTreeAsset>(nodeInspectorPanelTree);
+            styleSheets.Add(Resources.Load<StyleSheet>(nodeInspectorPanelStyle));
+            var nodeInspector = tpl.CloneTree();
+            nodeInspector.AddToClassList("nodeInspector");
+            nodeSettingsContainer = nodeInspector.Q("NodeSettingsContainer");
+            graphSettingsContainer = nodeInspector.Q("GraphSettingsContainer");
+            root.Add(nodeInspector);
+
             graphView.OnSelectionChanged += RefreshInspector;
+            RefreshInspector(graphView.selection);
         }
 
         public override void Initialize()
@@ -25,59 +44,26 @@ namespace HN.Graph.Editor
             base.Initialize();
         }
 
-        public void RefreshInspector(List<ISelectable> selection)
+        public void RefreshInspector(List<ISelectable> selections)
         {
-            scrollView.Clear();
+            nodeSettingsContainer.Clear();
 
-            if(selection == null || selection.Count == 0)
-                return;
-            
-            var graphNodeView = selection[0] as HNGraphNodeView;
-            if(graphNodeView == null)
-                return;
-            string nodeGuid = graphNodeView.NodeData.Guid;
-            
-            SerializedObject renderGraphSerializedObject = new SerializedObject(graphView.GraphEditorData);
-            scrollView.Add(GetDefaultInspector(renderGraphSerializedObject, nodeGuid));
+            foreach(var selection in selections)
+            {
+                HNGraphNodeView nodeView = selection as HNGraphNodeView;
+                if(nodeView == null)
+                    continue;
+
+                JsonObject jsonObject = nodeView?.NodeData?.NodeData?.Obj;
+                if(jsonObject == null)
+                    continue;
+                
+                BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                var propertyFields = HNGraphUtils.DrawProperties(jsonObject, bindingFlags);
+                nodeSettingsContainer.Add(propertyFields);
+            }
 
             MarkDirtyRepaint();
-        }
-
-        public VisualElement GetDefaultInspector(SerializedObject serializedObject, string nodeGuid)
-        {
-            // var nodeDataDictProperty = serializedObject.FindProperty("nodeDataDict");
-            // var nodeDataGuidListProperty = nodeDataDictProperty.FindPropertyRelative("keys");
-            // int index = -1;
-            // for(int i = 0; i < nodeDataGuidListProperty.arraySize; i++)
-            // {
-            //     var nodeGuidProperty = nodeDataGuidListProperty.GetArrayElementAtIndex(i);
-            //     Debug.Log(nodeGuidProperty.stringValue);
-            //     if(nodeGuidProperty.stringValue == nodeGuid)
-            //     {
-            //         index = i;
-            //         break;
-            //     }
-            // }
-            // var nodeDataListProperty = nodeDataDictProperty.FindPropertyRelative("values");
-            // var nodeDataProperty = nodeDataListProperty.GetArrayElementAtIndex(index);
-
-            IMGUIContainer container = new IMGUIContainer(() =>
-            {
-                // if(index == -1)
-                //     return;
-                
-                // serializedObject.Update();
-
-                // var iterator = serializedObject.GetIterator();
-                // iterator.NextVisible(false);
-                // do
-                // {
-                //     EditorGUILayout.PropertyField(iterator);
-                // }while(iterator.NextVisible(false));
-                // serializedObject.ApplyModifiedProperties();
-            });
-
-            return container;
         }
 
         public override void Dispose()

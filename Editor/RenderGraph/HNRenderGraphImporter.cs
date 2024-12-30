@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +13,7 @@ using Unity.VisualScripting;
 namespace HN.HNRP.Editor
 {
     [ScriptedImporter(1, HNRenderGraph.HNRenderGraphExtension)]
-    public class HNRenderGraphImporter : HNGraphImporter<HNRenderGraph>
+    public class HNRenderGraphImporter : HNGraphImporter<HNRenderGraphData, HNRenderGraph>
     {
         public override void OnImportAsset(AssetImportContext ctx)
         {
@@ -40,8 +41,9 @@ namespace HN.HNRP.Editor
         private void OnOpenButtonClick()
         {
             HNRenderGraphImporter importer = target as HNRenderGraphImporter;
-            HNRenderGraph graphData = LoadGraphData<HNRenderGraph>();
-            OpenGraph<HNRenderGraphEditorWindow, HNRenderGraphEditorData>(importer.assetPath, HNRenderGraph.HNRenderGraphExtension, graphData);
+            HNRenderGraphData graphData = LoadGraphData<HNRenderGraphData, HNRenderGraph>();
+            graphData.GenerateGraphObject<HNRenderGraph>();
+            OpenGraph<HNRenderGraphEditorWindow, HNRenderGraphData>(importer.assetPath, HNRenderGraph.HNRenderGraphExtension, graphData);
         }
 
 
@@ -49,8 +51,10 @@ namespace HN.HNRP.Editor
         public static bool OnOpenAsset(int instanceID, int line)
         {
             string path = AssetDatabase.GetAssetPath(instanceID);
-            HNRenderGraph graphData = AssetDatabase.LoadAssetAtPath<HNRenderGraph>(path);
-            return OpenGraph<HNRenderGraphEditorWindow, HNRenderGraphEditorData>(path, HNRenderGraph.HNRenderGraphExtension, graphData);
+            HNRenderGraphData graphData = Activator.CreateInstance<HNRenderGraphData>();
+            graphData.Initialize(path);
+            graphData.GenerateGraphObject<HNRenderGraph>();
+            return OpenGraph<HNRenderGraphEditorWindow, HNRenderGraphData>(path, HNRenderGraph.HNRenderGraphExtension, graphData);
         }
 
     }

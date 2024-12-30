@@ -2,32 +2,43 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using HN.Graph;
+using PlasticPipe.PlasticProtocol.Messages;
 using UnityEngine;
 
 namespace HN.HNRP
 {
     [Serializable]
-    [HNRenderGraphNodeInfo("Draw Opaque Pass", HNRenderGraphNodeInfoAttribute.NodeType.Renderer, "Pass/Draw Opaque Pass")]
+    [HNRenderGraphNodeInfo("Draw Opaque Pass", HNRenderGraphNodeInfo.NodeType.Renderer, "Pass/Draw Opaque Pass")]
     public class DrawOpaquePass : RendererNode
     {
-        [SerializeField]
-        public Color defaultDrawColor = Color.cyan;
+        [SerializeField][ColorInspector("Default Draw Color", false, false)]
+        public Color DefaultDrawColor
+        {
+            get { return defaultDrawColor; }
+            set { defaultDrawColor = value; }
+        }
 
 
-        [HNRenderGraphPortInfo("Test Input RT 0", HNRenderGraphPortInfoAttribute.Direction.Input, HNRenderGraphPortInfoAttribute.Capacity.Single)]
+        [HNRenderGraphPortInfo("Test Input RT 0", HNRenderGraphPortInfo.Direction.Input, HNRenderGraphPortInfo.Capacity.Single)]
         public RenderTexture TestInputRT0 => testInputRT0;
 
-        [HNRenderGraphPortInfo("Test Input RT 1", HNRenderGraphPortInfoAttribute.Direction.Input, HNRenderGraphPortInfoAttribute.Capacity.Single)]
+        [HNRenderGraphPortInfo("Test Input RT 1", HNRenderGraphPortInfo.Direction.Input, HNRenderGraphPortInfo.Capacity.Single)]
         public RenderTexture TestInputRT1 => testInputRT1;
 
-        [HNRenderGraphPortInfo("Test Output RT 0", HNRenderGraphPortInfoAttribute.Direction.Output, HNRenderGraphPortInfoAttribute.Capacity.Multi)]
+        [HNRenderGraphPortInfo("Test Output RT 0", HNRenderGraphPortInfo.Direction.Output, HNRenderGraphPortInfo.Capacity.Multi)]
         public RenderTexture TestOutputRT0 => testOutputRT0;
 
 
+        [SerializeField]
+        private Color defaultDrawColor = Color.cyan;
+
+        [SerializeReference]
         private RenderTexture testInputRT0;
 
+        [SerializeReference]
         private RenderTexture testInputRT1;
 
+        [SerializeReference]
         private RenderTexture testOutputRT0;
 
 
@@ -37,6 +48,7 @@ namespace HN.HNRP
 
 
         }
+
     }
 
 }

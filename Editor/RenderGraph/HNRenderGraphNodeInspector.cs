@@ -21,10 +21,10 @@ namespace HN.HNRP.Editor
         private Rect layout;
 
         [SerializeReference]
-        private HNGraphEditorData editorData;
+        private HNGraphData editorData;
 
 
-        public HNRenderGraphNodeInspector(HNGraphEditorData editorData)
+        public HNRenderGraphNodeInspector(HNGraphData editorData)
         {
             this.editorData = editorData;
         }

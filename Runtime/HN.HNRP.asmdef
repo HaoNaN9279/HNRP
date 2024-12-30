@@ -1,0 +1,19 @@
+{
+    "name": "HN.HNRP",
+    "rootNamespace": "HN.HNRP",
+    "references": [
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95",
+        "GUID:8c873186f0dca3a408f64666ffddc60b",
+        "GUID:2eb56985ab4ce2943bb628be9941ad89",
+        "GUID:1a5bce3b468aa464482ce8c8c66bb914"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

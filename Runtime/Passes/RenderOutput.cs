@@ -5,10 +5,10 @@ using UnityEngine;
 
 namespace HN.HNRP
 {
-    [HNRenderGraphNodeInfo("Render Output", HNRenderGraphNodeInfoAttribute.NodeType.Output, "Output/Render Output")]
+    [HNRenderGraphNodeInfo("Render Output", HNRenderGraphNodeInfo.NodeType.Output, "Output/Render Output")]
     public class RenderOutput : OutputNode
     {
-        [HNRenderGraphPortInfo("Test Input RT 0", HNRenderGraphPortInfoAttribute.Direction.Input, HNRenderGraphPortInfoAttribute.Capacity.Single)]
+        [HNRenderGraphPortInfo("Test Input RT 0", HNRenderGraphPortInfo.Direction.Input, HNRenderGraphPortInfo.Capacity.Single)]
         public RenderTexture TestInputRT0 => testInputRT0;
 
 
