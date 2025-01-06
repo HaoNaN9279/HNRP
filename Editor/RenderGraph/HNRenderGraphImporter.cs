@@ -51,6 +51,8 @@ namespace HN.HNRP.Editor
         public static bool OnOpenAsset(int instanceID, int line)
         {
             string path = AssetDatabase.GetAssetPath(instanceID);
+            if(Path.GetExtension(path) != HNRenderGraph.HNRenderGraphExtension)
+                return false;
             HNRenderGraphData graphData = Activator.CreateInstance<HNRenderGraphData>();
             graphData.Initialize(path);
             graphData.GenerateGraphObject<HNRenderGraph>();
