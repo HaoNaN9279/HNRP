@@ -27,6 +27,8 @@ namespace HN.Graph.Editor
 
         public HNRenderGraphNodeInspectorView(HNGraphView graphView, IHNGraphFloatingPanel floatingPanelData) : base(graphView, floatingPanelData)
         {
+            HNRenderGraphNodeInspector inspectorData = floatingPanelData as HNRenderGraphNodeInspector;
+
             var tpl = Resources.Load<VisualTreeAsset>(nodeInspectorPanelTree);
             styleSheets.Add(Resources.Load<StyleSheet>(nodeInspectorPanelStyle));
             var nodeInspector = tpl.CloneTree();
@@ -50,6 +52,9 @@ namespace HN.Graph.Editor
 
             foreach(var selection in selections)
             {
+                VisualElement panel = new VisualElement();
+                panel.name = "panel";
+
                 HNGraphNodeView nodeView = selection as HNGraphNodeView;
                 if(nodeView == null)
                     continue;
@@ -58,11 +63,21 @@ namespace HN.Graph.Editor
                 if(jsonObject == null)
                     continue;
                 
+                Label label = new Label(jsonObject.GetType().Name);
+                label.name = "label";
+                panel.Add(label);
+
+                VisualElement divideLine = new VisualElement();
+                divideLine.name = "divideLine";
+                panel.Add(divideLine);
+                
                 BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
                 var propertyFields = HNGraphUtils.DrawProperties(jsonObject, bindingFlags);
-                nodeSettingsContainer.Add(propertyFields);
-            }
+                panel.Add(propertyFields);
 
+                nodeSettingsContainer.Add(panel);
+            }
+            
             MarkDirtyRepaint();
         }
 

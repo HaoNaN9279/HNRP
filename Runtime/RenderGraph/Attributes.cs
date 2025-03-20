@@ -5,12 +5,13 @@ using UnityEngine;
 
 namespace HN.HNRP
 {
-    public class HNRenderGraphNodeInfo : HNGraphNodeInfo
+    public class NodeInfo : HNGraphNodeInfo
     {
         public NodeType Type => type;
-        private NodeType type;
 
-        public HNRenderGraphNodeInfo(string nodeTitle, NodeType nodeType, string menuItem = "") : base(nodeTitle, menuItem)
+        protected NodeType type;
+
+        public NodeInfo(string nodeTitle, string identity, NodeType nodeType, string menuItem = "") : base(nodeTitle, menuItem)
         {
             this.type = nodeType;
         }
@@ -26,9 +27,9 @@ namespace HN.HNRP
     }
 
 
-    public class HNRenderGraphPortInfo : HNGraphPortInfo
+    public class PortInfo : HNGraphPortInfo
     {
-        public HNRenderGraphPortInfo(string slotName, Direction direction, Capacity capacity)
+        public PortInfo(string slotName, string identity, Direction direction, Capacity capacity)
              : base(slotName, Orientation.Horizontal, direction, capacity)
         {
 
@@ -36,7 +37,7 @@ namespace HN.HNRP
     }
 
 
-    public abstract class HNRenderGraphInspectableInfo : HNGraphInspectableInfo
+    public abstract class InspectableInfo : HNGraphInspectableInfo
     {
 
     }

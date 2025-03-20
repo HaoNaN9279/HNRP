@@ -10,6 +10,6 @@ unity-tabbed-view {
 
 .unity-tabbed-view__content-container {
     flex-grow: 1;
-    padding-left: 4;
-    padding-top: 4;
+    padding-left: 4px;
+    padding-top: 4px;
 }

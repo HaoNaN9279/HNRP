@@ -20,7 +20,7 @@ namespace HN.HNRP.Editor
         public override void CreateSearchWindowProvider()
         {
             SearchWindowProvider = ScriptableObject.CreateInstance<HNGraphSearchWindowProvider>();
-            SearchWindowProvider.GraphNodeInfoAttributeType = typeof(HNRenderGraphNodeInfo);
+            SearchWindowProvider.GraphNodeInfoAttributeType = typeof(NodeInfo);
         }
 
         public override void AdditionalToolButton(Toolbar toolbar)
@@ -29,6 +29,21 @@ namespace HN.HNRP.Editor
             inspectorToggle.text = "Inspector";
             inspectorToggle.RegisterCallback<ChangeEvent<bool>>(OnInspectorToggle);
             toolbar.Add(inspectorToggle);
+        }
+
+
+        protected override bool LoadGraphData(string path)
+        {
+            if(string.IsNullOrEmpty(path))
+                return false;
+
+            graphData = Activator.CreateInstance<HNRenderGraphData>();
+            graphData.Initialize(path);
+            if(graphData == null)
+                return false;
+
+            graphData.Deserialize();
+            return true;
         }
 
 

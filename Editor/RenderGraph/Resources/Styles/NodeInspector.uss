@@ -1,0 +1,21 @@
+#panel
+{
+    background-color: rgb(59, 59, 59);
+    margin-top: 4px;
+    margin-bottom: 4px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+#panel > #divideLine
+{
+    background-color: rgb(54, 54, 54);
+    padding-top: 2px;
+}
+#panel > #label
+{
+    font-size: 14px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}

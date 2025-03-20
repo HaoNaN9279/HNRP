@@ -46,7 +46,7 @@ namespace HN.HNRP
             renderGraphViews.Add(viewName, null);
         }
 
-        public HNRenderGraph GetRenderGraph(int index)
+        public HNRenderGraph GetRenderGraphObject(int index)
         {
             if(index >= renderGraphViews.Count)
                 return null;
@@ -54,7 +54,7 @@ namespace HN.HNRP
             return renderGraphViews.Values.ToList()[index];
         }
 
-        public HNRenderGraph GetRenderGraph(string viewName)
+        public HNRenderGraph GetRenderGraphObject(string viewName)
         {
             if(!ContainsView(viewName))
                 return null;

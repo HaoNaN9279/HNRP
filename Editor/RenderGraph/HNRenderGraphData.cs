@@ -6,7 +6,6 @@ using HN.Graph;
 using HN.Graph.Editor;
 using UnityEngine;
 using UnityEditor;
-using System.Linq;
 
 namespace HN.HNRP.Editor
 {
@@ -15,14 +14,16 @@ namespace HN.HNRP.Editor
     {
         
 
-        public HNRenderGraph Graph => GraphObject as HNRenderGraph;
-        // public IReadOnlyDictionary<string, HNRenderGraphNode> NodeDataDict => nodeDataDict;
+        public HNRenderGraph Graph
+        {
+            get{ return GraphObject as HNRenderGraph; }
+            set{ GraphObject = value; }
+        }
+        
         public HNRenderGraphNodeInspector NodeInspector => nodeInspector;
 
 
 
-        // [SerializeField]
-        // private SerializableRenderGraphNode nodeDataDict;
 
         [SerializeField]
         private HNRenderGraphNodeInspector nodeInspector;
@@ -35,110 +36,115 @@ namespace HN.HNRP.Editor
             GraphNodeDataNamespace = "HN.HNRP";
         }
 
-        public override void UpdateGraphObject(ref HNGraphObject graphObject)
-        {
-            if(graphObject == null)
-                return;
-
-            
-        }
-
-        // public void AddNodeData(Type nodeDataType, string nodeGuid)
-        // {
-        //     var nodeDataRaw = Activator.CreateInstance(nodeDataType);
-        //     var nodeData = (HNRenderGraphNode)nodeDataRaw;
-        //     if(nodeData == null)
-        //     {
-        //         Debug.LogError($"Node data {nodeDataType} did not create sucessfully.");
-        //         return;
-        //     }
-
-        //     if(nodeDataDict.ContainsKey(nodeGuid))
-        //         return;
-
-        //     nodeDataDict.Add(nodeGuid, nodeData);
-        // }
-
-        // public HNRenderGraphNode GetNodeData(string nodeGuid)
-        // {
-        //     if(!nodeDataDict.ContainsKey(nodeGuid))
-        //         return null;
-            
-        //     return nodeDataDict[nodeGuid];
-        // }
-
-        // public void RemoveNodeData(string nodeGuid)
-        // {
-        //     if(!nodeDataDict.ContainsKey(nodeGuid))
-        //         return;
-
-        //     nodeDataDict.Remove(nodeGuid);
-        // }
-
         public override void Initialize(string assetPath)
         {
             base.Initialize(assetPath);
+
             Deserialize();
+            GetGraphObject<HNRenderGraph>(assetPath);
         }
 
         public override void SaveAsset()
         {
             Compile();
             base.SaveAsset();
-
-            Debug.Log("Render Stack Count:" + Graph.RenderStack.Count);
-            for(int i = 0; i < Graph.RenderStack.Count; i++)
-            {
-                Debug.Log(Graph.RenderStack[i]);
-            }
         }
 
         public void Compile()
         {            
-            // if(Graph == null)
-            //     return;
+            if(Graph == null)
+                return;
 
-            // CleanRenderNode();
-
-            // List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutput>();
-            // if(outputNodes.Count == 0)
-            //     return;
+            Graph.ClearRenderStack();
             
-            // List<HNGraphNode> nodes = PackNodesFromOutput(outputNodes[0]);
-            // for(int i = nodes.Count - 1; i >= 0; i--)
-            // {
-            //     PushRenderNode(nodes[i]);
-            // }
+            List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutputParams>();
+            if(outputNodes.Count == 0)
+                return;
+            
+            List<HNGraphNode> nodes = PackNodesFromOutput(outputNodes[0]);
+            // nodes.RemoveAt(0);
+
+            int count = 0;
+            for(int i = nodes.Count - 1; i >= 0; i--)
+            {
+                count++;
+                PushRenderNodeParams(count, nodes[i], nodes);
+            }
+
+            EditorUtility.SetDirty(Graph);
+            AssetDatabase.SaveAssetIfDirty(Graph);
         }
 
-        // public override void AddNode(HNGraphNode node)
-        // {
-        //     base.AddNode(node);
-        //     AddNodeData(node.NodeDataType, node.Guid);
-        // }
 
-        // public override void RemoveNode(HNGraphNode node)
-        // {
-        //     base.RemoveNode(node);
-        //     RemoveNodeData(node.Guid);
-        // }
+        private void PushRenderNodeParams(int count, HNGraphNode node, List<HNGraphNode> nodes)
+        {
+            if(node == null)
+                return;
 
-
-        // private void PushRenderNode(HNGraphNode node)
-        // {
-        //     var rendererNode = GetNodeData(node.Guid);
-        //     if(rendererNode == null)
-        //         return;
+            var nodeParamsData = node.NodeData;
+            if(nodeParamsData == null)
+                return;
             
-        //     Graph.AddToRenderStack(rendererNode);
-        // }
+            var nodeParams = nodeParamsData.Obj;
+            if(nodeParams == null)
+                return;
 
-        private void CleanRenderNode() => Graph.ClearRenderStack();
+            Type nodeParamsType = nodeParams.GetType();
+
+            foreach(var inputPortGuid in node.InputPortGuids)
+            {
+                var inputPort = GetNodePort(inputPortGuid);
+                if(inputPort == null)
+                    continue;
+
+                int nodeIndex = nodes.IndexOf(node);
+                string nodeName = node.NodeDataTypeName;
+                string propertyName = inputPort.PropertyName;
+                string portFullName = nodeIndex.ToString() + "_" + nodeName + "." + propertyName;
+
+                string refPortFullName = "";
+                if(inputPort.EdgeGuids.Count > 0)
+                {
+                    var edge = GetEdge(inputPort.EdgeGuids[0]);
+                    var refBaseNode = GetBaseNode(edge.GetOutputPort(this).OwnerNodeGuid);
+                    var refBasePort = edge.GetOutputPort(this);
+                    string refNodeName = "";
+                    string refPortName = "";
+                    if(refBaseNode is HNGraphNode)
+                    {
+                        refNodeName = (refBaseNode as HNGraphNode).NodeDataTypeName;
+                        refPortName = (refBasePort as HNGraphNodePort).PropertyName;
+                        int refNodeIndex = nodes.IndexOf(refBaseNode as HNGraphNode);
+                        refPortFullName = refNodeIndex.ToString() + "_" + refNodeName + "." + refPortName;
+                    }
+                    else if(refBaseNode is HNGraphRelayNode)
+                    {
+                        var refRelayNode = refBaseNode as HNGraphRelayNode;
+                        var refRelayNodeInputPort = GetRelayNodePort(refRelayNode.InputPortGuid);
+                        var refNodePort = GetNodePort(refRelayNodeInputPort.RefPortGuid);
+                        var refNode = GetNode(refNodePort.OwnerNodeGuid);
+                        refNodeName = refNode.NodeDataTypeName;
+                        refPortName = refNodePort.PropertyName;
+                        int refNodeIndex = nodes.IndexOf(refNode);
+                        refPortFullName = refNodeIndex.ToString() + "_" + refNodeName + "." + refPortName;
+                    }
+                }
+                
+                // Debug.Log(portFullName + "  " + refPortFullName);
+                TexturePort texturePort = new TexturePort()
+                {
+                    Name = portFullName,
+                    RefTextureName = refPortFullName
+                };
+
+                nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, texturePort);
+            }
+            
+            nodeParamsData.Serialize();
+            Graph.AddToRenderStack(nodeParamsData);
+        }
+
 
     }
 
-
-
-    [Serializable]
-    public class SerializableRenderGraphNode : SerializableDictionary<string, HNRenderGraphNode> {}
 }

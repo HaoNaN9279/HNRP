@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 
 namespace HN.HNRP
 {
-    public class ColorInspector : HNRenderGraphInspectableInfo
+    public class ColorInspector : InspectableInfo
     {
         string label;
         bool isHdr;

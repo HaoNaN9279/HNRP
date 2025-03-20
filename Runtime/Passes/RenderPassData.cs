@@ -1,14 +1,11 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace HN.HNRP
 {
-    [Serializable]
-    public abstract class OutputNode : HNRenderGraphNode
+    public abstract class RenderPassData
     {
         
     }
 }
-

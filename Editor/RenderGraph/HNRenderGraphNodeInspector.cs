@@ -13,6 +13,11 @@ namespace HN.HNRP.Editor
         private static Vector2 defaultPosition = new Vector2(0f, 0f);
         private static Vector2 defaultSize = new Vector2(300f, 400f);
 
+        // public HNGraphData EditorData
+        // {
+        //     set { editorData = value; }
+        // }
+
 
         [SerializeField]
         private bool saved;
@@ -20,13 +25,11 @@ namespace HN.HNRP.Editor
         [SerializeField]
         private Rect layout;
 
-        [SerializeReference]
-        private HNGraphData editorData;
+        // private HNGraphData editorData;
 
 
-        public HNRenderGraphNodeInspector(HNGraphData editorData)
+        public HNRenderGraphNodeInspector()
         {
-            this.editorData = editorData;
         }
 
         public void Initialize()

@@ -5,52 +5,62 @@ using System.IO;
 using System.Linq;
 using HN.Graph;
 using HN.Serialize;
-using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 
 namespace HN.HNRP
 {
+    [Serializable]
     public class HNRenderGraph : HNGraphObject
     {
         public const string HNRenderGraphExtension = "hnrg";
 
-        public IReadOnlyList<HNRenderGraphNode> RenderStack => renderStack;
+        public List<NodeParams> RenderStack
+        {
+            get
+            {
+                List<NodeParams>  renderStack = new List<NodeParams>();
+                foreach (var renderStackJsonData in renderStackJson)
+                {
+                    renderStack.Add(renderStackJsonData.Obj as NodeParams);
+                }
+                return renderStack;
+            }
+        }
         
 
-
-
+        //存储序列化后的，有着正确的texturehandle引用的renderpass数据
         [SerializeField]
-        private List<HNRenderGraphNode> renderStack;
+        private List<JsonData> renderStackJson;
 
-
+        //render request从这里获取反序列化后的，并且有着正确的texturehandle引用的renderpass数据
 
         public void OnEnable()
         {
-            renderStack = new List<HNRenderGraphNode>();    
+            if(renderStackJson == null)
+            {
+                renderStackJson = new List<JsonData>();
+            }
         }
         
-        public void AddToRenderStack(HNRenderGraphNode renderGraphNode)
+        public void AddToRenderStack(JsonData renderGraphNode)
         {
             if(renderGraphNode == null)
                 return;
 
-            renderStack.Add(renderGraphNode);
+            renderStackJson.Add(renderGraphNode);
         }
 
         public void ClearRenderStack()
         {
-            renderStack.Clear();
+            if(renderStackJson == null)
+            {
+                renderStackJson = new List<JsonData>();
+            }
+            
+            renderStackJson.Clear();
         }
 
-
-#if UNITY_EDITOR
-        public override void Serialize()
-        {
-            Json.Serialize(this, AssetPath);
-            AssetDatabase.ImportAsset(AssetPath);
-        }
-#endif
 
     }
 }
