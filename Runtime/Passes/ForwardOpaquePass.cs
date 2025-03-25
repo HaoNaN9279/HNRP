@@ -9,55 +9,22 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public class ForwardOpaquePass : RenderPass
+    public class ForwardOpaquePass
     {
-        private ForwardOpaquePassParams param => nodeParams as ForwardOpaquePassParams;
-
-        private CommandBuffer cmd;
-        private Material material;
-
-
-        public ForwardOpaquePass()
-        {
-
-        }
-
-        public override void Initialize(NodeParams nodeParams)
-        {
-            base.Initialize(nodeParams);
-
-            // outputTexture.RefTexturePortName = param.InputColorTarget.Name;
-            // this.inputTexture = inputTexture;
-            // this.outputTexture = outputTexture;
-        }
-
-        public override void Setup(CommandBuffer cmd)
-        {
-            this.cmd = cmd;
-            material = new Material(Shader.Find("Unlit/TestShader"));
-        }
-
-        public override void Record(RenderGraph renderGraph, Dictionary<string, TextureHandle> textureHandleDict)
+        public static void Record(RenderGraph renderGraph, JsonData paramsData, TextureHandle inputTexture)
         {
             Debug.Log("Record Forward Opaque pass.");
+
+            ForwardOpaquePassParams param = paramsData.Obj as ForwardOpaquePassParams;
+            Color defaultDrawColor = param.DefaultDrawColor;
+            Material material = new Material(Shader.Find("Unlit/TestShader"));
+
             using(var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
-                passData.defaultDrawColor = param.DefaultDrawColor;
+                passData.defaultDrawColor = defaultDrawColor;
                 passData.material = material;
-
-                TextureHandle output = renderGraph.CreateTexture(
-                    new TextureDesc(Vector2.one, true, true)
-                    {
-                        colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                        clearBuffer = true,
-                        clearColor = Color.black,
-                        name = param.OutputColorTarget.Name
-                    }
-                );
-                
-                Debug.Log("forward opaque:" + param.OutputColorTarget.Name);
-                textureHandleDict[param.OutputColorTarget.Name] = output;
-                passData.outputTexture = builder.UseColorBuffer(output, 0);
+                passData.inputTexture = builder.ReadTexture(inputTexture);
+                passData.outputTexture = builder.UseColorBuffer(inputTexture, 0);
 
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
@@ -68,13 +35,8 @@ namespace HN.HNRP
                         CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
                     }
                 );
-            }
-        }
 
-        public override void Dispose()
-        {
-            nodeParams = null;
-            material = null;
+            }
         }
 
     }
@@ -90,7 +52,7 @@ namespace HN.HNRP
 
 
     [Serializable]
-    [NodeInfo("Forward Opaque Pass", "_ForwardOpaquePass", NodeInfo.NodeType.Renderer, "Pass/Forward Opaque Pass")]
+    [NodeInfo("Forward Opaque Pass", NodeInfo.NodeType.Renderer, "Pass/Forward Opaque Pass")]
     public class ForwardOpaquePassParams : NodeParams
     {
         [ColorInspector("Default Draw Color", false, false)]
@@ -101,7 +63,7 @@ namespace HN.HNRP
         }
 
 
-        [PortInfo("Color Target", "_InputColorTarget", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
+        [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
         public TexturePort InputColorTarget
         {
             get { return inputColorTarget; }
@@ -109,7 +71,7 @@ namespace HN.HNRP
         }
 
 
-        [PortInfo("Color Target", "_OutputColorTarget", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
+        [PortInfo("Color Target", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
         public TexturePort OutputColorTarget
         {
             get { return outputColorTarget; }
@@ -127,11 +89,21 @@ namespace HN.HNRP
         private TexturePort outputColorTarget;
 
 
-        protected override RenderPass GetRenderPass()
+        public override void SetupOutput(int nodeIndex)
         {
-            ForwardOpaquePass pass = new ForwardOpaquePass();
-            pass.Initialize(this);
-            return pass;
+            outputColorTarget = new TexturePort(inputColorTarget.RefTextureName);
+        }
+
+        public override void AppendScript(ref string main, int nodeIndex)
+        {
+            string script =
+$@"
+#region ForwardOpaquePass_{nodeIndex}
+            ForwardOpaquePass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget.RefTextureName});
+#endregion
+";
+
+            main += script;
         }
     }
 

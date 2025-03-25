@@ -9,61 +9,41 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public class RenderOutput : RenderPass
+    public class RenderOutput
     {
-        private RenderOutputParams param => nodeParams as RenderOutputParams;
-
-        private CommandBuffer cmd;
-
-
-        public RenderOutput()
+        public static void Record(RenderGraph renderGraph, TextureHandle inputTexture)
         {
+            Debug.Log("Render Output");
 
-        }
-
-        public override void Initialize(NodeParams nodeParams)
-        {
-            base.Initialize(nodeParams);
-        }
-
-        public override void Setup(CommandBuffer cmd)
-        {
-            this.cmd = cmd;
-        }
-
-        public override void Record(RenderGraph renderGraph, Dictionary<string, TextureHandle> textureHandleDict)
-        {
-            // Debug.Log("Render Output");
+            Material singleBlitMat = new Material(Shader.Find("Unlit/TestShader"));
+            
             using(var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
             {
+                passData.inputTexture = builder.ReadTexture(inputTexture);
+                passData.singleBlitMat = singleBlitMat;
                 builder.SetRenderFunc(
                     (RenderOutputData data, RenderGraphContext ctx) =>
                     {
-                        Debug.Log("output:" + param.InputColorTarget.RefTextureName);
-                        cmd.SetRenderTarget(textureHandleDict[param.InputColorTarget.RefTextureName]);
+                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat);
                     }
                 );
             }
-        }
-
-        public override void Dispose()
-        {
-            
         }
     }
 
 
     public class RenderOutputData : RenderPassData
     {
-
+        public TextureHandle inputTexture;
+        public Material singleBlitMat;
     }
 
 
     [Serializable]
-    [NodeInfo("Render Output", "_RenderOutput", NodeInfo.NodeType.Output, "Output/Render Output")]
+    [NodeInfo("Render Output", NodeInfo.NodeType.Output, "Output/Render Output")]
     public class RenderOutputParams : NodeParams
     {
-        [PortInfo("Color Target", "_InputColorTarget", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
+        [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
         public TexturePort InputColorTarget
         {
             get => inputColorTarget;
@@ -73,11 +53,21 @@ namespace HN.HNRP
         [SerializeField]
         private TexturePort inputColorTarget;
 
-        protected override RenderPass GetRenderPass()
+
+        public override void SetupOutput(int nodeIndex)
         {
-            RenderOutput pass = new RenderOutput();
-            pass.Initialize(this);
-            return pass;
+        }
+
+        public override void AppendScript(ref string main, int nodeIndex)
+        {
+            string script =
+$@"
+#region RenderOutput_{nodeIndex}
+            RenderOutput.Record(renderGraph, {inputColorTarget.RefTextureName});
+#endregion
+";
+
+            main += script;
         }
     }
 

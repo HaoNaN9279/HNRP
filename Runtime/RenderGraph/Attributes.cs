@@ -11,7 +11,7 @@ namespace HN.HNRP
 
         protected NodeType type;
 
-        public NodeInfo(string nodeTitle, string identity, NodeType nodeType, string menuItem = "") : base(nodeTitle, menuItem)
+        public NodeInfo(string nodeTitle, NodeType nodeType, string menuItem = "") : base(nodeTitle, menuItem)
         {
             this.type = nodeType;
         }
@@ -29,7 +29,7 @@ namespace HN.HNRP
 
     public class PortInfo : HNGraphPortInfo
     {
-        public PortInfo(string slotName, string identity, Direction direction, Capacity capacity)
+        public PortInfo(string slotName, Direction direction, Capacity capacity)
              : base(slotName, Orientation.Horizontal, direction, capacity)
         {
 

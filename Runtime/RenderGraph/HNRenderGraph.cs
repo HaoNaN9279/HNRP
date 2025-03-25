@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using HN.Graph;
 using HN.Serialize;
+using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
 
@@ -15,52 +16,69 @@ namespace HN.HNRP
     {
         public const string HNRenderGraphExtension = "hnrg";
 
-        public List<NodeParams> RenderStack
-        {
-            get
-            {
-                List<NodeParams>  renderStack = new List<NodeParams>();
-                foreach (var renderStackJsonData in renderStackJson)
-                {
-                    renderStack.Add(renderStackJsonData.Obj as NodeParams);
-                }
-                return renderStack;
-            }
-        }
-        
+        public List<JsonData> PassParamsData => passParamsData;
+        public string GeneratedScript;
+        public string ScriptName => scriptName;
+        public string MethodName = "Render";
 
-        //存储序列化后的，有着正确的texturehandle引用的renderpass数据
-        [SerializeField]
-        private List<JsonData> renderStackJson;
 
-        //render request从这里获取反序列化后的，并且有着正确的texturehandle引用的renderpass数据
+        private List<JsonData> passParamsData = new List<JsonData>();
+        private string generatedScriptTail = 
+$@"
+        }}
+    }}
+}}";
+        private string scriptName;
+        private string scriptPath = "Assets/HNRP/Runtime/Generated/";
+
 
         public void OnEnable()
         {
-            if(renderStackJson == null)
-            {
-                renderStackJson = new List<JsonData>();
-            }
-        }
-        
-        public void AddToRenderStack(JsonData renderGraphNode)
-        {
-            if(renderGraphNode == null)
-                return;
-
-            renderStackJson.Add(renderGraphNode);
+            Initialize();
         }
 
-        public void ClearRenderStack()
+        public bool Initialize()
         {
-            if(renderStackJson == null)
-            {
-                renderStackJson = new List<JsonData>();
-            }
+            if(string.IsNullOrEmpty(name))
+                return false;
             
-            renderStackJson.Clear();
+            scriptName = "_" + name.Replace(" ", "_");
+            GeneratedScript = 
+$@"using System.Collections;
+using System.Collections.Generic;
+using HN.Serialize;
+using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering;
+
+namespace HN.HNRP.Generated
+{{
+    public static class {scriptName}
+    {{
+        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData)
+        {{
+            Debug.Log(""Generated Render."");";
+
+            return true;
         }
 
+        public void AppendPassParams(JsonData passParamsJsonData)
+        {
+            passParamsJsonData.Serialize();
+            passParamsData.Add(passParamsJsonData);
+        }
+
+        public void GenerateScript()
+        {
+            if(!Directory.Exists(scriptPath))
+            {
+                Directory.CreateDirectory(scriptPath);
+            }
+            string fullPath = Path.Combine(scriptPath, scriptName + ".cs");
+            GeneratedScript += generatedScriptTail;
+            File.WriteAllText(fullPath, GeneratedScript);
+            // AssetDatabase.Refresh();
+        }
 
     }
 }

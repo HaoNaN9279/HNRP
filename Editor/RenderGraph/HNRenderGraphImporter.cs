@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.AssetImporters;
 using UnityEditor.Callbacks;
+using System.Runtime.CompilerServices;
 
 namespace HN.HNRP.Editor
 {
@@ -32,9 +33,14 @@ namespace HN.HNRP.Editor
 
         public override void OnInspectorGUI()
         {
-            if (GUILayout.Button(new GUIContent("Open Graph")))
+            if(GUILayout.Button(new GUIContent("Open Graph")))
             {
                 OnOpenButtonClick();
+            }
+
+            if(GUILayout.Button(new GUIContent("Compile")))
+            {
+                OnCompile();
             }
 
             base.OnInspectorGUI();
@@ -45,6 +51,12 @@ namespace HN.HNRP.Editor
             HNRenderGraphImporter importer = target as HNRenderGraphImporter;
             HNRenderGraphData graphData = LoadGraphData<HNRenderGraphData, HNRenderGraph>();
             OpenGraph<HNRenderGraphEditorWindow, HNRenderGraphData>(importer.assetPath, HNRenderGraph.HNRenderGraphExtension, graphData);
+        }
+
+        private void OnCompile()
+        {
+            HNRenderGraphData graphData = LoadGraphData<HNRenderGraphData, HNRenderGraph>();
+            graphData.Compile();
         }
 
 

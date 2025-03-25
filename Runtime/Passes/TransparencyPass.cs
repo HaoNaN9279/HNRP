@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Codice.CM.SEIDInfo;
 using HN.Graph;
+using HN.Serialize;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -10,49 +11,43 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public class TransparencyPass : RenderPass
+    public class TransparencyPass
     {
-        private TransparencyPassParams param => nodeParams as TransparencyPassParams;
-
-        private CommandBuffer cmd;
-        private Material material;
-
-
-        public TransparencyPass()
-        {
-
-        }
-
-        public override void Initialize(NodeParams nodeParams)
-        {
-            base.Initialize(nodeParams);
-        }
-
-        public override void Setup(CommandBuffer cmd)
-        {
-            this.cmd = cmd;
-            material = new Material(Shader.Find("Unlit/TestShader"));
-        }
-
-        public override void Record(RenderGraph renderGraph, Dictionary<string, TextureHandle> textureHandleDict)
+        public static void Record(RenderGraph renderGraph, JsonData paramsData, TextureHandle inputTexture)
         {
             Debug.Log("Record Transparency pass.");
+
+            TransparencyPassParams param = paramsData.Obj as TransparencyPassParams;
+            Color defaultDrawColor = param.DefaultDrawColor;
+            Material material = new Material(Shader.Find("Unlit/TestShader"));
+
             using(var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
             {
+                passData.defaultDrawColor = defaultDrawColor;
+                passData.material = material;
+                passData.inputTexture = builder.ReadTexture(inputTexture);
+                TextureHandle output = renderGraph.CreateTexture(
+                    new TextureDesc(Vector2.one, true, true)
+                    {
+                        colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
+                        clearBuffer = true,
+                        clearColor = Color.black,
+                        name = "TransparencyOutput"
+                    }
+                );
+                
                 builder.SetRenderFunc(
                     (TransparencyPassData data, RenderGraphContext ctx) =>
                     {
+                        var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
+                        materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
 
+                        CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
                     }
                 );
             }
         }
 
-        public override void Dispose()
-        {
-            nodeParams = null;
-            material = null;
-        }
     }
 
 
@@ -66,7 +61,7 @@ namespace HN.HNRP
 
 
     [Serializable]
-    [NodeInfo("Transparency Pass", "_TransparencyPass", NodeInfo.NodeType.Renderer, "Pass/Transparency Pass")]
+    [NodeInfo("Transparency Pass", NodeInfo.NodeType.Renderer, "Pass/Transparency Pass")]
     public class TransparencyPassParams : NodeParams
     {
         [ColorInspector("Default Draw Color", false, false)]
@@ -77,14 +72,14 @@ namespace HN.HNRP
         }
 
 
-        [PortInfo("Color Target", "_InputColorTarget", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
+        [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
         public TexturePort InputColorTarget
         {
             get { return inputColorTarget; }
             set { inputColorTarget = value; }
         }
 
-        [PortInfo("Color Target", "_OutputColorTarget", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
+        [PortInfo("Color Target", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
         public TexturePort OutputColorTarget
         {
             get { return outputColorTarget; }
@@ -103,11 +98,21 @@ namespace HN.HNRP
         private TexturePort outputColorTarget;
 
 
-        protected override RenderPass GetRenderPass()
+        public override void SetupOutput(int nodeIndex)
         {
-            TransparencyPass pass = new TransparencyPass();
-            pass.Initialize(this);
-            return pass;
+            outputColorTarget = new TexturePort(inputColorTarget.RefTextureName);
+        }
+
+        public override void AppendScript(ref string main, int nodeIndex)
+        {
+            string script =
+$@"
+#region TransparencyPass_{nodeIndex}
+            TransparencyPass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget.RefTextureName});
+#endregion
+";
+
+            main += script;
         }
     }
 

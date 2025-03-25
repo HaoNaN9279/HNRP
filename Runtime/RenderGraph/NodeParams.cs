@@ -9,21 +9,7 @@ namespace HN.HNRP
     [Serializable]
     public abstract class NodeParams : JsonObject
     {
-        public RenderPass RenderPass
-        {
-            get
-            {
-                if(renderPass == null)
-                    renderPass = GetRenderPass();
-                return renderPass;
-            }
-        }
-
-        public string NodeName => nodeName;
-
-        protected RenderPass renderPass;
-        protected string nodeName = "";
-
-        protected abstract RenderPass GetRenderPass();
+        public abstract void SetupOutput(int nodeIndex);
+        public abstract void AppendScript(ref string main, int nodeIndex);
     }
 }

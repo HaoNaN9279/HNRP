@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using HN.Serialize;
@@ -13,10 +14,12 @@ namespace HN.HNRP
         internal Camera camera;
         internal HNRenderGraph graphObject;
 
-        private List<NodeParams> renderStack;
+        private List<JsonData> passParamsData;
         private RenderGraph renderGraph;
         private int frameCount;
-        private List<RenderPass> passes;
+
+        private System.Type classType;
+        private System.Reflection.MethodInfo method;
 
 
         public RenderRequest(ScriptableRenderContext context, Camera camera, HNRenderGraph graphObject, RenderGraph renderGraph, int frameCount)
@@ -24,55 +27,38 @@ namespace HN.HNRP
             this.context = context;
             this.camera = camera;
             this.graphObject = graphObject;
-            renderStack = graphObject.RenderStack;
+            this.passParamsData = graphObject.PassParamsData;
             this.renderGraph = renderGraph;
             this.frameCount = frameCount;
-            passes = new List<RenderPass>();
-        }
-
-        public void SetupPasses(CommandBuffer cmd)
-        {
-            if(context == null || camera == null || graphObject == null)
-                return;
-
-            CleanPasses();
-            foreach(var param in renderStack)
-            {
-                if(param == null)
-                    continue;
-                
-                var pass = param.RenderPass;
-                if(pass == null)
-                    continue;
-                
-                passes.Add(pass);
-                pass.Setup(cmd);
-            }
         }
 
         public void RecordPasses()
         {
-            Dictionary<string, TextureHandle> textureHandleDict = new Dictionary<string, TextureHandle>();
-
-            foreach(var pass in passes)
+            if(graphObject == null)
             {
-                pass.Record(renderGraph, textureHandleDict);
+                return;
             }
-            // Debug.Log("Record Transparency pass.");
-            // using(var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
-            // {
-            //     builder.SetRenderFunc(
-            //         (TransparencyPassData data, RenderGraphContext ctx) =>
-            //         {
 
-            //         }
-            //     );
-            // }
+            if(classType == null)
+            {
+                classType = Type.GetType("HN.HNRP.Generated." + graphObject.ScriptName);
+            }
+            if(classType == null)
+            {
+                Debug.LogWarning($"class {graphObject.ScriptName} not found.");
+                return;
+            }
+
+            if(method == null)
+            {
+                method = classType.GetMethod(
+                    graphObject.MethodName, 
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static
+                    );
+
+                method.Invoke(null, new object[]{renderGraph, passParamsData});
+            }
         }
 
-        private void CleanPasses()
-        {
-            passes.Clear();
-        }
     }
 }

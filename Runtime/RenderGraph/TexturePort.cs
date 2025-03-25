@@ -2,27 +2,26 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace HN.HNRP
 {
     [Serializable]
-    public struct TexturePort
+    public class TexturePort
     {
-        [SerializeField]
-        public string Name;
-
-        [SerializeField]
-        public string RefTextureName;
-
-        [SerializeField]
-        public int TextureIndex;
-
-
-        public TexturePort(string name)
+        public string RefTextureName
         {
-            this.Name = name;
-            RefTextureName = "";
-            TextureIndex = -1;
+            get => refTextureName;
+            set => refTextureName = value;
+        }
+
+        [SerializeField]
+        private string refTextureName;
+
+
+        public TexturePort(string refTextureName)
+        {
+            this.refTextureName = refTextureName;
         }
     }
 }

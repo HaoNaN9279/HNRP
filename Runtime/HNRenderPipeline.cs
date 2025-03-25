@@ -117,13 +117,7 @@ namespace HN.HNRP
         }
 
         private void ExecuteRenderRequests(ScriptableRenderContext context)
-        {
-            foreach(var request in renderRequests)
-            {
-                var cmd = CommandBufferPool.Get($"{request.camera.name}.cmd");
-                request.SetupPasses(cmd);
-            }
-            
+        {            
             using(renderGraph.RecordAndExecute(new RenderGraphParameters
             {
                 executionName = "test",

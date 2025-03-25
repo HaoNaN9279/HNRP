@@ -6,6 +6,9 @@ using HN.Graph;
 using HN.Graph.Editor;
 using UnityEngine;
 using UnityEditor;
+using System.Reflection;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using Codice.CM.Common.Tree;
 
 namespace HN.HNRP.Editor
 {
@@ -51,32 +54,35 @@ namespace HN.HNRP.Editor
         }
 
         public void Compile()
-        {            
+        {
             if(Graph == null)
                 return;
+            if(Graph.Initialize() == false)
+                return;
 
-            Graph.ClearRenderStack();
-            
+            Debug.Log("Compile");      
             List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutputParams>();
             if(outputNodes.Count == 0)
                 return;
             
             List<HNGraphNode> nodes = PackNodesFromOutput(outputNodes[0]);
-            // nodes.RemoveAt(0);
+            nodes.Reverse();
 
-            int count = 0;
-            for(int i = nodes.Count - 1; i >= 0; i--)
+            // 正向遍历节点
+            for(int i = 0; i < nodes.Count; i++)
             {
-                count++;
-                PushRenderNodeParams(count, nodes[i], nodes);
+                BuildRenderNodeConnection(i, nodes[i], nodes);
+                CombineGeneratedScript(nodes[i], i);
             }
 
+            Graph.GenerateScript();
             EditorUtility.SetDirty(Graph);
             AssetDatabase.SaveAssetIfDirty(Graph);
+            AssetDatabase.Refresh();
         }
 
 
-        private void PushRenderNodeParams(int count, HNGraphNode node, List<HNGraphNode> nodes)
+        private void BuildRenderNodeConnection(int nodeIndex, HNGraphNode node, List<HNGraphNode> nodes)
         {
             if(node == null)
                 return;
@@ -85,66 +91,53 @@ namespace HN.HNRP.Editor
             if(nodeParamsData == null)
                 return;
             
-            var nodeParams = nodeParamsData.Obj;
+            var nodeParams = nodeParamsData.Obj as NodeParams;
             if(nodeParams == null)
                 return;
 
             Type nodeParamsType = nodeParams.GetType();
-
             foreach(var inputPortGuid in node.InputPortGuids)
             {
-                var inputPort = GetNodePort(inputPortGuid);
+                var inputPort = GetPort(inputPortGuid);
                 if(inputPort == null)
                     continue;
 
-                int nodeIndex = nodes.IndexOf(node);
-                string nodeName = node.NodeDataTypeName;
                 string propertyName = inputPort.PropertyName;
-                string portFullName = nodeIndex.ToString() + "_" + nodeName + "." + propertyName;
-
-                string refPortFullName = "";
                 if(inputPort.EdgeGuids.Count > 0)
                 {
                     var edge = GetEdge(inputPort.EdgeGuids[0]);
-                    var refBaseNode = GetBaseNode(edge.GetOutputPort(this).OwnerNodeGuid);
-                    var refBasePort = edge.GetOutputPort(this);
-                    string refNodeName = "";
-                    string refPortName = "";
-                    if(refBaseNode is HNGraphNode)
-                    {
-                        refNodeName = (refBaseNode as HNGraphNode).NodeDataTypeName;
-                        refPortName = (refBasePort as HNGraphNodePort).PropertyName;
-                        int refNodeIndex = nodes.IndexOf(refBaseNode as HNGraphNode);
-                        refPortFullName = refNodeIndex.ToString() + "_" + refNodeName + "." + refPortName;
-                    }
-                    else if(refBaseNode is HNGraphRelayNode)
-                    {
-                        var refRelayNode = refBaseNode as HNGraphRelayNode;
-                        var refRelayNodeInputPort = GetRelayNodePort(refRelayNode.InputPortGuid);
-                        var refNodePort = GetNodePort(refRelayNodeInputPort.RefPortGuid);
-                        var refNode = GetNode(refNodePort.OwnerNodeGuid);
-                        refNodeName = refNode.NodeDataTypeName;
-                        refPortName = refNodePort.PropertyName;
-                        int refNodeIndex = nodes.IndexOf(refNode);
-                        refPortFullName = refNodeIndex.ToString() + "_" + refNodeName + "." + refPortName;
-                    }
+                    var refNode = GetNode(edge.GetOutputPort(this).OwnerNodeGuid);
+                    var refNodeParams = refNode?.NodeData?.Obj;
+                    var refPort = edge.GetOutputPort(this);
+                    string refPortName = refPort.PropertyName;
+                    if (refNodeParams == null)
+                        continue;
+                    Type refNodeParamsType = refNodeParams.GetType();
+                    PropertyInfo refPorpertyInfo = refNodeParamsType.GetProperty(refPortName);
+                    TexturePort refTexturePort = refPorpertyInfo.GetValue(refNodeParams) as TexturePort;
+                    TexturePort texturePort = new TexturePort(refTexturePort.RefTextureName);
+                    nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, texturePort);
                 }
-                
-                // Debug.Log(portFullName + "  " + refPortFullName);
-                TexturePort texturePort = new TexturePort()
-                {
-                    Name = portFullName,
-                    RefTextureName = refPortFullName
-                };
-
-                nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, texturePort);
             }
-            
-            nodeParamsData.Serialize();
-            Graph.AddToRenderStack(nodeParamsData);
+            nodeParams.SetupOutput(nodeIndex);
+            Graph.AppendPassParams(new Serialize.JsonData(nodeParams));
         }
 
+        private void CombineGeneratedScript(HNGraphNode node, int nodeIndex)
+        {
+            if(node == null)
+                return;
 
+            var nodeParamsData = node.NodeData;
+            if(nodeParamsData == null)
+                return;
+            
+            NodeParams nodeParams = nodeParamsData.Obj as NodeParams;
+            if(nodeParams == null)
+                return;
+
+            nodeParams.AppendScript(ref Graph.GeneratedScript, nodeIndex);
+        }
     }
 
 }
