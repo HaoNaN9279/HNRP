@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using HN.Graph;
 using HN.Serialize;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 
@@ -11,20 +12,26 @@ namespace HN.HNRP
 {
     public class RenderOutput
     {
-        public static void Record(RenderGraph renderGraph, TextureHandle inputTexture)
+        public static void Record(RenderGraph renderGraph, TextureHandle inputTexture, TextureHandle backBuffer)
         {
             Debug.Log("Render Output");
-
-            Material singleBlitMat = new Material(Shader.Find("Unlit/TestShader"));
             
             using(var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
             {
+                Debug.Log("Render Output 1");
+                builder.AllowPassCulling(false);
+                passData.singleBlitMat = new Material(Shader.Find("Unlit/SingleBlitShader"));
                 passData.inputTexture = builder.ReadTexture(inputTexture);
-                passData.singleBlitMat = singleBlitMat;
+                passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(
                     (RenderOutputData data, RenderGraphContext ctx) =>
                     {
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat);
+                        Debug.Log("Render Output 2");
+                        ctx.cmd.SetRenderTarget(backBuffer);
+
+                        var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
+                        materialPropertyBlock.SetTexture("_MainTex", data.inputTexture);
+                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat, materialPropertyBlock);
                     }
                 );
             }
@@ -35,6 +42,7 @@ namespace HN.HNRP
     public class RenderOutputData : RenderPassData
     {
         public TextureHandle inputTexture;
+        public TextureHandle renderTarget;
         public Material singleBlitMat;
     }
 
@@ -63,7 +71,7 @@ namespace HN.HNRP
             string script =
 $@"
 #region RenderOutput_{nodeIndex}
-            RenderOutput.Record(renderGraph, {inputColorTarget.RefTextureName});
+            RenderOutput.Record(renderGraph, {inputColorTarget.RefTextureName}, backBuffer);
 #endregion
 ";
 

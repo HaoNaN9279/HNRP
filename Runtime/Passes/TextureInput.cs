@@ -17,7 +17,7 @@ namespace HN.HNRP
             Debug.Log("Texture Input");
             TextureHandle output = renderGraph.CreateTexture(new TextureDesc(Vector2.one, true, true)
             {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm, clearBuffer = true, clearColor = Color.black, name = "ColorTarget"
+                colorFormat = GraphicsFormat.R8G8B8A8_UNorm, clearBuffer = true, clearColor = Color.red, name = "ColorTarget"
             });
             
             return output;

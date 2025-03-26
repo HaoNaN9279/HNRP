@@ -11,28 +11,53 @@ namespace HN.HNRP
     public class RenderRequest
     {
         internal ScriptableRenderContext context;
+        internal CommandBuffer cmd;
         internal Camera camera;
         internal HNRenderGraph graphObject;
 
         private List<JsonData> passParamsData;
         private RenderGraph renderGraph;
+        private RenderTargetIdentifier targetId;
         private int frameCount;
 
         private System.Type classType;
         private System.Reflection.MethodInfo method;
 
 
-        public RenderRequest(ScriptableRenderContext context, Camera camera, HNRenderGraph graphObject, RenderGraph renderGraph, int frameCount)
+        public RenderRequest(
+            ScriptableRenderContext context, 
+            CommandBuffer cmd,
+            Camera camera, 
+            HNRenderGraph graphObject, 
+            RenderGraph renderGraph, 
+            RenderTargetIdentifier targetId,
+            int frameCount
+            )
         {
             this.context = context;
+            this.cmd = cmd;
             this.camera = camera;
             this.graphObject = graphObject;
             this.passParamsData = graphObject.PassParamsData;
             this.renderGraph = renderGraph;
+            this.targetId = targetId;
             this.frameCount = frameCount;
         }
 
-        public void RecordPasses()
+        public void RecordAndExecute()
+        {
+            if(camera.cameraType == CameraType.SceneView)
+            {
+                ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+            }
+
+            context.SetupCameraProperties(camera);
+
+            RecordPasses();
+        }
+
+
+        private void RecordPasses()
         {
             if(graphObject == null)
             {
@@ -56,7 +81,18 @@ namespace HN.HNRP
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static
                     );
 
-                method.Invoke(null, new object[]{renderGraph, passParamsData});
+                using(renderGraph.RecordAndExecute(new RenderGraphParameters
+                {
+                    executionName = "test",
+                    currentFrameIndex = frameCount,
+                    rendererListCulling = true,
+                    scriptableRenderContext = context,
+                    commandBuffer = cmd
+                }))
+                {
+                    method.Invoke(null, new object[]{renderGraph, passParamsData, targetId});
+                }
+
             }
         }
 

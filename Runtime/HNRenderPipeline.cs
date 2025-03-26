@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 
@@ -59,9 +60,13 @@ namespace HN.HNRP
 
             PrepareRenderRequests(context, cameras);
 
-            ExecuteRenderRequests(context);
+            ExecuteRenderRequests();
+
+            context.Submit();
 
             EndFrame();
+
+            EndContextRendering(context, cameras);
         }
 
         protected override void Dispose(bool disposing)
@@ -112,27 +117,27 @@ namespace HN.HNRP
                 if(graphObject == null)
                     return;
 
-                renderRequests.Add(new RenderRequest(context, camera, graphObject, renderGraph, frameCount));
+                CommandBuffer cmd = CommandBufferPool.Get($"RenderRequest_{camera.name}_cmd");
+                RenderTargetIdentifier targetId = camera.targetTexture != null ? new RenderTargetIdentifier(camera.targetTexture) : BuiltinRenderTextureType.CameraTarget;
+
+                renderRequests.Add(new RenderRequest(context, cmd, camera, graphObject, renderGraph, targetId, frameCount));
             }
         }
 
-        private void ExecuteRenderRequests(ScriptableRenderContext context)
-        {            
-            using(renderGraph.RecordAndExecute(new RenderGraphParameters
+        private void ExecuteRenderRequests()
+        {
+            RTHandles.SetReferenceSize(Screen.width, Screen.height);
+
+            foreach(var request in renderRequests)
             {
-                executionName = "test",
-                currentFrameIndex = frameCount,
-                rendererListCulling = true,
-                scriptableRenderContext = context,
-                commandBuffer = CommandBufferPool.Get("test.cmd")
-            }))
-            {
-                foreach(var request in renderRequests)
-                {
-                    request.RecordPasses();
-                }
+                request.RecordAndExecute();
+
+                EndCameraRendering(request.context, request.camera);
+                request.context.ExecuteCommandBuffer(request.cmd);
+                CommandBufferPool.Release(request.cmd);
+                request.context.Submit();
             }
-            
+
         }
 
         private void EndFrame()
@@ -150,4 +155,5 @@ namespace HN.HNRP
 
         internal const int defaultRenderingLayerMask = 0x00000001;
     }
+
 }

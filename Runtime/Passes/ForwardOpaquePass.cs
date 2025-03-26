@@ -6,29 +6,32 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RendererUtils;
 
 namespace HN.HNRP
 {
     public class ForwardOpaquePass
     {
-        public static void Record(RenderGraph renderGraph, JsonData paramsData, TextureHandle inputTexture)
+        public static TextureHandle Record(RenderGraph renderGraph, JsonData paramsData)
         {
             Debug.Log("Record Forward Opaque pass.");
 
-            ForwardOpaquePassParams param = paramsData.Obj as ForwardOpaquePassParams;
-            Color defaultDrawColor = param.DefaultDrawColor;
-            Material material = new Material(Shader.Find("Unlit/TestShader"));
-
             using(var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
-                passData.defaultDrawColor = defaultDrawColor;
-                passData.material = material;
-                passData.inputTexture = builder.ReadTexture(inputTexture);
-                passData.outputTexture = builder.UseColorBuffer(inputTexture, 0);
+                ForwardOpaquePassParams param = paramsData.Obj as ForwardOpaquePassParams;
+                passData.defaultDrawColor = param.DefaultDrawColor;
+                passData.material = new Material(Shader.Find("Unlit/TestShader"));
+                TextureHandle colorTarget = renderGraph.CreateTexture(new TextureDesc(Vector2.one, true, true)
+                {
+                    colorFormat = GraphicsFormat.R8G8B8A8_UNorm, clearBuffer = true, clearColor = Color.white, name = "ColorTarget"
+                });
+                passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
 
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
+                        // CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
+                        
                         var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
 
@@ -36,6 +39,7 @@ namespace HN.HNRP
                     }
                 );
 
+                return colorTarget;
             }
         }
 
@@ -46,8 +50,8 @@ namespace HN.HNRP
     {
         public Material material;
         public Color defaultDrawColor;
-        public TextureHandle inputTexture;
-        public TextureHandle outputTexture;
+        public TextureHandle colorTarget;
+        public RendererListHandle rendererList;
     }
 
 
@@ -91,7 +95,7 @@ namespace HN.HNRP
 
         public override void SetupOutput(int nodeIndex)
         {
-            outputColorTarget = new TexturePort(inputColorTarget.RefTextureName);
+            outputColorTarget = new TexturePort($"_ForwardOpaquePassParams_{nodeIndex}_ColorTarget");
         }
 
         public override void AppendScript(ref string main, int nodeIndex)
@@ -99,7 +103,7 @@ namespace HN.HNRP
             string script =
 $@"
 #region ForwardOpaquePass_{nodeIndex}
-            ForwardOpaquePass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget.RefTextureName});
+            TextureHandle _ForwardOpaquePassParams_{nodeIndex}_ColorTarget = ForwardOpaquePass.Record(renderGraph, passParamsData[{nodeIndex}]);
 #endregion
 ";
 

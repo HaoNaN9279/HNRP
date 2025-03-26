@@ -25,16 +25,8 @@ namespace HN.HNRP
             {
                 passData.defaultDrawColor = defaultDrawColor;
                 passData.material = material;
-                passData.inputTexture = builder.ReadTexture(inputTexture);
-                TextureHandle output = renderGraph.CreateTexture(
-                    new TextureDesc(Vector2.one, true, true)
-                    {
-                        colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                        clearBuffer = true,
-                        clearColor = Color.black,
-                        name = "TransparencyOutput"
-                    }
-                );
+                passData.inputTexture = builder.WriteTexture(inputTexture);
+                passData.outputTexture = builder.UseColorBuffer(inputTexture, 0);
                 
                 builder.SetRenderFunc(
                     (TransparencyPassData data, RenderGraphContext ctx) =>
@@ -42,6 +34,7 @@ namespace HN.HNRP
                         var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
 
+                        CoreUtils.SetRenderTarget(ctx.cmd, data.outputTexture);
                         CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
                     }
                 );

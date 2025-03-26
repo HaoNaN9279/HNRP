@@ -9,19 +9,18 @@ namespace HN.HNRP.Generated
 {
     public static class _New_HN_Render_Graph
     {
-        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData)
+        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData, RenderTargetIdentifier targetId)
         {
             Debug.Log("Generated Render.");
-#region TextureInput_0
-            TextureHandle _TextureInputParams_0_ColorTarget = TextureInput.Record(renderGraph);
+
+            TextureHandle backBuffer = renderGraph.ImportBackbuffer(targetId);
+
+#region ForwardOpaquePass_0
+            TextureHandle _ForwardOpaquePassParams_0_ColorTarget = ForwardOpaquePass.Record(renderGraph, passParamsData[0]);
 #endregion
 
-#region ForwardOpaquePass_1
-            ForwardOpaquePass.Record(renderGraph, passParamsData[1], _TextureInputParams_0_ColorTarget);
-#endregion
-
-#region RenderOutput_2
-            RenderOutput.Record(renderGraph, _TextureInputParams_0_ColorTarget);
+#region RenderOutput_1
+            RenderOutput.Record(renderGraph, _ForwardOpaquePassParams_0_ColorTarget, backBuffer);
 #endregion
 
         }

@@ -55,9 +55,12 @@ namespace HN.HNRP.Generated
 {{
     public static class {scriptName}
     {{
-        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData)
+        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData, RenderTargetIdentifier targetId)
         {{
-            Debug.Log(""Generated Render."");";
+            Debug.Log(""Generated Render."");
+
+            TextureHandle backBuffer = renderGraph.ImportBackbuffer(targetId);
+";
 
             return true;
         }
