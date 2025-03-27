@@ -19,10 +19,10 @@ namespace HN.HNRP.Editor
         {
             LoadGraphData(ctx.assetPath);
 
-            HNRenderGraphData renderGraphData = graphData as HNRenderGraphData;
-            renderGraphData.Compile();
-            
+            HNRenderGraphData renderGraphData = graphData as HNRenderGraphData;            
             SetObject(ctx);
+            
+            renderGraphData.Compile();
         }
     }
 

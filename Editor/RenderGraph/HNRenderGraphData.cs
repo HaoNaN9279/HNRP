@@ -8,7 +8,6 @@ using UnityEngine;
 using UnityEditor;
 using System.Reflection;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using Codice.CM.Common.Tree;
 
 namespace HN.HNRP.Editor
 {
@@ -57,7 +56,7 @@ namespace HN.HNRP.Editor
         {
             if(Graph == null)
                 return;
-            if(Graph.Initialize() == false)
+            if(Graph.Initialize(assetPath) == false)
                 return;
 
             Debug.Log("Compile");      
@@ -76,9 +75,6 @@ namespace HN.HNRP.Editor
             }
 
             Graph.GenerateScript();
-            EditorUtility.SetDirty(Graph);
-            AssetDatabase.SaveAssetIfDirty(Graph);
-            AssetDatabase.Refresh();
         }
 
 

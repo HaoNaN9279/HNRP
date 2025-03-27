@@ -21,8 +21,8 @@ namespace HN.HNRP
         public string ScriptName => scriptName;
         public string MethodName = "Render";
 
-
-        private List<JsonData> passParamsData = new List<JsonData>();
+        [SerializeField]
+        private List<JsonData> passParamsData;
         private string generatedScriptTail = 
 $@"
         }}
@@ -34,14 +34,18 @@ $@"
 
         public void OnEnable()
         {
-            Initialize();
+            Initialize(this.AssetPath);
         }
 
-        public bool Initialize()
+        public bool Initialize(string assetPath)
         {
-            if(string.IsNullOrEmpty(name))
+            if(string.IsNullOrEmpty(assetPath))
                 return false;
             
+            string name = Path.GetFileNameWithoutExtension(assetPath);
+            if(passParamsData == null)
+                passParamsData = new List<JsonData>();
+
             scriptName = "_" + name.Replace(" ", "_");
             GeneratedScript = 
 $@"using System.Collections;
@@ -80,7 +84,8 @@ namespace HN.HNRP.Generated
             string fullPath = Path.Combine(scriptPath, scriptName + ".cs");
             GeneratedScript += generatedScriptTail;
             File.WriteAllText(fullPath, GeneratedScript);
-            // AssetDatabase.Refresh();
+
+            AssetDatabase.ImportAsset(fullPath);
         }
 
     }
