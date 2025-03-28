@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP.Generated
 {
-    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraphTarget
+    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraph.HNRenderGraphTarget
     {
         public override void Execute()
         {

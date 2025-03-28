@@ -8,6 +8,8 @@ using HN.Serialize;
 using JetBrains.Annotations;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
@@ -78,7 +80,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP.Generated
 {{
-    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraphTarget
+    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraph.HNRenderGraphTarget
     {{
         public override void Execute()
         {{
@@ -109,5 +111,35 @@ namespace HN.HNRP.Generated
             AssetDatabase.ImportAsset(fullPath);
         }
 
+
+        public abstract class HNRenderGraphTarget
+        {
+            protected RenderGraph renderGraph;
+            protected List<JsonData> passParamsData;
+            protected Camera camera;
+            protected RenderTargetIdentifier targetId;
+            protected int frameCount;
+
+
+            public void Initialize(
+                RenderGraph renderGraph, 
+                List<JsonData> passParamsData,
+                Camera camera,
+                RenderTargetIdentifier targetId,
+                int frameCount
+                )
+            {
+                this.renderGraph = renderGraph;
+                this.passParamsData = passParamsData;
+                this.camera = camera;
+                this.targetId = targetId;
+                this.frameCount = frameCount;
+            }
+
+            public abstract void Execute();
+        }
+
     }
+
+
 }
