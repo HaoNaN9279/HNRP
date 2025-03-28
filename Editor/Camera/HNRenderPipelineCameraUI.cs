@@ -14,59 +14,19 @@ namespace HN.HNRP.Editor
         private static readonly AdditionalPropertiesState<ExpandableAdditional, Camera> expandedAdditionalState = new(0, "HNRP");
 
 
-        //public static readonly CED.IDrawer ProjectionSettings = CED.FoldoutGroup(
-        //    CameraUI.Styles.projectionSettingsHeaderContent,
-        //    Expandable.Projection,
-        //    expandedState,
-        //    FoldoutOption.Indent,
-        //    CED.Group(
-        //        CameraUI.Drawer_Projection
-        //        )
-        //    );
-
-        //public static readonly CED.IDrawer RenderingSettings = CED.AdditionalPropertiesFoldoutGroup(
-        //    CameraUI.Rendering.Styles.header,
-        //    Expandable.Rendering,
-        //    expandedState,
-        //    ExpandableAdditional.Rendering,
-        //    expandedAdditionalState,
-        //    CED.Group(
-        //        CameraUI.Rendering.Drawer_Rendering_StopNaNs
-        //        ),
-        //    CED.Group(
-        //        CameraUI.Rendering.Drawer_Rendering_Dithering
-        //        )
-        //    );
-
-        //public static readonly CED.IDrawer OutputSettings = CED.FoldoutGroup(
-        //    CameraUI.Output.Styles.header,
-        //    Expandable.Output,
-        //    expandedState,
-        //    FoldoutOption.Indent,
-        //    CED.Group(
-        //        CameraUI.Output.Drawer_Output_AllowDynamicResolution
-        //        )
-        //    );
-
-        //public static CED.IDrawer[] Inspector =
-        //{
-        //    ProjectionSettings(),
-        //    RenderingSettings(),
-        //    OutputSettings(),
-        //};
-
-
         public static CED.IDrawer[] Inspector()
         {
             return new CED.IDrawer[]
             {
                 RenderGraphViewSettings(),
                 ProjectionSettings(),
-                //RenderingSettings(),
+                RenderingSettings(),
                 OutputSettings(),
             };
         }
 
+
+#region RenderGraphView
         public static CED.IDrawer RenderGraphViewSettings()
         {
             return CED.FoldoutGroup(
@@ -74,10 +34,24 @@ namespace HN.HNRP.Editor
                 Expandable.RenderGraphView,
                 expandedState,
                 FoldoutOption.Indent,
-                CED.Group(DrawRenderGraphView)
+                CED.Group(
+                    DrawRenderGraphView
+                    )
             );
         }
 
+
+        private static void DrawRenderGraphView(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
+        {
+            if(owner is HNRenderPipelineCameraEditor cameraEditor)
+            {
+                cameraEditor.DrawRenderGraphView();
+            }
+        }
+#endregion
+
+
+#region Projection
         public static CED.IDrawer ProjectionSettings()
         {
             return CED.FoldoutGroup(
@@ -90,7 +64,10 @@ namespace HN.HNRP.Editor
                 )
             );
         }
+#endregion
 
+
+#region Rendering
         public static CED.IDrawer RenderingSettings()
         {
             return CED.AdditionalPropertiesFoldoutGroup(
@@ -100,14 +77,39 @@ namespace HN.HNRP.Editor
             ExpandableAdditional.Rendering,
             expandedAdditionalState,
             CED.Group(
-                CameraUI.Rendering.Drawer_Rendering_StopNaNs
+                // CameraUI.Rendering.Drawer_Rendering_StopNaNs
+                // CameraUI.Rendering.Drawer_Rendering_Dithering
+                CameraUI.Rendering.Drawer_Rendering_CullingMask,
+                CameraUI.Rendering.Drawer_Rendering_OcclusionCulling
                 ),
-            CED.Group(
-                CameraUI.Rendering.Drawer_Rendering_Dithering
+            CED.noop
+            );
+        }
+#endregion
+
+
+#region Environment
+        public static CED.IDrawer EnvironmentSettings()
+        {
+            return CED.FoldoutGroup(
+                CameraUI.Environment.Styles.header,
+                Expandable.Environment,
+                expandedState,
+                FoldoutOption.Indent,
+                CED.Group(
+                    DrawEnvironmentClearFlags
                 )
             );
         }
 
+        private static void DrawEnvironmentClearFlags(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
+        {
+            
+        }
+#endregion
+
+
+#region Output
         public static CED.IDrawer OutputSettings()
         {
             return CED.FoldoutGroup(
@@ -120,15 +122,7 @@ namespace HN.HNRP.Editor
                 )
             );
         }
-
-
-        private static void DrawRenderGraphView(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
-        {
-            if(owner is HNRenderPipelineCameraEditor cameraEditor)
-            {
-                cameraEditor.DrawRenderGraphView();
-            }
-        }
+#endregion
 
 
 
@@ -137,8 +131,8 @@ namespace HN.HNRP.Editor
             RenderGraphView = 1 << 0,
             Projection = 1 << 1,
             Output = 1 << 3,
-
-            Rendering = 1 << 6,
+            Rendering = 1 << 4,
+            Environment = 1 << 5,
         }
 
         public enum ExpandableAdditional

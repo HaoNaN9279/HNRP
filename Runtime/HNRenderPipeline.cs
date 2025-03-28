@@ -37,6 +37,10 @@ namespace HN.HNRP
             GraphicsSettings.defaultRenderingLayerMask = defaultRenderingLayerMask;
             GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
             renderRequests = new List<RenderRequest>();
+
+            RTHandles.Initialize(Screen.width, Screen.height);
+
+            // Blitter.Initialize(Shader.Find("Unlit/SingleBlitShader"), Shader.Find("Unlit/SingleBlitShader"));
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -72,6 +76,10 @@ namespace HN.HNRP
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+
+            Graphics.SetRenderTarget(null);
+            Blitter.Cleanup();
+
             CleanupRenderGraph();
         }
 
@@ -118,7 +126,11 @@ namespace HN.HNRP
                     return;
 
                 CommandBuffer cmd = CommandBufferPool.Get($"RenderRequest_{camera.name}_cmd");
-                RenderTargetIdentifier targetId = camera.targetTexture != null ? new RenderTargetIdentifier(camera.targetTexture) : BuiltinRenderTextureType.CameraTarget;
+                RenderTargetIdentifier targetId = camera.targetTexture ?? new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget);
+                if(camera.targetTexture != null)
+                {
+                    camera.targetTexture.IncrementUpdateCount();
+                }
 
                 renderRequests.Add(new RenderRequest(context, cmd, camera, graphObject, renderGraph, targetId, frameCount));
             }
@@ -130,6 +142,7 @@ namespace HN.HNRP
 
             foreach(var request in renderRequests)
             {
+                request.cmd.ClearRenderTarget(true, true, Color.gray);
                 request.RecordAndExecute();
 
                 EndCameraRendering(request.context, request.camera);
@@ -146,7 +159,7 @@ namespace HN.HNRP
         }
 
 
-        void CleanupRenderGraph()
+        private void CleanupRenderGraph()
         {
             renderGraph.Cleanup();
             renderGraph = null;

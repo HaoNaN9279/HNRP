@@ -17,7 +17,7 @@ namespace HN.HNRP
 
         private List<JsonData> passParamsData;
         private RenderGraph renderGraph;
-        private RenderTargetIdentifier targetId;
+        public RenderTargetIdentifier targetId;
         private int frameCount;
 
         private System.Type classType;
@@ -54,6 +54,8 @@ namespace HN.HNRP
             context.SetupCameraProperties(camera);
 
             RecordPasses();
+
+            camera.targetTexture = null;
         }
 
 

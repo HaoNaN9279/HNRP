@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Codice.Client.BaseCommands;
 using HN.Graph;
 using HN.Serialize;
 using UnityEngine;
@@ -18,16 +19,15 @@ namespace HN.HNRP
             
             using(var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
             {
-                Debug.Log("Render Output 1");
                 builder.AllowPassCulling(false);
+
                 passData.singleBlitMat = new Material(Shader.Find("Unlit/SingleBlitShader"));
                 passData.inputTexture = builder.ReadTexture(inputTexture);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(
                     (RenderOutputData data, RenderGraphContext ctx) =>
                     {
-                        Debug.Log("Render Output 2");
-                        ctx.cmd.SetRenderTarget(backBuffer);
+                        CoreUtils.SetRenderTarget(ctx.cmd, data.renderTarget);
 
                         var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         materialPropertyBlock.SetTexture("_MainTex", data.inputTexture);

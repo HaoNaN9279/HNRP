@@ -21,16 +21,16 @@ namespace HN.HNRP
                 ForwardOpaquePassParams param = paramsData.Obj as ForwardOpaquePassParams;
                 passData.defaultDrawColor = param.DefaultDrawColor;
                 passData.material = new Material(Shader.Find("Unlit/TestShader"));
-                TextureHandle colorTarget = renderGraph.CreateTexture(new TextureDesc(Vector2.one, true, true)
+                TextureHandle colorTarget = renderGraph.CreateTexture(new TextureDesc(Vector2.one, false, false)
                 {
-                    colorFormat = GraphicsFormat.R8G8B8A8_UNorm, clearBuffer = true, clearColor = Color.white, name = "ColorTarget"
+                    colorFormat = GraphicsFormat.R8G8B8A8_UNorm, clearBuffer = true, clearColor = Color.white, name = "ColorTarget123"
                 });
-                passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
+                passData.colorTarget = builder.WriteTexture(colorTarget);
 
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
-                        // CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
+                        CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
                         
                         var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
