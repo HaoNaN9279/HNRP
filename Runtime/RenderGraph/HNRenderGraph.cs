@@ -20,6 +20,24 @@ namespace HN.HNRP
         public string GeneratedScript;
         public string ScriptName => scriptName;
         public string MethodName = "Render";
+        public HNRenderGraphTarget Target
+        {
+            get 
+            { 
+                if(target == null)
+                {
+                    string typeName = "HN.HNRP.Generated." + scriptName;
+                    Type type = Type.GetType(typeName);
+                    if(type == null)
+                    {
+                        Debug.LogError($"Type {typeName} not found.");
+                        return null;
+                    }
+                    target = Activator.CreateInstance(type) as HNRenderGraphTarget;
+                }
+                return target;
+            }
+        }
 
         [SerializeField]
         private List<JsonData> passParamsData;
@@ -30,6 +48,7 @@ $@"
 }}";
         private string scriptName;
         private string scriptPath = "Assets/HNRP/Runtime/Generated/";
+        private HNRenderGraphTarget target;
 
 
         public void OnEnable()
@@ -42,11 +61,13 @@ $@"
             if(string.IsNullOrEmpty(assetPath))
                 return false;
             
+            AssetPath = assetPath;
+
             string name = Path.GetFileNameWithoutExtension(assetPath);
             if(passParamsData == null)
                 passParamsData = new List<JsonData>();
 
-            scriptName = "_" + name.Replace(" ", "_");
+            scriptName = "HNRenderGraphTarget_" + name.Replace(" ", "_");
             GeneratedScript = 
 $@"using System.Collections;
 using System.Collections.Generic;
@@ -57,9 +78,9 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP.Generated
 {{
-    public static class {scriptName}
+    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraphTarget
     {{
-        public static void Render(RenderGraph renderGraph, List<JsonData> passParamsData, RenderTargetIdentifier targetId)
+        public override void Execute()
         {{
             Debug.Log(""Generated Render."");
 

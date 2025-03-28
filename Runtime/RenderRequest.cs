@@ -20,9 +20,6 @@ namespace HN.HNRP
         public RenderTargetIdentifier targetId;
         private int frameCount;
 
-        private System.Type classType;
-        private System.Reflection.MethodInfo method;
-
 
         public RenderRequest(
             ScriptableRenderContext context, 
@@ -63,38 +60,28 @@ namespace HN.HNRP
         {
             if(graphObject == null)
             {
+                Debug.LogError("RenderGraph is null.");
                 return;
             }
 
-            if(classType == null)
+            if(graphObject.Target == null)
             {
-                classType = Type.GetType("HN.HNRP.Generated." + graphObject.ScriptName);
-            }
-            if(classType == null)
-            {
-                Debug.LogWarning($"class {graphObject.ScriptName} not found.");
+                Debug.LogError("RenderGraph.Target is null.");
                 return;
             }
 
-            if(method == null)
+            graphObject.Target.Initialize(renderGraph, passParamsData, camera, targetId, frameCount);
+
+            using(renderGraph.RecordAndExecute(new RenderGraphParameters
             {
-                method = classType.GetMethod(
-                    graphObject.MethodName, 
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static
-                    );
-
-                using(renderGraph.RecordAndExecute(new RenderGraphParameters
-                {
-                    executionName = "test",
-                    currentFrameIndex = frameCount,
-                    rendererListCulling = true,
-                    scriptableRenderContext = context,
-                    commandBuffer = cmd
-                }))
-                {
-                    method.Invoke(null, new object[]{renderGraph, passParamsData, targetId});
-                }
-
+                executionName = "execution_" + camera.name,
+                currentFrameIndex = frameCount,
+                rendererListCulling = true,
+                scriptableRenderContext = context,
+                commandBuffer = cmd
+            }))
+            {
+                graphObject.Target.Execute();
             }
         }
 

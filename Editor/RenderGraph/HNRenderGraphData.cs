@@ -55,11 +55,27 @@ namespace HN.HNRP.Editor
         public void Compile()
         {
             if(Graph == null)
+            {
+                Debug.LogError("HNRenderGraph is null.");
                 return;
-            if(Graph.Initialize(assetPath) == false)
-                return;
+            }
 
-            Debug.Log("Compile");      
+            if(Graph.Initialize(assetPath) == false)
+            {
+                Debug.LogError($"HNRenderGraph {Graph} Initialize failed.");
+                return;
+            }
+
+            if(Graph.PassParamsData == null)
+            {
+                Debug.LogError($"HNRenderGraph {Graph} PassParamsData is null.");
+                return;
+            }
+            else
+                Graph.PassParamsData.Clear();
+
+            Debug.Log("Start Compile");      
+
             List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutputParams>();
             if(outputNodes.Count == 0)
                 return;
@@ -70,7 +86,7 @@ namespace HN.HNRP.Editor
             // 正向遍历节点
             for(int i = 0; i < nodes.Count; i++)
             {
-                BuildRenderNodeConnection(i, nodes[i], nodes);
+                BuildRenderNodeConnection(i, nodes[i]);
                 CombineGeneratedScript(nodes[i], i);
             }
 
@@ -78,7 +94,7 @@ namespace HN.HNRP.Editor
         }
 
 
-        private void BuildRenderNodeConnection(int nodeIndex, HNGraphNode node, List<HNGraphNode> nodes)
+        private void BuildRenderNodeConnection(int nodeIndex, HNGraphNode node)
         {
             if(node == null)
                 return;
