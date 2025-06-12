@@ -31,19 +31,19 @@ namespace HN.HNRP
     public class TextureInputParams : NodeParams
     {
         [PortInfo("Color Target", PortInfo.Direction.Output, PortInfo.Capacity.Single)]
-        public TexturePort OutputColorTarget
+        public string OutputColorTarget
         {
             get => outputColorTarget;
             set => outputColorTarget = value;
         }
 
         [SerializeField]
-        private TexturePort outputColorTarget;
+        private string outputColorTarget;
 
 
         public override void SetupOutput(int nodeIndex)
         {
-            OutputColorTarget = new TexturePort($"_TextureInputParams_{nodeIndex}_ColorTarget");
+            outputColorTarget = $"_TextureInputParams_{nodeIndex}_ColorTarget";
         }
 
         public override void AppendScript(ref string main, int nodeIndex)

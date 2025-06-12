@@ -106,33 +106,32 @@ namespace HN.HNRP.Editor
             var nodeParams = nodeParamsData.Obj as NodeParams;
             if(nodeParams == null)
                 return;
+            nodeParams.SetupOutput(nodeIndex);
 
             Type nodeParamsType = nodeParams.GetType();
-            foreach(var inputPortGuid in node.InputPortGuids)
+            foreach (var inputPortGuid in node.InputPortGuids)
             {
                 var inputPort = GetPort(inputPortGuid);
-                if(inputPort == null)
+                if (inputPort == null)
                     continue;
 
                 string propertyName = inputPort.PropertyName;
-                if(inputPort.EdgeGuids.Count > 0)
+                if (inputPort.EdgeGuids.Count > 0)
                 {
                     var edge = GetEdge(inputPort.EdgeGuids[0]);
-                    var refNode = GetNode(edge.GetOutputPort(this).OwnerNodeGuid);
-                    var refNodeParams = refNode?.NodeData?.Obj;
                     var refPort = edge.GetOutputPort(this);
+                    var refNode = GetNode(refPort.OwnerNodeGuid);
+                    var refNodeParams = refNode?.NodeData?.Obj;
                     string refPortName = refPort.PropertyName;
                     if (refNodeParams == null)
                         continue;
                     Type refNodeParamsType = refNodeParams.GetType();
                     PropertyInfo refPorpertyInfo = refNodeParamsType.GetProperty(refPortName);
-                    TexturePort refTexturePort = refPorpertyInfo.GetValue(refNodeParams) as TexturePort;
-                    TexturePort texturePort = new TexturePort(refTexturePort.RefTextureName);
-                    nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, texturePort);
+                    string refTexturePort = (string)refPorpertyInfo.GetValue(refNodeParams);
+                    nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, refTexturePort);
                 }
             }
-            nodeParams.SetupOutput(nodeIndex);
-            Graph.AppendPassParams(new Serialize.JsonData(nodeParams));
+            Graph.AppendPassParams(new Serialize.JsonData(nodeParamsType));
         }
 
         private void CombineGeneratedScript(HNGraphNode node, int nodeIndex)

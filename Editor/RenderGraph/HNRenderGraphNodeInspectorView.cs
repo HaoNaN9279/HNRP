@@ -50,29 +50,30 @@ namespace HN.Graph.Editor
         {
             nodeSettingsContainer.Clear();
 
-            foreach(var selection in selections)
+            foreach (var selection in selections)
             {
                 VisualElement panel = new VisualElement();
                 panel.name = "panel";
 
                 HNGraphNodeView nodeView = selection as HNGraphNodeView;
-                if(nodeView == null)
+                if (nodeView == null)
                     continue;
 
-                JsonObject jsonObject = nodeView?.NodeData?.NodeData?.Obj;
-                if(jsonObject == null)
+                HNGraphNode nodeData = nodeView.NodeData;
+                NodeParams nodeParams = nodeData?.NodeData?.Obj as NodeParams;
+                if (nodeParams == null)
                     continue;
-                
-                Label label = new Label(jsonObject.GetType().Name);
+
+                Label label = new Label(nodeParams.GetType().Name);
                 label.name = "label";
                 panel.Add(label);
 
                 VisualElement divideLine = new VisualElement();
                 divideLine.name = "divideLine";
                 panel.Add(divideLine);
-                
+
                 BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-                var propertyFields = HNGraphUtils.DrawProperties(jsonObject, bindingFlags);
+                var propertyFields = HNGraphUtilsEditor.DrawProperties(nodeData, bindingFlags);
                 panel.Add(propertyFields);
 
                 nodeSettingsContainer.Add(panel);

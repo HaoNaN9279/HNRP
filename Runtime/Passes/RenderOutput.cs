@@ -52,14 +52,14 @@ namespace HN.HNRP
     public class RenderOutputParams : NodeParams
     {
         [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
-        public TexturePort InputColorTarget
+        public string InputColorTarget
         {
             get => inputColorTarget;
             set => inputColorTarget = value;
         }
 
         [SerializeField]
-        private TexturePort inputColorTarget;
+        private string inputColorTarget;
 
 
         public override void SetupOutput(int nodeIndex)
@@ -71,7 +71,7 @@ namespace HN.HNRP
             string script =
 $@"
 #region RenderOutput_{nodeIndex}
-            RenderOutput.Record(renderGraph, {inputColorTarget.RefTextureName}, backBuffer);
+            RenderOutput.Record(renderGraph, {inputColorTarget}, backBuffer);
 #endregion
 ";
 

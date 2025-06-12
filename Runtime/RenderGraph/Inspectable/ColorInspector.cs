@@ -23,9 +23,9 @@ namespace HN.HNRP
             this.hasAlpha = hasAlpha;
         }
 
-        public override VisualElement Inspect(JsonObject jsonObject, PropertyInfo propertyInfo)
-        {
-            value = (Color)propertyInfo.GetValue(jsonObject, null);
+        public override VisualElement Inspect(JsonData jsonData, PropertyInfo propertyInfo)
+        {            
+            value = (Color)propertyInfo.GetValue(jsonData.Obj, null);
             
             var colorField = new ColorField(label)
             {
@@ -36,7 +36,8 @@ namespace HN.HNRP
             colorField.RegisterValueChangedCallback((e) =>
             {
                 value = e.newValue;
-                propertyInfo.SetValue(jsonObject, value, null);
+                propertyInfo.SetValue(jsonData.Obj, value, null);
+                jsonData.Serialize();
             });
 
             return colorField;

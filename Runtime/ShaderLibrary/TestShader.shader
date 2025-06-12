@@ -43,7 +43,7 @@ Shader "Unlit/TestShader"
                 // sample the texture
                 float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
 
-                col = float4(0.3, 0.4, 0.5, 1);
+                col = float4(_DefaultDrawColor.x, _DefaultDrawColor.y, _DefaultDrawColor.z, 1);
                 return col;
             }
             ENDHLSL

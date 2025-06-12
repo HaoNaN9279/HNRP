@@ -66,14 +66,14 @@ namespace HN.HNRP
 
 
         [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
-        public TexturePort InputColorTarget
+        public string InputColorTarget
         {
             get { return inputColorTarget; }
             set { inputColorTarget = value; }
         }
 
         [PortInfo("Color Target", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
-        public TexturePort OutputColorTarget
+        public string OutputColorTarget
         {
             get { return outputColorTarget; }
             set { outputColorTarget = value; }
@@ -85,15 +85,15 @@ namespace HN.HNRP
         private Color defaultDrawColor = Color.blue;
 
         [SerializeField]
-        private TexturePort inputColorTarget;
+        private string inputColorTarget;
 
         [SerializeField]
-        private TexturePort outputColorTarget;
+        private string outputColorTarget;
 
 
         public override void SetupOutput(int nodeIndex)
         {
-            outputColorTarget = new TexturePort(inputColorTarget.RefTextureName);
+            outputColorTarget = inputColorTarget;
         }
 
         public override void AppendScript(ref string main, int nodeIndex)
@@ -101,7 +101,7 @@ namespace HN.HNRP
             string script =
 $@"
 #region TransparencyPass_{nodeIndex}
-            TransparencyPass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget.RefTextureName});
+            TransparencyPass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget});
 #endregion
 ";
 
