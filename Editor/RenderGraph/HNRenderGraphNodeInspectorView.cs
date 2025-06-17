@@ -60,11 +60,11 @@ namespace HN.Graph.Editor
                     continue;
 
                 HNGraphNode nodeData = nodeView.NodeData;
-                NodeParams nodeParams = nodeData?.NodeData?.Obj as NodeParams;
-                if (nodeParams == null)
+                Pass passData = nodeData?.NodeData?.Obj as Pass;
+                if (passData == null)
                     continue;
 
-                Label label = new Label(nodeParams.GetType().Name);
+                Label label = new Label(passData.GetType().Name);
                 label.name = "label";
                 panel.Add(label);
 
@@ -73,7 +73,7 @@ namespace HN.Graph.Editor
                 panel.Add(divideLine);
 
                 BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-                var propertyFields = HNGraphUtilsEditor.DrawProperties(nodeData, bindingFlags);
+                var propertyFields = HNGraphUtilsEditor.DrawFields(nodeData, bindingFlags);
                 panel.Add(propertyFields);
 
                 nodeSettingsContainer.Add(panel);

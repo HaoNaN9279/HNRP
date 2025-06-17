@@ -27,14 +27,24 @@ namespace HN.HNRP
     }
 
 
-    public class PortInfo : HNGraphPortInfo
+    public class PortInputInfo : HNGraphPortInfo
     {
-        public PortInfo(string slotName, Direction direction, Capacity capacity)
-             : base(slotName, Orientation.Horizontal, direction, capacity)
+        public PortInputInfo(string slotName, Capacity capacity)
+             : base(slotName, Orientation.Horizontal, Direction.Input, capacity)
         {
 
         }
     }
+
+    public class PortOutputInfo : HNGraphPortInfo
+    {
+        public PortOutputInfo(string slotName, Capacity capacity)
+             : base(slotName, Orientation.Horizontal, Direction.Output, capacity)
+        {
+
+        }
+    }
+    
 
 
     public abstract class InspectableInfo : HNGraphInspectableInfo

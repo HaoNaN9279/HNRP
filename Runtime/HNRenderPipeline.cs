@@ -27,7 +27,7 @@ namespace HN.HNRP
         //TODO: pool
         private List<RenderRequest> renderRequests;
 
-        private int frameCount;
+        private FrameData frameData;
 
 
         public HNRenderPipeline(HNRenderPipelineAsset asset)
@@ -60,7 +60,7 @@ namespace HN.HNRP
                     return;
             }
 #endif
-            UpdateFrameCount();
+            UpdateFrameData();
 
             PrepareRenderRequests(context, cameras);
 
@@ -84,11 +84,16 @@ namespace HN.HNRP
         }
 
 
+        private void UpdateFrameData()
+        {
+            UpdateFrameCount();
+        }
+
         private void UpdateFrameCount()
         {
-            if(frameCount != Time.frameCount)
+            if (frameData.FrameCount != Time.frameCount)
             {
-                frameCount = Time.frameCount;
+                frameData.FrameCount = Time.frameCount;
             }
         }
 
@@ -132,7 +137,14 @@ namespace HN.HNRP
                     camera.targetTexture.IncrementUpdateCount();
                 }
 
-                renderRequests.Add(new RenderRequest(context, cmd, camera, graphObject, renderGraph, targetId, frameCount));
+                GraphObjectData graphObjectData = new GraphObjectData
+                {
+                    Camera = camera,
+                    GraphObject = graphObject,
+                    Cmd = cmd,
+                    TargetId = targetId
+                };
+                renderRequests.Add(new RenderRequest(context, renderGraph, frameData, graphObjectData));
             }
         }
 
@@ -142,13 +154,13 @@ namespace HN.HNRP
 
             foreach(var request in renderRequests)
             {
-                request.cmd.ClearRenderTarget(true, true, Color.gray);
+                request.GraphObjectData.Cmd.ClearRenderTarget(true, true, Color.gray);
                 request.RecordAndExecute();
 
-                EndCameraRendering(request.context, request.camera);
-                request.context.ExecuteCommandBuffer(request.cmd);
-                CommandBufferPool.Release(request.cmd);
-                request.context.Submit();
+                EndCameraRendering(request.Context, request.GraphObjectData.Camera);
+                request.Context.ExecuteCommandBuffer(request.GraphObjectData.Cmd);
+                CommandBufferPool.Release(request.GraphObjectData.Cmd);
+                request.Context.Submit();
             }
 
         }

@@ -60,23 +60,11 @@ namespace HN.HNRP.Editor
                 return;
             }
 
-            if(Graph.Initialize(assetPath) == false)
-            {
-                Debug.LogError($"HNRenderGraph {Graph} Initialize failed.");
-                return;
-            }
+            Debug.Log("Start Compile"); 
 
-            if(Graph.PassParamsData == null)
-            {
-                Debug.LogError($"HNRenderGraph {Graph} PassParamsData is null.");
-                return;
-            }
-            else
-                Graph.PassParamsData.Clear();
+            Graph.ClearData();   
 
-            Debug.Log("Start Compile");      
-
-            List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutputParams>();
+            List<HNGraphNode> outputNodes = FindNodesWithType<RenderOutput>();
             if(outputNodes.Count == 0)
                 return;
             
@@ -86,69 +74,56 @@ namespace HN.HNRP.Editor
             // 正向遍历节点
             for(int i = 0; i < nodes.Count; i++)
             {
-                BuildRenderNodeConnection(i, nodes[i]);
-                CombineGeneratedScript(nodes[i], i);
+
+                BuildPassParams(nodes[i]);
             }
 
-            Graph.GenerateScript();
+            
         }
 
 
-        private void BuildRenderNodeConnection(int nodeIndex, HNGraphNode node)
+        private void BuildPassParams(HNGraphNode node)
         {
-            if(node == null)
+            Debug.Log(node);
+            if (node == null)
                 return;
 
-            var nodeParamsData = node.NodeData;
-            if(nodeParamsData == null)
+            var nodePassData = node.NodeData;
+            if (nodePassData == null)
                 return;
-            
-            var nodeParams = nodeParamsData.Obj as NodeParams;
-            if(nodeParams == null)
-                return;
-            nodeParams.SetupOutput(nodeIndex);
 
-            Type nodeParamsType = nodeParams.GetType();
+            var nodePass = nodePassData.Obj as Pass;
+            if (nodePass == null)
+                return;
+
+            Type nodePassType = nodePass.GetType();
             foreach (var inputPortGuid in node.InputPortGuids)
             {
                 var inputPort = GetPort(inputPortGuid);
                 if (inputPort == null)
                     continue;
 
-                string propertyName = inputPort.PropertyName;
+                string fieldName = inputPort.FieldName;
                 if (inputPort.EdgeGuids.Count > 0)
                 {
                     var edge = GetEdge(inputPort.EdgeGuids[0]);
                     var refPort = edge.GetOutputPort(this);
                     var refNode = GetNode(refPort.OwnerNodeGuid);
-                    var refNodeParams = refNode?.NodeData?.Obj;
-                    string refPortName = refPort.PropertyName;
-                    if (refNodeParams == null)
+                    var refNodePass = refNode?.NodeData?.Obj;
+                    string refFieldName = refPort.FieldName;
+                    if (refNodePass == null)
                         continue;
-                    Type refNodeParamsType = refNodeParams.GetType();
-                    PropertyInfo refPorpertyInfo = refNodeParamsType.GetProperty(refPortName);
-                    string refTexturePort = (string)refPorpertyInfo.GetValue(refNodeParams);
-                    nodeParamsType.GetProperty(propertyName)?.SetValue(nodeParams, refTexturePort);
+                    Type refNodeParamsType = refNodePass.GetType();
+                    FieldInfo refFieldInfo = refNodeParamsType.GetField(refFieldName);
+                    int refTexturePort = (int)refFieldInfo.GetValue(refNodePass);
+                    nodePassType.GetField(fieldName)?.SetValue(nodePass, refTexturePort);
                 }
             }
-            Graph.AppendPassParams(new Serialize.JsonData(nodeParamsType));
+
+            Graph.AddPass(nodePass);
+            // Debug.Log("Added Pass: " + nodePass + "  Type: " + nodePass.GetType());
         }
-
-        private void CombineGeneratedScript(HNGraphNode node, int nodeIndex)
-        {
-            if(node == null)
-                return;
-
-            var nodeParamsData = node.NodeData;
-            if(nodeParamsData == null)
-                return;
-            
-            NodeParams nodeParams = nodeParamsData.Obj as NodeParams;
-            if(nodeParams == null)
-                return;
-
-            nodeParams.AppendScript(ref Graph.GeneratedScript, nodeIndex);
-        }
+        
     }
 
 }

@@ -7,6 +7,7 @@ using HN.Graph;
 using HN.Serialize;
 using JetBrains.Annotations;
 using UnityEditor;
+using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -18,127 +19,77 @@ namespace HN.HNRP
     {
         public const string HNRenderGraphExtension = "hnrg";
 
-        public List<JsonData> PassParamsData => passParamsData;
-        public string GeneratedScript;
-        public string ScriptName => scriptName;
-        public string MethodName = "Render";
-        public HNRenderGraphTarget Target
-        {
-            get 
-            { 
-                if(target == null)
-                {
-                    string typeName = "HN.HNRP.Generated." + scriptName;
-                    Type type = Type.GetType(typeName);
-                    if(type == null)
-                    {
-                        Debug.LogError($"Type {typeName} not found.");
-                        return null;
-                    }
-                    target = Activator.CreateInstance(type) as HNRenderGraphTarget;
-                }
-                return target;
-            }
-        }
 
         [SerializeField]
-        private List<JsonData> passParamsData;
-        private string generatedScriptTail = 
-$@"
-        }}
-    }}
-}}";
-        private string scriptName;
-        private string scriptPath = "Assets/HNRP/Runtime/Generated/";
-        private HNRenderGraphTarget target;
+        private List<Pass> passes = new List<Pass>();
+
+        [SerializeField]
+        private List<TextureHandle> textureHandles = new List<TextureHandle>();
+
+        private RenderGraph renderGraph;
+        private FrameData frameData;
+        private GraphObjectData graphObjectData;
 
 
-        public void OnEnable()
+        public void ClearData()
         {
-            Initialize(this.AssetPath);
+            passes.Clear();
+            textureHandles.Clear();
         }
 
-        public bool Initialize(string assetPath)
+        public void AddPass(Pass pass)
         {
-            if(string.IsNullOrEmpty(assetPath))
-                return false;
-            
-            AssetPath = assetPath;
-
-            string name = Path.GetFileNameWithoutExtension(assetPath);
-            if(passParamsData == null)
-                passParamsData = new List<JsonData>();
-
-            scriptName = "HNRenderGraphTarget_" + name.Replace(" ", "_");
-            GeneratedScript = 
-$@"using System.Collections;
-using System.Collections.Generic;
-using HN.Serialize;
-using UnityEngine;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
-
-namespace HN.HNRP.Generated
-{{
-    public class HNRenderGraphTarget_New_HN_Render_Graph : HNRenderGraph.HNRenderGraphTarget
-    {{
-        public override void Execute()
-        {{
-            Debug.Log(""Generated Render."");
-
-            TextureHandle backBuffer = renderGraph.ImportBackbuffer(targetId);
-";
-
-            return true;
-        }
-
-        public void AppendPassParams(JsonData passParamsJsonData)
-        {
-            passParamsJsonData.Serialize();
-            passParamsData.Add(passParamsJsonData);
-        }
-
-        public void GenerateScript()
-        {
-            if(!Directory.Exists(scriptPath))
+            if (pass == null)
             {
-                Directory.CreateDirectory(scriptPath);
-            }
-            string fullPath = Path.Combine(scriptPath, scriptName + ".cs");
-            GeneratedScript += generatedScriptTail;
-            File.WriteAllText(fullPath, GeneratedScript);
-
-            AssetDatabase.ImportAsset(fullPath);
-        }
-
-
-        public abstract class HNRenderGraphTarget
-        {
-            protected RenderGraph renderGraph;
-            protected List<JsonData> passParamsData;
-            protected Camera camera;
-            protected RenderTargetIdentifier targetId;
-            protected int frameCount;
-
-
-            public void Initialize(
-                RenderGraph renderGraph, 
-                List<JsonData> passParamsData,
-                Camera camera,
-                RenderTargetIdentifier targetId,
-                int frameCount
-                )
-            {
-                this.renderGraph = renderGraph;
-                this.passParamsData = passParamsData;
-                this.camera = camera;
-                this.targetId = targetId;
-                this.frameCount = frameCount;
+                Debug.LogError("Cannot add a null pass.");
+                return;
             }
 
-            public abstract void Execute();
+            Debug.Log("Add Pass: " + pass);
+            pass.Setup(this);
+            passes.Add(pass);
         }
 
+        public int AddTextureHandle(TextureHandle textureHandle)
+        {
+            textureHandles.Add(textureHandle);
+            return textureHandles.Count - 1;
+        }
+
+        public void UpdateData(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData)
+        {
+            this.renderGraph = renderGraph;
+            this.frameData = frameData;
+            this.graphObjectData = graphObjectData;
+        }
+
+        public void Record()
+        {
+            if (renderGraph == null)
+            {
+                Debug.LogError("RenderGraph is null.");
+                return;
+            }
+
+            if (passes == null)
+            {
+                Debug.LogError("RenderGraph.Passes is empty.");
+                return;
+            }
+
+            Debug.Log("Record RenderGraph: " + passes.Count);
+            foreach (var pass in passes)
+            {
+                if (pass == null)
+                {
+                    Debug.LogError("Pass is null.");
+                    continue;
+                }
+
+                pass.Record(renderGraph, frameData, graphObjectData, textureHandles);
+            }
+        }
+        
     }
 
 

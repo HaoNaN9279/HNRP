@@ -11,30 +11,52 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public class TransparencyPass
+    [Serializable]
+    [NodeInfo("Transparency Pass", NodeInfo.NodeType.Renderer, "Pass/Transparency Pass")]
+    public class TransparencyPass : Pass
     {
-        public static void Record(RenderGraph renderGraph, JsonData paramsData, TextureHandle inputTexture)
+        [SerializeField]
+        public Material material;
+
+        [SerializeField]
+        [ColorInspector("Default Draw Color", false, false)]
+        public Color defaultDrawColor = Color.blue;
+
+        [SerializeField]
+        [PortInputInfo("Color Target", PortInputInfo.Capacity.Single)]
+        public int inputColorTargetIndex = -1;
+
+        [SerializeField]
+        [PortOutputInfo("Color Target", PortOutputInfo.Capacity.Multi)]
+        public int outputColorTargetIndex = -1;
+
+
+        public override void Setup(HNRenderGraph renderGraph)
+        {
+            Debug.Log("Transparency pass Setup.");
+
+            outputColorTargetIndex = inputColorTargetIndex;
+            material = material ?? new Material(Shader.Find("Unlit/TestShader"));
+        }
+
+        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Record Transparency pass.");
 
-            TransparencyPassParams param = paramsData.Obj as TransparencyPassParams;
-            Color defaultDrawColor = param.DefaultDrawColor;
-            Material material = new Material(Shader.Find("Unlit/TestShader"));
-
-            using(var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
+            using (var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
             {
-                passData.defaultDrawColor = defaultDrawColor;
                 passData.material = material;
-                passData.inputTexture = builder.WriteTexture(inputTexture);
-                passData.outputTexture = builder.UseColorBuffer(inputTexture, 0);
-                
+                passData.defaultDrawColor = defaultDrawColor;
+                passData.colorTarget = builder.WriteTexture(textureHandles[outputColorTargetIndex]);
+
                 builder.SetRenderFunc(
                     (TransparencyPassData data, RenderGraphContext ctx) =>
                     {
+                        CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
+                        
                         var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
 
-                        CoreUtils.SetRenderTarget(ctx.cmd, data.outputTexture);
                         CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
                     }
                 );
@@ -44,70 +66,12 @@ namespace HN.HNRP
     }
 
 
-    public class TransparencyPassData : RenderPassData
+    public class TransparencyPassData : PassData
     {
-        public Material material;
-        public Color defaultDrawColor;
-        public TextureHandle inputTexture;
-        public TextureHandle outputTexture;
+        public Material material = new Material(Shader.Find("Unlit/TestShader"));
+        public Color defaultDrawColor = Color.blue;
+        public TextureHandle colorTarget;
+
     }
-
-
-    [Serializable]
-    [NodeInfo("Transparency Pass", NodeInfo.NodeType.Renderer, "Pass/Transparency Pass")]
-    public class TransparencyPassParams : NodeParams
-    {
-        [ColorInspector("Default Draw Color", false, false)]
-        public Color DefaultDrawColor
-        {
-            get { return defaultDrawColor; }
-            set { defaultDrawColor = value; }
-        }
-
-
-        [PortInfo("Color Target", PortInfo.Direction.Input, PortInfo.Capacity.Single)]
-        public string InputColorTarget
-        {
-            get { return inputColorTarget; }
-            set { inputColorTarget = value; }
-        }
-
-        [PortInfo("Color Target", PortInfo.Direction.Output, PortInfo.Capacity.Multi)]
-        public string OutputColorTarget
-        {
-            get { return outputColorTarget; }
-            set { outputColorTarget = value; }
-        }
-
-
-
-        [SerializeField]
-        private Color defaultDrawColor = Color.blue;
-
-        [SerializeField]
-        private string inputColorTarget;
-
-        [SerializeField]
-        private string outputColorTarget;
-
-
-        public override void SetupOutput(int nodeIndex)
-        {
-            outputColorTarget = inputColorTarget;
-        }
-
-        public override void AppendScript(ref string main, int nodeIndex)
-        {
-            string script =
-$@"
-#region TransparencyPass_{nodeIndex}
-            TransparencyPass.Record(renderGraph, passParamsData[{nodeIndex}], {inputColorTarget});
-#endregion
-";
-
-            main += script;
-        }
-    }
-
 
 }

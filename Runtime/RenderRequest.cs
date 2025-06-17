@@ -10,78 +10,64 @@ namespace HN.HNRP
 {
     public class RenderRequest
     {
-        internal ScriptableRenderContext context;
-        internal CommandBuffer cmd;
-        internal Camera camera;
-        internal HNRenderGraph graphObject;
+        public ScriptableRenderContext Context => context;
+        public GraphObjectData GraphObjectData => graphObjectData;
 
-        private List<JsonData> passParamsData;
+        private ScriptableRenderContext context;
         private RenderGraph renderGraph;
-        public RenderTargetIdentifier targetId;
-        private int frameCount;
+        private FrameData frameData;
+        private GraphObjectData graphObjectData;
 
 
         public RenderRequest(
-            ScriptableRenderContext context, 
-            CommandBuffer cmd,
-            Camera camera, 
-            HNRenderGraph graphObject, 
-            RenderGraph renderGraph, 
-            RenderTargetIdentifier targetId,
-            int frameCount
+            ScriptableRenderContext context,
+            RenderGraph renderGraph,
+            FrameData frameData,
+            GraphObjectData graphObjectData
             )
         {
             this.context = context;
-            this.cmd = cmd;
-            this.camera = camera;
-            this.graphObject = graphObject;
-            this.passParamsData = graphObject.PassParamsData;
             this.renderGraph = renderGraph;
-            this.targetId = targetId;
-            this.frameCount = frameCount;
+            this.frameData = frameData;
+            this.graphObjectData = graphObjectData;
         }
 
         public void RecordAndExecute()
         {
-            if(camera.cameraType == CameraType.SceneView)
+            if(graphObjectData.Camera.cameraType == CameraType.SceneView)
             {
-                ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+                ScriptableRenderContext.EmitWorldGeometryForSceneView(graphObjectData.Camera);
             }
 
-            context.SetupCameraProperties(camera);
+            context.SetupCameraProperties(graphObjectData.Camera);
 
             RecordPasses();
 
-            camera.targetTexture = null;
+            graphObjectData.Camera.targetTexture = null;
         }
 
 
         private void RecordPasses()
         {
-            if(graphObject == null)
+            if(graphObjectData.GraphObject == null)
             {
                 Debug.LogError("RenderGraph is null.");
                 return;
             }
 
-            if(graphObject.Target == null)
+            graphObjectData.GraphObject.UpdateData(renderGraph, frameData, graphObjectData);
+            
+            using (renderGraph.RecordAndExecute(new RenderGraphParameters
             {
-                Debug.LogError("RenderGraph.Target is null.");
-                return;
-            }
-
-            graphObject.Target.Initialize(renderGraph, passParamsData, camera, targetId, frameCount);
-
-            using(renderGraph.RecordAndExecute(new RenderGraphParameters
-            {
-                executionName = "execution_" + camera.name,
-                currentFrameIndex = frameCount,
+                executionName = "execution_" + graphObjectData.Camera.name,
+                currentFrameIndex = frameData.FrameCount,
                 rendererListCulling = true,
                 scriptableRenderContext = context,
-                commandBuffer = cmd
+                commandBuffer = graphObjectData.Cmd
             }))
             {
-                graphObject.Target.Execute();
+                Debug.Log("Record And Execute: " + this);
+                graphObjectData.GraphObject.Record();
             }
         }
 

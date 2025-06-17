@@ -35,6 +35,7 @@ Shader "Unlit/SingleBlitShader"
             {
                 Varyings o;
                 o.vertex = GetFullScreenTriangleVertexPosition(v.vertex);
+                o.uv = GetQuadTexCoord(v.vertex);
                 return o;
             }
 
@@ -42,7 +43,7 @@ Shader "Unlit/SingleBlitShader"
             {
                 float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
                 // float4 col = float4(0.8, 0.4, 0.5, 1);
-                return col;
+                return float4(col.r, col.g, col.b, 1.0);
             }
             ENDHLSL
         }
