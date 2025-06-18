@@ -105,7 +105,7 @@ namespace HN.HNRP
             {
                 var cameraData = camera.GetHNRPAdditionalCameraData();
 
-                HNRenderGraph graphObject = null;
+                HNRenderGraphBase graphObject = null;
                 if(camera.cameraType == CameraType.Game)
                 {
                     graphObject = Asset.runtimeRenderGraphViews.GetRenderGraphObject(cameraData.RenderGraphViewIndex);

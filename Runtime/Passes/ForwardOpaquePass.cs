@@ -11,46 +11,34 @@ using UnityEngine.Rendering.RendererUtils;
 namespace HN.HNRP
 {
     [Serializable]
-    [NodeInfo("Forward Opaque Pass", NodeInfo.NodeType.Renderer, "Pass/Forward Opaque Pass")]
-    public class ForwardOpaquePass : Pass
+    public class ForwardOpaquePass : PassBase
     {
         [SerializeField]
         public Material material;
 
         [SerializeField]
-        [ColorInspector("Default Draw Color", false, false)]
         public Color defaultDrawColor = Color.cyan;
 
         [SerializeField]
-        [PortInputInfo("Color Target", PortInputInfo.Capacity.Single)]
-        public int inputColorTargetIndex = -1;
+        public int colorTargetIndex = -1;
 
-        [SerializeField]
-        [PortOutputInfo("Color Target", PortOutputInfo.Capacity.Multi)]
-        public int outputColorTargetIndex = -1;
 
         [SerializeField]
         public RendererListHandle rendererList;
 
 
-        public override void Setup(HNRenderGraph renderGraph)
-        {
-            Debug.Log("Forward Opaque pass Setup.");
-
-            outputColorTargetIndex = inputColorTargetIndex;
-            material = material ?? new Material(Shader.Find("Unlit/TestShader"));
-        }
-
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Record Forward Opaque pass.");
+            
+            material = material ?? new Material(Shader.Find("Unlit/TestShader"));
 
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
                 passData.material = material;
                 passData.defaultDrawColor = defaultDrawColor;
 
-                passData.colorTarget = builder.WriteTexture(textureHandles[outputColorTargetIndex]);
+                passData.colorTarget = builder.WriteTexture(textureHandles[colorTargetIndex]);
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
@@ -62,14 +50,14 @@ namespace HN.HNRP
                         CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
                     }
                 );
-                
+
             }
         }
 
     }
 
 
-    public class ForwardOpaquePassData
+    public class ForwardOpaquePassData : PassData
     {
         public Material material;
         public Color defaultDrawColor;

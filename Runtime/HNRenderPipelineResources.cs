@@ -10,7 +10,7 @@ namespace HN.HNRP
         public static HNRenderPipelineResources Instance;
 
 
-        public HNRenderGraph defaultRenderGraph;
+        public HNRenderGraphBase defaultRenderGraph;
         
 
         public HNRenderPipelineResources()

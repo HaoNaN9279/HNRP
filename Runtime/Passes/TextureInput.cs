@@ -11,35 +11,43 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Serializable]
-    [NodeInfo("Texture Input", NodeInfo.NodeType.RenderTarget, "Render Target/Texture Input")]
-    public class TextureInput : Pass
+    public class TextureInput : PassBase
     {
         [SerializeField]
-        [PortOutputInfo("Color Target", PortOutputInfo.Capacity.Single)]
-        public int outputColorTargetIndex = -1;
+        public Vector2 textureScale = Vector2.one;
+
+        [SerializeField]
+        public GraphicsFormat colorFormat = GraphicsFormat.R8G8B8A8_UNorm;
+
+        [SerializeField]
+        public bool clearBuffer = true;
+
+        [SerializeField]
+        public Color clearColor = Color.black;
 
 
-        public override void Setup(HNRenderGraph renderGraph)
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
+
+        public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
-            Debug.Log("Texture Input Setup.");
-
-            int index = renderGraph.AddTextureHandle(new TextureHandle());
-            outputColorTargetIndex = index;
+            base.Initialize(hnRenderGraph, passName);
+            colorTargetIndex = hnRenderGraph.AddTextureHandle(new TextureHandle());
         }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Texture Input");
 
-            TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(Vector2.one, true, true)
+            TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, true)
             {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = true,
-                clearColor = Color.red,
-                name = "ColorTarget"
+                colorFormat = colorFormat,
+                clearBuffer = clearBuffer,
+                clearColor = clearColor,
+                name = name
             });
-
-            textureHandles[outputColorTargetIndex] = outputColorTarget;
+            textureHandles[colorTargetIndex] = outputColorTarget;
         }
 
     }

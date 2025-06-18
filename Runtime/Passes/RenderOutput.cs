@@ -12,34 +12,27 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Serializable]
-    [NodeInfo("Render Output", NodeInfo.NodeType.Output, "Output/Render Output")]
-    public class RenderOutput : Pass
+    public class RenderOutput : PassBase
     {
         [SerializeField]
-        [PortInputInfo("Color Target", PortInputInfo.Capacity.Single)]
-        public int inputTextureIndex = -1;
+        public int colorTargetIndex = -1;
 
         [SerializeField]
         public Material singleBlitMat;
 
 
-        public override void Setup(HNRenderGraph renderGraph)
-        {
-            Debug.Log("Record Render Output Setup.");
-
-            singleBlitMat = singleBlitMat ?? new Material(Shader.Find("Unlit/SingleBlitShader"));
-        }
-
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Render Output");
+
+            singleBlitMat = singleBlitMat ?? new Material(Shader.Find("Unlit/SingleBlitShader"));
 
             using (var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
             {
                 builder.AllowPassCulling(false);
 
                 passData.singleBlitMat = singleBlitMat;
-                passData.inputTexture = builder.ReadTexture(textureHandles[inputTextureIndex]);
+                passData.inputTexture = builder.ReadTexture(textureHandles[colorTargetIndex]);
                 TextureHandle backBuffer = renderGraph.ImportBackbuffer(graphObjectData.TargetId);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(

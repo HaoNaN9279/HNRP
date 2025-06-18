@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    [CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline")]
+    [CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline Asset")]
     public class HNRenderPipelineAsset : RenderPipelineAsset
     {
         [SerializeField]

@@ -8,7 +8,7 @@ namespace HN.HNRP
     public struct GraphObjectData
     {
         public Camera Camera;
-        public HNRenderGraph GraphObject;
+        public HNRenderGraphBase GraphObject;
         public CommandBuffer Cmd;
         public RenderTargetIdentifier TargetId;
     }
