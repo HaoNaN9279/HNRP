@@ -2,7 +2,7 @@ Shader "Unlit/SingleBlitShader"
 {
     Properties
     {
-        _MainTex ("Texture", 2D) = "white" {}
+        _tex ("Texture", 2D) = "white" {}
     }
     SubShader
     {
@@ -16,8 +16,10 @@ Shader "Unlit/SingleBlitShader"
 
             #include "Common.hlsl"
 
-            TEXTURE2D(_MainTex);
-            SAMPLER(sampler_MainTex);
+            TEXTURE2D(_tex);
+            // SAMPLER(sampler_MainTex);
+            SamplerState sampler_PointClamp;
+            float4 _testColor;
             
             struct Attributes
             {
@@ -35,15 +37,16 @@ Shader "Unlit/SingleBlitShader"
             {
                 Varyings o;
                 o.vertex = GetFullScreenTriangleVertexPosition(v.vertex);
-                o.uv = GetQuadTexCoord(v.vertex);
+                o.uv = GetFullScreenTriangleTexCoord(v.vertex);
                 return o;
             }
 
             float4 frag (Varyings i) : SV_Target
             {
-                float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
+                float4 col = SAMPLE_TEXTURE2D(_tex, sampler_PointClamp, i.uv);
                 // float4 col = float4(0.8, 0.4, 0.5, 1);
-                return float4(col.r, col.g, col.b, 1.0);
+                return float4(col.x, col.y, col.z, 1.0);
+                // return float4(_testColor.x, _testColor.y, _testColor.z, 1.0);
             }
             ENDHLSL
         }

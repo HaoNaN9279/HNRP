@@ -8,5 +8,6 @@ namespace HN.HNRP
     public struct FrameData
     {
         public int FrameCount;
+        public CullingResults CullingResults;
     }
 }

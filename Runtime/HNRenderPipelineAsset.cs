@@ -29,12 +29,11 @@ namespace HN.HNRP
         [SerializeField]
         public RenderGraphViewBlock runtimeRenderGraphViews;
 
-        [SerializeField]
-        public ShadowSettings shadowSettings;
 
-        [SerializeField]
-        public PostProcessingSettings postProcessingSettings;
+        public override string[] renderingLayerMaskNames => globalSettings.RenderingLayerNames;
+        public override string[] prefixedRenderingLayerMaskNames => globalSettings.PrefixedRenderingLayerNames;
 
+        public HNRenderPipelineGlobalSettings globalSettings => HNRenderPipelineGlobalSettings.Instance;
 
         public HNRenderPipelineAsset()
         {
@@ -47,8 +46,6 @@ namespace HN.HNRP
             editorRenderGraphViews = new RenderGraphViewBlock(EditorDefaultViews);
 #endif
             runtimeRenderGraphViews = new RenderGraphViewBlock(RuntimeDefaultViews);
-            shadowSettings = default;
-            postProcessingSettings = default;
         }
 
         protected override RenderPipeline CreatePipeline()

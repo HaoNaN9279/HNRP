@@ -57,17 +57,17 @@ namespace HN.HNRP
                 return prefixedRenderingLayerNames;
             }
         }
-        [SerializeField]
+        [System.NonSerialized]
         private string[] prefixedRenderingLayerNames;
 
 
         internal void UpdateRenderingLayerNames()
         {
-            if (renderingLayerNames == null)
+            if (prefixedRenderingLayerNames == null)
             {
-                renderingLayerNames = new string[32];
+                prefixedRenderingLayerNames = new string[32];
             }
-            for (int i = 0; i < renderingLayerNames.Length; i++)
+            for (int i = 0; i < prefixedRenderingLayerNames.Length; i++)
             {
                 uint layer = (uint)(1 << i);
                 renderingLayers = i < renderingLayerNames.Length ? (renderingLayers | layer) : (renderingLayers & ~layer);

@@ -33,7 +33,7 @@ namespace HN.HNRP
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
-            colorTargetIndex = hnRenderGraph.AddTextureHandle(new TextureHandle());
+            colorTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
         }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
@@ -47,7 +47,7 @@ namespace HN.HNRP
                 clearColor = clearColor,
                 name = name
             });
-            textureHandles[colorTargetIndex] = outputColorTarget;
+            textureHandles.Add(outputColorTarget);
         }
 
     }

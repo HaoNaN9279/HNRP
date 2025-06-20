@@ -34,29 +34,35 @@ namespace HN.HNRP
 
         public void RecordAndExecute()
         {
-            if(graphObjectData.Camera.cameraType == CameraType.SceneView)
+            if (graphObjectData.Camera.cameraType == CameraType.SceneView)
             {
                 ScriptableRenderContext.EmitWorldGeometryForSceneView(graphObjectData.Camera);
             }
 
             context.SetupCameraProperties(graphObjectData.Camera);
 
+            if (!TryCull())
+            {
+                Debug.LogError("Culling failed for camera: " + graphObjectData.Camera.name);
+                return;
+            }
+
             RecordPasses();
 
-            graphObjectData.Camera.targetTexture = null;
+            // graphObjectData.Camera.targetTexture = null;
         }
 
 
         private void RecordPasses()
         {
-            if(graphObjectData.GraphObject == null)
+            if (graphObjectData.GraphObject == null)
             {
                 Debug.LogError("RenderGraph is null.");
                 return;
             }
 
             graphObjectData.GraphObject.UpdateData(renderGraph, frameData, graphObjectData);
-            
+
             using (renderGraph.RecordAndExecute(new RenderGraphParameters
             {
                 executionName = "execution_" + graphObjectData.Camera.name,
@@ -67,8 +73,21 @@ namespace HN.HNRP
             }))
             {
                 Debug.Log("Record And Execute: " + this);
-                graphObjectData.GraphObject.Record();
+
+                List<TextureHandle> textureHandles = new List<TextureHandle>();
+
+                graphObjectData.GraphObject.RecordRenderGraph(textureHandles);
             }
+        }
+
+        private bool TryCull()
+        {
+            if (graphObjectData.Camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
+            {
+                frameData.CullingResults = context.Cull(ref cullingParameters);
+                return true;
+            }
+            return false;
         }
 
     }

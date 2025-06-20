@@ -8,6 +8,8 @@ Shader "Unlit/TestShader"
     {
         Pass
         {
+            Name "Forward"
+
             HLSLPROGRAM
             // #pragma multi_compile_instancing
             #pragma vertex vert

@@ -15,26 +15,23 @@ namespace HN.HNRP
     public class TransparencyPass : PassBase
     {
         [SerializeField]
-        public Material material;
-
-        [SerializeField]
         public Color defaultDrawColor = Color.blue;
 
         [SerializeField]
-        public int colorTarget = -1;
+        public int colorTargetIndex = -1;
 
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Record Transparency pass.");
             
-            material = material ?? new Material(Shader.Find("Unlit/TestShader"));
+            Material material = new Material(Shader.Find("Unlit/TestShader"));
 
             using (var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
             {
                 passData.material = material;
                 passData.defaultDrawColor = defaultDrawColor;
-                passData.colorTarget = builder.WriteTexture(textureHandles[colorTarget]);
+                passData.colorTarget = builder.WriteTexture(textureHandles[colorTargetIndex]);
 
                 builder.SetRenderFunc(
                     (TransparencyPassData data, RenderGraphContext ctx) =>

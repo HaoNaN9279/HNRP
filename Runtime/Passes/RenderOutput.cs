@@ -17,15 +17,12 @@ namespace HN.HNRP
         [SerializeField]
         public int colorTargetIndex = -1;
 
-        [SerializeField]
-        public Material singleBlitMat;
-
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Render Output");
 
-            singleBlitMat = singleBlitMat ?? new Material(Shader.Find("Unlit/SingleBlitShader"));
+            Material singleBlitMat = new Material(Shader.Find("Unlit/SingleBlitShader"));
 
             using (var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
             {
@@ -40,9 +37,9 @@ namespace HN.HNRP
                     {
                         CoreUtils.SetRenderTarget(ctx.cmd, data.renderTarget);
 
-                        var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-                        materialPropertyBlock.SetTexture("_MainTex", data.inputTexture);
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat, materialPropertyBlock);
+                        var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
+                        propertyBlock.SetTexture("_tex", data.inputTexture);
+                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat, propertyBlock);
                     }
                 );
             }

@@ -11,6 +11,11 @@ namespace HN.HNRP
         [SerializeReference]
         protected HNRenderGraphBase hnRenderGraph;
 
+#if UNITY_EDITOR
+        [SerializeField]
+        protected bool isExpandedInInspector = false;
+#endif
+
 
         public virtual void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {

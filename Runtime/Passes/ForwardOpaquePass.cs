@@ -13,45 +13,62 @@ namespace HN.HNRP
     [Serializable]
     public class ForwardOpaquePass : PassBase
     {
-        [SerializeField]
-        public Material material;
+        public ShaderTagId[] PassNames;
 
         [SerializeField]
-        public Color defaultDrawColor = Color.cyan;
+        public uint layerMask =  0x00000001;
 
         [SerializeField]
         public int colorTargetIndex = -1;
-
 
         [SerializeField]
         public RendererListHandle rendererList;
 
 
+        void OnEnable()
+        {
+            PassNames = new[] { ShaderPassNames.ForwardName };
+            
+        }
+
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Record Forward Opaque pass.");
-            
-            material = material ?? new Material(Shader.Find("Unlit/TestShader"));
 
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
-                passData.material = material;
-                passData.defaultDrawColor = defaultDrawColor;
+                passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
+                RendererListDesc rendererListDesc = GetForwardOpaqueRendererListDesc(frameData, graphObjectData, layerMask);
+                passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
+                builder.AllowRendererListCulling(false);
 
-                passData.colorTarget = builder.WriteTexture(textureHandles[colorTargetIndex]);
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
-                        CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
+                        // var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
 
-                        var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-                        materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
-
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
+                        CoreUtils.DrawRendererList(ctx.renderContext, graphObjectData.Cmd, data.rendererList);
                     }
                 );
 
             }
+        }
+        
+
+        private RendererListDesc GetForwardOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint layerMask)
+        {
+            var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
+            {
+                renderingLayerMask = layerMask,
+                rendererConfiguration = 0,
+                renderQueueRange = HNRenderQueue.AllOpaque,
+                sortingCriteria = SortingCriteria.CommonOpaque,
+                stateBlock = null,
+                overrideMaterial = null,
+                excludeObjectMotionVectors = false,
+            };
+
+            return desc;
         }
 
     }
@@ -59,8 +76,6 @@ namespace HN.HNRP
 
     public class ForwardOpaquePassData : PassData
     {
-        public Material material;
-        public Color defaultDrawColor;
         public TextureHandle colorTarget;
         public RendererListHandle rendererList;
 

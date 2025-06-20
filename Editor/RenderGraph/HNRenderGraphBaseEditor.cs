@@ -10,7 +10,6 @@ namespace HN.HNRP.Editor
     public abstract class HNRenderGraphBaseEditor : UnityEditor.Editor
     {
         protected SerializedProperty passesProperty;
-        protected bool[] folders;
 
         protected List<UnityEditor.Editor> editors = new List<UnityEditor.Editor>();
 
@@ -60,15 +59,16 @@ namespace HN.HNRP.Editor
                 {
                     bool hasChangedProperties = false;
 
-                    string passName = passProperty.objectReferenceValue.name;
+                    string passName = passObject.name;
                     string title = $"{passName} ({passObject.GetType().Name})";
+                    SerializedProperty isExpandedInInspectorProperty = passEditor.serializedObject.FindProperty("isExpandedInInspector");
 
                     EditorGUI.BeginChangeCheck();
                     
-                    folders[i] = CoreEditorUtils.DrawHeaderFoldout(EditorGUIUtility.TrTextContent(title), folders[i], false);
+                    isExpandedInInspectorProperty.boolValue = CoreEditorUtils.DrawHeaderFoldout(EditorGUIUtility.TrTextContent(title), isExpandedInInspectorProperty.boolValue, false);
                     hasChangedProperties |= EditorGUI.EndChangeCheck();
 
-                    if (folders[i])
+                    if (isExpandedInInspectorProperty.boolValue)
                     {
                         EditorGUI.BeginChangeCheck();
                         passEditor.OnInspectorGUI();
@@ -91,7 +91,6 @@ namespace HN.HNRP.Editor
         private void OnEnable()
         {
             passesProperty = serializedObject.FindProperty(nameof(HNRenderGraphBase.passes));
-            folders = new bool[passesProperty.arraySize];
 
             UpdateEditorList();
         }

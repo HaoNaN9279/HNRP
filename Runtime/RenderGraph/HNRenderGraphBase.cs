@@ -20,18 +20,18 @@ namespace HN.HNRP
         [SerializeField]
         public List<PassBase> passes = new List<PassBase>();
 
+        protected int textureHandleIndex = -1;
+
         protected RenderGraph renderGraph;
         protected FrameData frameData;
         protected GraphObjectData graphObjectData;
-
-        protected List<TextureHandle> textureHandles = new List<TextureHandle>();
 
 
         void OnEnable()
         {
             if (passes.Count > 0)
                 return;
-            
+
             Initialize();
         }
 
@@ -46,7 +46,7 @@ namespace HN.HNRP
             }
 
             passes.Clear();
-            textureHandles.Clear();
+            textureHandleIndex = -1;
         }
 
         public T AddPass<T>(string name) where T : PassBase
@@ -59,16 +59,16 @@ namespace HN.HNRP
             return pass;
         }
 
-        protected void Connect(int left, ref int right)
+        protected void Connect(int upStream, ref int downStream)
         {
-            right = left;
+            downStream = upStream;
         }
 
 
-        public int AddTextureHandle(TextureHandle textureHandle)
+        public int RegistAndGetTextureHandleIndex()
         {
-            textureHandles.Add(textureHandle);
-            return textureHandles.Count - 1;
+            textureHandleIndex++;
+            return textureHandleIndex;
         }
 
         public void UpdateData(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData)
@@ -79,7 +79,7 @@ namespace HN.HNRP
         }
 
         public abstract void Initialize();
-        public abstract void Record();
+        public abstract void RecordRenderGraph(List<TextureHandle> textureHandles);
         
     }
 

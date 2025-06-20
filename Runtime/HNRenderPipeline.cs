@@ -132,7 +132,8 @@ namespace HN.HNRP
 
                 CommandBuffer cmd = CommandBufferPool.Get($"RenderRequest_{camera.name}_cmd");
                 RenderTargetIdentifier targetId = camera.targetTexture ?? new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget);
-                if(camera.targetTexture != null)
+                // RenderTargetIdentifier targetId = camera.targetTexture != null ? new RenderTargetIdentifier(camera.targetTexture) : BuiltinRenderTextureType.CameraTarget;
+                if (camera.targetTexture != null)
                 {
                     camera.targetTexture.IncrementUpdateCount();
                 }
@@ -152,15 +153,15 @@ namespace HN.HNRP
         {
             RTHandles.SetReferenceSize(Screen.width, Screen.height);
 
-            foreach(var request in renderRequests)
+            foreach (var request in renderRequests)
             {
                 request.GraphObjectData.Cmd.ClearRenderTarget(true, true, Color.gray);
                 request.RecordAndExecute();
 
                 EndCameraRendering(request.Context, request.GraphObjectData.Camera);
                 request.Context.ExecuteCommandBuffer(request.GraphObjectData.Cmd);
-                CommandBufferPool.Release(request.GraphObjectData.Cmd);
                 request.Context.Submit();
+                CommandBufferPool.Release(request.GraphObjectData.Cmd);
             }
 
         }
