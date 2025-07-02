@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using HN.Graph;
-using HN.Serialize;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -40,7 +38,7 @@ namespace HN.HNRP
         {
             Debug.Log("Texture Input");
 
-            TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, true)
+            TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
                 colorFormat = colorFormat,
                 clearBuffer = clearBuffer,

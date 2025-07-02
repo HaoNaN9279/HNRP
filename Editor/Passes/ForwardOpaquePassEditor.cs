@@ -10,9 +10,9 @@ namespace HN.HNRP.Editor
     [CustomEditor(typeof(ForwardOpaquePass))]
     public class ForwardOpaquePassEditor : PassBaseEditor
     {
-        public override VisualElement CreateInspectorGUI()
+        public override void OnInspectorGUI()
         {
-            return base.CreateInspectorGUI();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("layerMask"), new GUIContent("Rendering Layer Mask"));
         }
     }
 }

@@ -17,8 +17,8 @@ Shader "Unlit/SingleBlitShader"
             #include "Common.hlsl"
 
             TEXTURE2D(_tex);
-            // SAMPLER(sampler_MainTex);
-            SamplerState sampler_PointClamp;
+            SAMPLER(sampler_tex);
+            // SamplerState sampler_PointClamp;
             float4 _testColor;
             
             struct Attributes
@@ -43,7 +43,7 @@ Shader "Unlit/SingleBlitShader"
 
             float4 frag (Varyings i) : SV_Target
             {
-                float4 col = SAMPLE_TEXTURE2D(_tex, sampler_PointClamp, i.uv);
+                float4 col = SAMPLE_TEXTURE2D(_tex, sampler_tex, i.uv);
                 // float4 col = float4(0.8, 0.4, 0.5, 1);
                 return float4(col.x, col.y, col.z, 1.0);
                 // return float4(_testColor.x, _testColor.y, _testColor.z, 1.0);

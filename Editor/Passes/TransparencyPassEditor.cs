@@ -10,9 +10,10 @@ namespace HN.HNRP.Editor
     [CustomEditor(typeof(TransparencyPass))]
     public class TransparencyPassEditor : PassBaseEditor
     {
-        public override VisualElement CreateInspectorGUI()
+        public override void OnInspectorGUI()
         {
-            return new VisualElement();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("defaultDrawColor"), new GUIContent("Default Draw Color"));
+            
         }
     }
 }

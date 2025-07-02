@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using HN.Serialize;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -18,10 +17,8 @@ namespace HN.HNRP
         [SerializeField]
         public uint layerMask =  0x00000001;
 
-        [SerializeField]
         public int colorTargetIndex = -1;
 
-        [SerializeField]
         public RendererListHandle rendererList;
 
 
@@ -45,8 +42,6 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
-                        // var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-
                         CoreUtils.DrawRendererList(ctx.renderContext, graphObjectData.Cmd, data.rendererList);
                     }
                 );

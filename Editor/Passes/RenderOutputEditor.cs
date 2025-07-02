@@ -10,9 +10,9 @@ namespace HN.HNRP.Editor
     [CustomEditor(typeof(RenderOutput))]
     public class RenderOutputEditor : PassBaseEditor
     {
-        public override VisualElement CreateInspectorGUI()
+        public override void OnInspectorGUI()
         {
-            return new VisualElement();
+            
         }
     }
 }

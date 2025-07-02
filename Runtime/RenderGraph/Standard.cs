@@ -17,7 +17,7 @@ namespace HN.HNRP
             TransparencyPass transparencyPass = AddPass<TransparencyPass>("Transparency");
             Connect(forwardOpaquePass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
-            Connect(forwardOpaquePass.colorTargetIndex, ref renderOutput.colorTargetIndex);
+            Connect(transparencyPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
 
         public override void RecordRenderGraph(List<TextureHandle> textureHandles)
