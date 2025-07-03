@@ -15,7 +15,7 @@ namespace HN.HNRP
         public ShaderTagId[] PassNames;
 
         [SerializeField]
-        public uint layerMask =  0x00000001;
+        public uint renderingLayerMask =  0x00000001;
 
         public int colorTargetIndex = -1;
 
@@ -35,14 +35,14 @@ namespace HN.HNRP
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
-                RendererListDesc rendererListDesc = GetForwardOpaqueRendererListDesc(frameData, graphObjectData, layerMask);
+                RendererListDesc rendererListDesc = GetForwardOpaqueRendererListDesc(frameData, graphObjectData, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
 
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
-                        CoreUtils.DrawRendererList(ctx.renderContext, graphObjectData.Cmd, data.rendererList);
+                        ctx.cmd.DrawRendererList(data.rendererList);
                     }
                 );
 
@@ -50,12 +50,12 @@ namespace HN.HNRP
         }
         
 
-        private RendererListDesc GetForwardOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint layerMask)
+        private RendererListDesc GetForwardOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
         {
             var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
             {
-                renderingLayerMask = layerMask,
-                rendererConfiguration = 0,
+                renderingLayerMask = renderingLayerMask,
+				rendererConfiguration = 0,
                 renderQueueRange = HNRenderQueue.AllOpaque,
                 sortingCriteria = SortingCriteria.CommonOpaque,
                 stateBlock = null,

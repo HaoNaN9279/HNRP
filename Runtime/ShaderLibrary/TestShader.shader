@@ -3,15 +3,22 @@ Shader "Unlit/TestShader"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
+        _Color ("Color", Color) = (1, 1, 1, 1)
     }
     SubShader
     {
         Pass
         {
-            Name "Forward"
+            Tags
+            {
+                "LightMode" = "Forward"
+            }
+
+            // Cull Off
+            // ZTest Always
+            // ZClip False
 
             HLSLPROGRAM
-            // #pragma multi_compile_instancing
             #pragma vertex vert
             #pragma fragment frag
 
@@ -19,11 +26,11 @@ Shader "Unlit/TestShader"
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
-            float4 _DefaultDrawColor;
+            float4 _Color;
             
             struct Attributes
             {
-                uint vertex : SV_VertexID;
+                float3 vertex : POSITION;
                 float2 uv : TEXCOORD0;
             };
 
@@ -36,16 +43,15 @@ Shader "Unlit/TestShader"
             Varyings vert (Attributes v)
             {
                 Varyings o;
-                o.vertex = GetFullScreenTriangleVertexPosition(v.vertex);
+                o.uv = v.uv;
+                o.vertex = TransformObjectToHClip(v.vertex);
                 return o;
             }
 
             float4 frag (Varyings i) : SV_Target
             {
-                // sample the texture
-                float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
+                float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
 
-                col = float4(_DefaultDrawColor.x, _DefaultDrawColor.y, _DefaultDrawColor.z, 1);
                 return col;
             }
             ENDHLSL

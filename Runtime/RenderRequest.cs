@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using HN.Serialize;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -34,6 +35,8 @@ namespace HN.HNRP
 
         public void RecordAndExecute()
         {
+            RTHandles.SetReferenceSize(graphObjectData.Camera.pixelWidth, graphObjectData.Camera.pixelHeight);
+
             if (graphObjectData.Camera.cameraType == CameraType.SceneView)
             {
                 ScriptableRenderContext.EmitWorldGeometryForSceneView(graphObjectData.Camera);

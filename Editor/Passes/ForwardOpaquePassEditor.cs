@@ -12,7 +12,7 @@ namespace HN.HNRP.Editor
     {
         public override void OnInspectorGUI()
         {
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("layerMask"), new GUIContent("Rendering Layer Mask"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("renderingLayerMask"), new GUIContent("Rendering Layer Mask"));
         }
     }
 }

@@ -151,8 +151,6 @@ namespace HN.HNRP
 
         private void ExecuteRenderRequests()
         {
-            RTHandles.SetReferenceSize(Screen.width, Screen.height);
-
             foreach (var request in renderRequests)
             {
                 request.GraphObjectData.Cmd.ClearRenderTarget(true, true, Color.gray);
