@@ -9,45 +9,38 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Serializable]
-    public class TextureInput : PassBase
+    public class DepthBufferInput : PassBase
     {
         [SerializeField]
         public Vector2 textureScale = Vector2.one;
 
         [SerializeField]
-        public GraphicsFormat colorFormat = GraphicsFormat.R8G8B8A8_UNorm;
+        public DepthBits depthBits = DepthBits.Depth32;
 
         [SerializeField]
         public bool clearBuffer = true;
 
         [SerializeField]
-        public Color clearColor = Color.black;
-
-
-        [SerializeField]
-        public int colorTargetIndex = -1;
+        public int depthTargetIndex = -1;
 
 
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
-            colorTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
+            depthTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
         }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Texture Input");
+            Debug.Log("Depth Buffer Input");
 
-            TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
+            TextureHandle outputDepthTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
-                colorFormat = colorFormat,
+                depthBufferBits = depthBits,
                 clearBuffer = clearBuffer,
-                clearColor = clearColor,
                 name = name
             });
-            textureHandles.Add(outputColorTarget);
+            textureHandles.Add(outputDepthTarget);
         }
-
     }
-
 }

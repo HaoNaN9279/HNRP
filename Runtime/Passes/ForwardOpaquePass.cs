@@ -17,6 +17,7 @@ namespace HN.HNRP
         public RendererListHandle rendererList;
 
         public int colorTargetIndex = -1;
+        public int depthTargetIndex = -1;
         public ShaderTagId[] PassNames;
 
 
@@ -33,6 +34,7 @@ namespace HN.HNRP
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
+                passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.ReadWrite);
                 RendererListDesc rendererListDesc = GetOpaqueRendererListDesc(frameData, graphObjectData, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
@@ -70,6 +72,7 @@ namespace HN.HNRP
     public class ForwardOpaquePassData : PassData
     {
         public TextureHandle colorTarget;
+        public TextureHandle depthTarget;
         public RendererListHandle rendererList;
 
     }

@@ -11,11 +11,17 @@ namespace HN.HNRP
     {
         public override void Initialize()
         {
-            TextureInput textureInput = AddPass<TextureInput>("Color Target");
+            ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
+            DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
+
             ForwardOpaquePass forwardOpaquePass = AddPass<ForwardOpaquePass>("Opaque");
-            Connect(textureInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
+            Connect(colorBufferInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
+            Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
+
             TransparencyPass transparencyPass = AddPass<TransparencyPass>("Transparency");
             Connect(forwardOpaquePass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
+            Connect(forwardOpaquePass.depthTargetIndex, ref transparencyPass.depthTargetIndex);
+
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
             Connect(transparencyPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
