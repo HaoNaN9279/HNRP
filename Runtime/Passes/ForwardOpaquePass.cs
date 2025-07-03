@@ -12,14 +12,12 @@ namespace HN.HNRP
     [Serializable]
     public class ForwardOpaquePass : PassBase
     {
-        public ShaderTagId[] PassNames;
-
         [SerializeField]
         public uint renderingLayerMask =  0x00000001;
+        public RendererListHandle rendererList;
 
         public int colorTargetIndex = -1;
-
-        public RendererListHandle rendererList;
+        public ShaderTagId[] PassNames;
 
 
         void OnEnable()
@@ -35,7 +33,7 @@ namespace HN.HNRP
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
             {
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
-                RendererListDesc rendererListDesc = GetForwardOpaqueRendererListDesc(frameData, graphObjectData, renderingLayerMask);
+                RendererListDesc rendererListDesc = GetOpaqueRendererListDesc(frameData, graphObjectData, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
 
@@ -50,7 +48,7 @@ namespace HN.HNRP
         }
         
 
-        private RendererListDesc GetForwardOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
+        private RendererListDesc GetOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
         {
             var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
             {

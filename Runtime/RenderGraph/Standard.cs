@@ -14,10 +14,10 @@ namespace HN.HNRP
             TextureInput textureInput = AddPass<TextureInput>("Color Target");
             ForwardOpaquePass forwardOpaquePass = AddPass<ForwardOpaquePass>("Opaque");
             Connect(textureInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
-            // TransparencyPass transparencyPass = AddPass<TransparencyPass>("Transparency");
-            // Connect(forwardOpaquePass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
+            TransparencyPass transparencyPass = AddPass<TransparencyPass>("Transparency");
+            Connect(forwardOpaquePass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
-            Connect(forwardOpaquePass.colorTargetIndex, ref renderOutput.colorTargetIndex);
+            Connect(transparencyPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
 
         public override void RecordRenderGraph(List<TextureHandle> textureHandles)

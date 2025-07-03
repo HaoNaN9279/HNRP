@@ -12,7 +12,7 @@ namespace HN.HNRP.Editor
     {
         public override void OnInspectorGUI()
         {
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("defaultDrawColor"), new GUIContent("Default Draw Color"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("renderingLayerMask"), new GUIContent("Rendering Layer Mask"));
             
         }
     }

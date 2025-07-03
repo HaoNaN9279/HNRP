@@ -1,10 +1,25 @@
-Shader "Unlit/TestShader"
+Shader "HNRP/Lit"
 {
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
         _Color ("Color", Color) = (1, 1, 1, 1)
+
+        [ToggleUI] _AlphaClip("Clip", Float) = 0.0
+        _Cutoff("Aplha Cutoff", Range(0.0, 1.0)) = 0.5
+
+        [HideInInspector] _SrcBlend("__src", Float) = 1.0
+        [HideInInspector] _DstBlend("__dst", Float) = 0.0
     }
+
+    HLSLINCLUDE
+
+    #pragma shader_feature_local _ALPHATEST_ON
+
+    #include "Common.hlsl"
+
+    ENDHLSL
+
     SubShader
     {
         Pass
@@ -14,6 +29,7 @@ Shader "Unlit/TestShader"
                 "LightMode" = "Forward"
             }
 
+            Blend[_SrcBlend][_DstBlend]
             // Cull Off
             // ZTest Always
             // ZClip False
@@ -22,11 +38,10 @@ Shader "Unlit/TestShader"
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "Common.hlsl"
-
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
             float4 _Color;
+            float _Cutoff;
             
             struct Attributes
             {
@@ -52,9 +67,15 @@ Shader "Unlit/TestShader"
             {
                 float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
 
+#if _ALPHATEST_ON
+                clip(col.a - _Cutoff);
+#endif
+
                 return col;
             }
             ENDHLSL
         }
     }
+
+    CustomEditor "HN.HNRP.Editor.LitGUI"
 }

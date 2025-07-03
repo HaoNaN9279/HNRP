@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RendererUtils;
 
 namespace HN.HNRP
 {
@@ -13,35 +14,53 @@ namespace HN.HNRP
     public class TransparencyPass : PassBase
     {
         [SerializeField]
-        public Color defaultDrawColor = Color.blue;
+        public uint renderingLayerMask = 0x00000001;
+        public RendererListHandle rendererList;
 
         public int colorTargetIndex = -1;
+        public ShaderTagId[] PassNames;
 
+
+        void OnEnable()
+        {
+            PassNames = new[] { ShaderPassNames.ForwardName };
+
+        }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
             Debug.Log("Record Transparency pass.");
-            
-            Material material = new Material(Shader.Find("Unlit/TestShader"));
-
             using (var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
             {
-                passData.material = material;
-                passData.defaultDrawColor = defaultDrawColor;
-                passData.colorTarget = builder.WriteTexture(textureHandles[colorTargetIndex]);
+                passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
+                RendererListDesc rendererListDesc = GetTransparentRendererListDesc(frameData, graphObjectData, renderingLayerMask);
+                passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
+                builder.AllowRendererListCulling(false);
 
                 builder.SetRenderFunc(
                     (TransparencyPassData data, RenderGraphContext ctx) =>
                     {
-                        CoreUtils.SetRenderTarget(ctx.cmd, data.colorTarget);
-
-                        var materialPropertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-                        materialPropertyBlock.SetColor("_DefaultDrawColor", data.defaultDrawColor);
-
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.material, materialPropertyBlock);
+                        ctx.cmd.DrawRendererList(data.rendererList);
                     }
                 );
             }
+        }
+        
+
+        private RendererListDesc GetTransparentRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
+        {
+            var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
+            {
+                renderingLayerMask = renderingLayerMask,
+				rendererConfiguration = 0,
+                renderQueueRange = HNRenderQueue.Transparent,
+                sortingCriteria = SortingCriteria.CommonTransparent,
+                stateBlock = null,
+                overrideMaterial = null,
+                excludeObjectMotionVectors = false,
+            };
+
+            return desc;
         }
 
     }
@@ -49,9 +68,8 @@ namespace HN.HNRP
 
     public class TransparencyPassData : PassData
     {
-        public Material material;
-        public Color defaultDrawColor;
         public TextureHandle colorTarget;
+        public RendererListHandle rendererList;
 
     }
 
