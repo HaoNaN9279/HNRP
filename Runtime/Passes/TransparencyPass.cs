@@ -15,10 +15,11 @@ namespace HN.HNRP
     {
         [SerializeField]
         public uint renderingLayerMask = 0x00000001;
-        public RendererListHandle rendererList;
 
         public int colorTargetIndex = -1;
         public int depthTargetIndex = -1;
+        public RendererListHandle rendererList;
+        
         public ShaderTagId[] PassNames;
 
 
@@ -34,7 +35,10 @@ namespace HN.HNRP
             using (var builder = renderGraph.AddRenderPass<TransparencyPassData>("Transparency Pass", out var passData))
             {
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
-                passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.Read);
+                if (textureHandles[depthTargetIndex].IsValid())
+                {
+                    passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.Read);
+                }
                 RendererListDesc rendererListDesc = GetTransparentRendererListDesc(frameData, graphObjectData, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);

@@ -10,7 +10,7 @@ Shader "Unlit/SingleBlitShader"
         Pass
         {
             HLSLPROGRAM
-            #pragma multi_compile_local _ BLIT_DECODE_HDR
+            // #pragma multi_compile_local _ BLIT_DECODE_HDR
             #pragma vertex vert
             #pragma fragment frag
 
@@ -18,35 +18,36 @@ Shader "Unlit/SingleBlitShader"
 
             TEXTURE2D(_tex);
             SAMPLER(sampler_tex);
-            // SamplerState sampler_PointClamp;
             float4 _testColor;
+            float _flip;
             
             struct Attributes
             {
-                uint vertex : SV_VertexID;
-                float2 uv : TEXCOORD0;
+                uint vertexID : SV_VertexID;
             };
 
             struct Varyings
             {
                 float2 uv : TEXCOORD0;
-                float4 vertex : SV_POSITION;
+                float4 positionCS : SV_POSITION;
             };
 
             Varyings vert (Attributes v)
             {
                 Varyings o;
-                o.vertex = GetFullScreenTriangleVertexPosition(v.vertex);
-                o.uv = GetFullScreenTriangleTexCoord(v.vertex);
+                o.uv = GetFullScreenTriangleTexCoord(v.vertexID);
+                o.positionCS = GetFullScreenTriangleVertexPosition(v.vertexID);
                 return o;
             }
 
             float4 frag (Varyings i) : SV_Target
             {
+                if(_flip > 0.5)
+                    i.uv.y = 1 - i.uv.y;
+
                 float4 col = SAMPLE_TEXTURE2D(_tex, sampler_tex, i.uv);
-                // float4 col = float4(0.8, 0.4, 0.5, 1);
+
                 return float4(col.x, col.y, col.z, 1.0);
-                // return float4(_testColor.x, _testColor.y, _testColor.z, 1.0);
             }
             ENDHLSL
         }

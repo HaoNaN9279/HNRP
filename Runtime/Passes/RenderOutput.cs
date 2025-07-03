@@ -26,7 +26,8 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                passData.singleBlitMat = singleBlitMat;
+                passData.blitMaterial = singleBlitMat;
+                passData.flip = graphObjectData.Camera.cameraType == CameraType.Game && graphObjectData.Camera.targetTexture == null;
                 passData.inputTexture = builder.ReadTexture(textureHandles[colorTargetIndex]);
                 TextureHandle backBuffer = renderGraph.ImportBackbuffer(graphObjectData.TargetId);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
@@ -37,7 +38,8 @@ namespace HN.HNRP
 
                         var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                         propertyBlock.SetTexture("_tex", data.inputTexture);
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.singleBlitMat, propertyBlock);
+                        propertyBlock.SetFloat("_flip", data.flip ? 1.0f : 0.0f);
+                        CoreUtils.DrawFullScreen(ctx.cmd, data.blitMaterial, propertyBlock);
                     }
                 );
             }
@@ -49,7 +51,8 @@ namespace HN.HNRP
     {
         public TextureHandle inputTexture;
         public TextureHandle renderTarget;
-        public Material singleBlitMat;
+        public Material blitMaterial;
+        public bool flip;
 
     }
 

@@ -18,8 +18,12 @@ namespace HN.HNRP
             Connect(colorBufferInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
 
+            BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
+            Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);
+            Connect(forwardOpaquePass.depthTargetIndex, ref builtinSkyPass.depthTargetIndex);
+
             TransparencyPass transparencyPass = AddPass<TransparencyPass>("Transparency");
-            Connect(forwardOpaquePass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
+            Connect(builtinSkyPass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
             Connect(forwardOpaquePass.depthTargetIndex, ref transparencyPass.depthTargetIndex);
 
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
