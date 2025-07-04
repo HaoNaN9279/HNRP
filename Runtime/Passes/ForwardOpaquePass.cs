@@ -13,20 +13,12 @@ namespace HN.HNRP
     public class ForwardOpaquePass : PassBase
     {
         [SerializeField]
-        public uint renderingLayerMask =  0x00000001;
+        public uint renderingLayerMask = 0x00000001;
 
         public int colorTargetIndex = -1;
         public int depthTargetIndex = -1;
         public RendererListHandle rendererList;
-        
-        public ShaderTagId[] PassNames;
 
-
-        void OnEnable()
-        {
-            PassNames = new[] { ShaderPassNames.ForwardName };
-            
-        }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
@@ -39,7 +31,7 @@ namespace HN.HNRP
                 {
                     passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.ReadWrite);
                 }
-                RendererListDesc rendererListDesc = GetOpaqueRendererListDesc(frameData, graphObjectData, renderingLayerMask);
+                RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetOpaqueRendererListDesc(ShaderPassNames.AllForwardNames, frameData.CullingResults, graphObjectData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
 
@@ -54,31 +46,13 @@ namespace HN.HNRP
         }
         
 
-        private RendererListDesc GetOpaqueRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
+        public class ForwardOpaquePassData : PassData
         {
-            var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
-            {
-                renderingLayerMask = renderingLayerMask,
-				rendererConfiguration = 0,
-                renderQueueRange = HNRenderQueue.AllOpaque,
-                sortingCriteria = SortingCriteria.CommonOpaque,
-                stateBlock = null,
-                overrideMaterial = null,
-                excludeObjectMotionVectors = false,
-            };
+            public TextureHandle colorTarget;
+            public TextureHandle depthTarget;
+            public RendererListHandle rendererList;
 
-            return desc;
         }
-
-    }
-
-
-    public class ForwardOpaquePassData : PassData
-    {
-        public TextureHandle colorTarget;
-        public TextureHandle depthTarget;
-        public RendererListHandle rendererList;
-
     }
 
 }

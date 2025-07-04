@@ -11,5 +11,8 @@ namespace HN.HNRP
 
 
         public static readonly ShaderTagId ForwardName = new ShaderTagId(ForwardStr);
+
+
+        public static readonly ShaderTagId[] AllForwardNames = new[] { ForwardName };
     }
 }

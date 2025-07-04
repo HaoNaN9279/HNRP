@@ -26,8 +26,11 @@ namespace HN.HNRP
             Connect(builtinSkyPass.colorTargetIndex, ref transparencyPass.colorTargetIndex);
             Connect(forwardOpaquePass.depthTargetIndex, ref transparencyPass.depthTargetIndex);
 
+            EditorWireOverlayPass editorWireOverlayPass = AddPass<EditorWireOverlayPass>("Wire Overlay");
+            Connect(transparencyPass.colorTargetIndex, ref editorWireOverlayPass.colorTargetIndex);
+
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
-            Connect(transparencyPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
+            Connect(editorWireOverlayPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
 
         public override void RecordRenderGraph(List<TextureHandle> textureHandles)

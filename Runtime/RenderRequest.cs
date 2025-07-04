@@ -50,6 +50,11 @@ namespace HN.HNRP
                 return;
             }
 
+            if (GL.wireframe)
+            {
+                RenderWireFrame(frameData.CullingResults, graphObjectData.Camera, graphObjectData.TargetId, context, graphObjectData.Cmd);
+            }
+
             RecordPasses();
 
             // graphObjectData.Camera.targetTexture = null;
@@ -91,6 +96,20 @@ namespace HN.HNRP
                 return true;
             }
             return false;
+        }
+
+        private void RenderWireFrame(CullingResults cullingResults, Camera camera, RenderTargetIdentifier backBuffer, ScriptableRenderContext context, CommandBuffer cmd)
+        {
+            CoreUtils.SetRenderTarget(cmd, backBuffer, ClearFlag.Color, CoreRenderPipelinePreferences.previewBackgroundColor);
+
+            var opaqueRendererList = context.CreateRendererList(HNRenderPipelineUtils.GetOpaqueRendererListDesc(ShaderPassNames.AllForwardNames, cullingResults, camera, 1));
+            CoreUtils.DrawRendererList(context, cmd, opaqueRendererList);
+
+            var transparentRendererList = context.CreateRendererList(HNRenderPipelineUtils.GetTransparentRendererListDesc(ShaderPassNames.AllForwardNames, cullingResults, camera, 1));
+            CoreUtils.DrawRendererList(context, cmd, transparentRendererList);
+
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
         }
         
     }

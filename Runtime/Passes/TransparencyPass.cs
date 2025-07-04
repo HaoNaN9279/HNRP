@@ -19,15 +19,7 @@ namespace HN.HNRP
         public int colorTargetIndex = -1;
         public int depthTargetIndex = -1;
         public RendererListHandle rendererList;
-        
-        public ShaderTagId[] PassNames;
 
-
-        void OnEnable()
-        {
-            PassNames = new[] { ShaderPassNames.ForwardName };
-
-        }
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
@@ -39,7 +31,7 @@ namespace HN.HNRP
                 {
                     passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.Read);
                 }
-                RendererListDesc rendererListDesc = GetTransparentRendererListDesc(frameData, graphObjectData, renderingLayerMask);
+                RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetTransparentRendererListDesc(ShaderPassNames.AllForwardNames, frameData.CullingResults, graphObjectData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
 
@@ -51,33 +43,15 @@ namespace HN.HNRP
                 );
             }
         }
-        
 
-        private RendererListDesc GetTransparentRendererListDesc(FrameData frameData, GraphObjectData graphObjectData, uint renderingLayerMask)
+
+        public class TransparencyPassData : PassData
         {
-            var desc = new RendererListDesc(PassNames, frameData.CullingResults, graphObjectData.Camera)
-            {
-                renderingLayerMask = renderingLayerMask,
-				rendererConfiguration = 0,
-                renderQueueRange = HNRenderQueue.Transparent,
-                sortingCriteria = SortingCriteria.CommonTransparent,
-                stateBlock = null,
-                overrideMaterial = null,
-                excludeObjectMotionVectors = false,
-            };
+            public TextureHandle colorTarget;
+            public TextureHandle depthTarget;
+            public RendererListHandle rendererList;
 
-            return desc;
         }
-
-    }
-
-
-    public class TransparencyPassData : PassData
-    {
-        public TextureHandle colorTarget;
-        public TextureHandle depthTarget;
-        public RendererListHandle rendererList;
-
     }
 
 }

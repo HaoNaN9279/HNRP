@@ -44,18 +44,17 @@ namespace HN.HNRP
                 );
             }
         }
+
+
+        public class RenderOutputData : PassData
+        {
+            public TextureHandle inputTexture;
+            public TextureHandle renderTarget;
+            public Material blitMaterial;
+            public bool flip;
+
+        }
     }
-
-
-    public class RenderOutputData : PassData
-    {
-        public TextureHandle inputTexture;
-        public TextureHandle renderTarget;
-        public Material blitMaterial;
-        public bool flip;
-
-    }
-
 
 }
 

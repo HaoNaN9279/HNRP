@@ -19,7 +19,7 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Builtin Sky Pass.");
+            Debug.Log("Record Builtin Sky Pass.");
 
             using (var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>("Builtin Sky Pass", out var passData))
             {
