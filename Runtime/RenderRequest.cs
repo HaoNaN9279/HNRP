@@ -35,6 +35,7 @@ namespace HN.HNRP
 
         public void RecordAndExecute()
         {
+            Debug.Log(graphObjectData.Camera.cameraType + "  " + graphObjectData.Camera.pixelWidth + "  " + graphObjectData.Camera.pixelHeight);
             RTHandles.SetReferenceSize(graphObjectData.Camera.pixelWidth, graphObjectData.Camera.pixelHeight);
 
             if (graphObjectData.Camera.cameraType == CameraType.SceneView)

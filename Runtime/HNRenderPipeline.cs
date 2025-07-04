@@ -141,6 +141,7 @@ namespace HN.HNRP
                 GraphObjectData graphObjectData = new GraphObjectData
                 {
                     Camera = camera,
+                    CameraData = camera.GetHNRPAdditionalCameraData(),
                     GraphObject = graphObject,
                     Cmd = cmd,
                     TargetId = targetId

@@ -12,8 +12,12 @@ namespace HN.HNRP
     [Serializable]
     public class BuiltinSkyPass : PassBase
     {
+        [SerializeField]
         public int colorTargetIndex = -1;
+
+        [SerializeField]
         public int depthTargetIndex = -1;
+        
         public RendererListHandle rendererList;
 
 

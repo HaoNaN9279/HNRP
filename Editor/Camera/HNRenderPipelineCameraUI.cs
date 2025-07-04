@@ -21,6 +21,7 @@ namespace HN.HNRP.Editor
                 RenderGraphViewSettings(),
                 ProjectionSettings(),
                 RenderingSettings(),
+                EnvironmentSettings(),
                 OutputSettings(),
             };
         }
@@ -77,8 +78,8 @@ namespace HN.HNRP.Editor
             ExpandableAdditional.Rendering,
             expandedAdditionalState,
             CED.Group(
-                // CameraUI.Rendering.Drawer_Rendering_StopNaNs
-                // CameraUI.Rendering.Drawer_Rendering_Dithering
+                CameraUI.Rendering.Drawer_Rendering_StopNaNs,
+                CameraUI.Rendering.Drawer_Rendering_Dithering,
                 CameraUI.Rendering.Drawer_Rendering_CullingMask,
                 CameraUI.Rendering.Drawer_Rendering_OcclusionCulling
                 ),
@@ -97,7 +98,8 @@ namespace HN.HNRP.Editor
                 expandedState,
                 FoldoutOption.Indent,
                 CED.Group(
-                    DrawEnvironmentClearFlags
+                    DrawEnvironmentClearFlags,
+                    CameraUI.Environment.Drawer_Environment_VolumeLayerMask
                 )
             );
         }
@@ -118,7 +120,10 @@ namespace HN.HNRP.Editor
             expandedState,
             FoldoutOption.Indent,
             CED.Group(
-                CameraUI.Output.Drawer_Output_AllowDynamicResolution
+                CameraUI.Output.Drawer_Output_AllowDynamicResolution,
+                CameraUI.Output.Drawer_Output_NormalizedViewPort,
+                CameraUI.Output.Drawer_Output_Depth,
+                CameraUI.Output.Drawer_Output_RenderTarget
                 )
             );
         }
@@ -143,7 +148,6 @@ namespace HN.HNRP.Editor
 
         public class Styles
         {
-            public static GUIContent antialiasing = EditorGUIUtility.TrTextContent("Anti-aliasing");
             public static GUIContent renderGraphView = EditorGUIUtility.TrTextContent("Render Graph View", "Chose render graph view's name in HNRenderPipelineAsset runtime render graph views.");
         }
 

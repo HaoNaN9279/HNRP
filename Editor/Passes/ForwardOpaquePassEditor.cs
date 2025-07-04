@@ -12,7 +12,15 @@ namespace HN.HNRP.Editor
     {
         public override void OnInspectorGUI()
         {
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("renderingLayerMask"), new GUIContent("Rendering Layer Mask"));
+            uint layer = serializedObject.FindProperty("renderingLayerMask").uintValue;
+            layer = (uint)EditorGUI.MaskField(EditorGUILayout.GetControlRect(), "Rendering Layer Mask", (int)layer, HNRenderPipelineGlobalSettings.Instance.PrefixedRenderingLayerNames);
+
+            EditorGUILayout.Space();
+
+            EditorGUI.BeginDisabledGroup(true);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
+            EditorGUI.EndDisabledGroup();
         }
     }
 }

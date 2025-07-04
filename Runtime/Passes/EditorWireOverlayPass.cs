@@ -13,6 +13,7 @@ namespace HN.HNRP
     [Serializable]
     public class EditorWireOverlayPass : PassBase
     {
+        [SerializeField]
         public int colorTargetIndex = -1;
 
 

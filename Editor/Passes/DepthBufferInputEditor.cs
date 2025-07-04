@@ -14,6 +14,12 @@ namespace HN.HNRP.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty("textureScale"), new GUIContent("Texture Scale"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("depthBits"), new GUIContent("Depth Bits"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("clearBuffer"), new GUIContent("Clear Buffer"));
+
+            EditorGUILayout.Space();
+
+            EditorGUI.BeginDisabledGroup(true);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
+            EditorGUI.EndDisabledGroup();
         }
     }
 }

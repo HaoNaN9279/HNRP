@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -10,20 +11,76 @@ namespace HN.HNRP
     [ExecuteAlways]
     public class HNRenderPipelineAdditionalCameraData : MonoBehaviour, IAdditionalData
     {
+        public Camera BuiltinCamera
+        {
+            get
+            {
+                if(!builtinCamera)
+                {
+                    gameObject.TryGetComponent<Camera>(out builtinCamera);
+                }
+                return builtinCamera;
+            }
+        }
+
         public int RenderGraphViewIndex
         {
             get { return renderGraphViewIndex; }
             set { renderGraphViewIndex = value; }
         }
 
-        public LayerMask RenderingLayerMask => renderingLayerMask;
+        public bool Dithering
+        {
+            get { return dithering; }
+            set { dithering = value; }
+        }
 
+        public bool StopNaNs
+        {
+            get { return stopNaNs; }
+            set { stopNaNs = value; }
+        }
+
+        public bool AllowDynamicResolution
+        {
+            get { return allowDynamicResolution; }
+            set { allowDynamicResolution = value; }
+        }
+
+        public LayerMask VolumeLayerMask
+        {
+            get { return volumeLayerMask; }
+            set { volumeLayerMask = value; }
+        }
+
+        public bool ClearDepth
+        {
+            get { return clearDepth; }
+            set { clearDepth = value; }
+        }
+
+
+        private Camera builtinCamera;
 
         [SerializeField]
-        private int renderGraphViewIndex = 0; 
+        private int renderGraphViewIndex = 0;
 
         [SerializeField]
-        private LayerMask renderingLayerMask = -1;
+        private bool dithering = false;
+
+        [SerializeField]
+        private bool stopNaNs = false;
+
+        [SerializeField]
+        private bool allowDynamicResolution = false;
+
+        [SerializeField]
+        private LayerMask volumeLayerMask = 1;
+
+        [SerializeField]
+        private bool clearDepth = true;
+        
+
     }
 
 

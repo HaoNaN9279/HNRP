@@ -12,7 +12,12 @@ namespace HN.HNRP.Editor
     {
         public override void OnInspectorGUI()
         {
-            
+            EditorGUILayout.Space();
+
+            EditorGUI.BeginDisabledGroup(true);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
+            EditorGUI.EndDisabledGroup();
         }
     }
 }

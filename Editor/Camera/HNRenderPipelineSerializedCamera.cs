@@ -32,7 +32,6 @@ namespace HN.HNRP.Editor
         public SerializedProperty antialiasing { get; }
 
         // HNRP specific properties
-        public SerializedProperty renderGraphView { get; }
 
 
         public HNRenderPipelineSerializedCamera(SerializedObject serializedObject, CameraEditor.Settings settings)
@@ -56,14 +55,13 @@ namespace HN.HNRP.Editor
             serializedAdditionalDataObject = new SerializedObject(camerasAdditionalData);
 
             // Common properties
-            stopNaNs = serializedAdditionalDataObject.FindProperty("m_StopNaN");
-            dithering = serializedAdditionalDataObject.FindProperty("m_Dithering");
-            antialiasing = serializedAdditionalDataObject.FindProperty("m_Antialiasing");
-            volumeLayerMask = serializedAdditionalDataObject.FindProperty("m_VolumeLayerMask");
-            clearDepth = serializedAdditionalDataObject.FindProperty("m_ClearDepth");
+            stopNaNs = serializedAdditionalDataObject.FindProperty("stopNaNs");
+            dithering = serializedAdditionalDataObject.FindProperty("dithering");
+            // antialiasing = serializedAdditionalDataObject.FindProperty("m_Antialiasing");
+            volumeLayerMask = serializedAdditionalDataObject.FindProperty("volumeLayerMask");
+            clearDepth = serializedAdditionalDataObject.FindProperty("clearDepth");
 
             //HNRP specific properties
-            renderGraphView = serializedAdditionalDataObject.FindProperty("renderGraphView");
         }
 
         public void Apply()

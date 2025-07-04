@@ -16,6 +16,12 @@ namespace HN.HNRP.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty("colorFormat"), new GUIContent("Color Format"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("clearBuffer"), new GUIContent("Clear Buffer"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("clearColor"), new GUIContent("Clear Color"));
+
+            EditorGUILayout.Space();
+
+            EditorGUI.BeginDisabledGroup(true);
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
+            EditorGUI.EndDisabledGroup();
         }
     }
 }
