@@ -1,4 +1,4 @@
-Shader "Unlit/SingleBlitShader"
+Shader "Hidden/HNRP/SingleBlitShader"
 {
     Properties
     {

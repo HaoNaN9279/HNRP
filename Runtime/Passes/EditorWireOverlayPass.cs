@@ -20,12 +20,10 @@ namespace HN.HNRP
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
 #if UNITY_EDITOR
-            Debug.Log("Record Editor Wire Overlay Pass.");
-
             Camera camera = graphObjectData.Camera;
             if (camera.cameraType == CameraType.SceneView)
             {
-                using (var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>("Wire Overlay", out var passData))
+                using (var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>($"{name}({PassName})", out var passData))
                 {
                     builder.WriteTexture(textureHandles[colorTargetIndex]);
                     passData.camera = camera;
@@ -48,5 +46,8 @@ namespace HN.HNRP
         {
             public Camera camera;
         }
+
+
+        public const string PassName = "Editor Wire Overlay Pass";
     }
 }

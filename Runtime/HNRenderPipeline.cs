@@ -35,12 +35,10 @@ namespace HN.HNRP
             GraphicsSettings.lightsUseLinearIntensity = QualitySettings.activeColorSpace == ColorSpace.Linear;
             GraphicsSettings.lightsUseColorTemperature = true;
             GraphicsSettings.defaultRenderingLayerMask = defaultRenderingLayerMask;
-            GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
+            GraphicsSettings.useScriptableRenderPipelineBatching = true;
             renderRequests = new List<RenderRequest>();
 
             RTHandles.Initialize(Screen.width, Screen.height);
-
-            // Blitter.Initialize(Shader.Find("Unlit/SingleBlitShader"), Shader.Find("Unlit/SingleBlitShader"));
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -142,9 +140,10 @@ namespace HN.HNRP
                 {
                     Camera = camera,
                     CameraData = camera.GetHNRPAdditionalCameraData(),
-                    GraphObject = graphObject,
                     Cmd = cmd,
-                    TargetId = targetId
+                    TargetId = targetId,
+                    runtimeResources = Asset.runtimeResources,
+                    GraphObject = graphObject,
                 };
                 renderRequests.Add(new RenderRequest(context, renderGraph, frameData, graphObjectData));
             }

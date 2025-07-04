@@ -18,11 +18,9 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Render Output");
+            Material singleBlitMat = CoreUtils.CreateEngineMaterial(graphObjectData.runtimeResources.shaderResources.singleBlit);
 
-            Material singleBlitMat = new Material(Shader.Find("Unlit/SingleBlitShader"));
-
-            using (var builder = renderGraph.AddRenderPass<RenderOutputData>("Render Output", out var passData))
+            using (var builder = renderGraph.AddRenderPass<RenderOutputData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
 
@@ -61,6 +59,9 @@ namespace HN.HNRP
             public Rect viewport;
 
         }
+
+
+        public const string PassName = "Render Output";
     }
 
 }

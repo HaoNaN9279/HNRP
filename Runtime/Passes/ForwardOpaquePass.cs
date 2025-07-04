@@ -20,15 +20,13 @@ namespace HN.HNRP
 
         [SerializeField]
         public int depthTargetIndex = -1;
-        
+
         public RendererListHandle rendererList;
 
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Record Forward Opaque pass.");
-
-            using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>("Forward Opaque Pass", out var passData))
+            using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>($"{name}({PassName})", out var passData))
             {
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
                 if (textureHandles[depthTargetIndex].IsValid())
@@ -48,7 +46,7 @@ namespace HN.HNRP
 
             }
         }
-        
+
 
         public class ForwardOpaquePassData : PassData
         {
@@ -57,6 +55,10 @@ namespace HN.HNRP
             public RendererListHandle rendererList;
 
         }
+
+
+        public const string PassName = "Forward Opaque Pass";
+
     }
 
 }

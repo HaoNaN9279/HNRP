@@ -36,8 +36,6 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Color Buffer Input");
-
             TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
                 colorFormat = colorFormat,

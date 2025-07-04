@@ -32,8 +32,6 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
         {
-            Debug.Log("Depth Buffer Input");
-
             TextureHandle outputDepthTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
                 depthBufferBits = depthBits,

@@ -9,18 +9,6 @@ namespace HN.HNRP
     [CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline Asset")]
     public class HNRenderPipelineAsset : RenderPipelineAsset
     {
-        [SerializeField]
-        public bool useDynamicBatching;
-
-        [SerializeField]
-        public bool useGPUInstancing;
-
-        [SerializeField]
-        public bool useSRPBatcher;
-
-        [SerializeField]
-        public bool useLightsPerObjectData;
-
 #if UNITY_EDITOR
         [SerializeField]
         public RenderGraphViewBlock editorRenderGraphViews;
@@ -34,14 +22,10 @@ namespace HN.HNRP
         public override string[] prefixedRenderingLayerMaskNames => globalSettings.PrefixedRenderingLayerNames;
 
         public HNRenderPipelineGlobalSettings globalSettings => HNRenderPipelineGlobalSettings.Instance;
+        internal HNRenderPipelineRuntimeResources runtimeResources => globalSettings.HNRenderPipelineRuntimeResources;
 
         public HNRenderPipelineAsset()
         {
-            useDynamicBatching = false;
-            useGPUInstancing = true;
-            useSRPBatcher = true;
-            useLightsPerObjectData = true;
-
 #if UNITY_EDITOR
             editorRenderGraphViews = new RenderGraphViewBlock(EditorDefaultViews);
 #endif

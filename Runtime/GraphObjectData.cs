@@ -9,8 +9,13 @@ namespace HN.HNRP
     {
         public Camera Camera;
         public HNRenderPipelineAdditionalCameraData CameraData;
-        public HNRenderGraphBase GraphObject;
+
         public CommandBuffer Cmd;
+
         public RenderTargetIdentifier TargetId;
+
+        public HNRenderPipelineRuntimeResources runtimeResources;
+
+        public HNRenderGraphBase GraphObject;
     }
 }

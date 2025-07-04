@@ -35,7 +35,6 @@ namespace HN.HNRP
 
         public void RecordAndExecute()
         {
-            Debug.Log(graphObjectData.Camera.cameraType + "  " + graphObjectData.Camera.pixelWidth + "  " + graphObjectData.Camera.pixelHeight);
             RTHandles.SetReferenceSize(graphObjectData.Camera.pixelWidth, graphObjectData.Camera.pixelHeight);
 
             if (graphObjectData.Camera.cameraType == CameraType.SceneView)
@@ -81,8 +80,6 @@ namespace HN.HNRP
                 commandBuffer = graphObjectData.Cmd
             }))
             {
-                Debug.Log("Record And Execute: " + this);
-
                 List<TextureHandle> textureHandles = new List<TextureHandle>();
 
                 graphObjectData.GraphObject.RecordRenderGraph(textureHandles);
