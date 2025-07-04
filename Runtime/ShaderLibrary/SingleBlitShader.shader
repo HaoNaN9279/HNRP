@@ -20,6 +20,8 @@ Shader "Unlit/SingleBlitShader"
             SAMPLER(sampler_tex);
             float4 _testColor;
             float _flip;
+
+            uniform float4 _BlitScaleBias;
             
             struct Attributes
             {
@@ -36,14 +38,15 @@ Shader "Unlit/SingleBlitShader"
             {
                 Varyings o;
                 o.uv = GetFullScreenTriangleTexCoord(v.vertexID);
+                if(_flip > 0.5)
+                    o.uv.y = 1 - o.uv.y;
+                o.uv = o.uv * _BlitScaleBias.xy + _BlitScaleBias.zw;
                 o.positionCS = GetFullScreenTriangleVertexPosition(v.vertexID);
                 return o;
             }
 
             float4 frag (Varyings i) : SV_Target
             {
-                if(_flip > 0.5)
-                    i.uv.y = 1 - i.uv.y;
 
                 float4 col = SAMPLE_TEXTURE2D(_tex, sampler_tex, i.uv);
 

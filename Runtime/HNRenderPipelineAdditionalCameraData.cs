@@ -15,7 +15,7 @@ namespace HN.HNRP
         {
             get
             {
-                if(!builtinCamera)
+                if (!builtinCamera)
                 {
                     gameObject.TryGetComponent<Camera>(out builtinCamera);
                 }
@@ -59,6 +59,11 @@ namespace HN.HNRP
             set { clearDepth = value; }
         }
 
+        public Rect FinalViewport
+        {
+            get { return new Rect(builtinCamera.pixelRect.x, builtinCamera.pixelRect.y, builtinCamera.pixelWidth, builtinCamera.pixelHeight); }
+        }
+
 
         private Camera builtinCamera;
 
@@ -79,7 +84,12 @@ namespace HN.HNRP
 
         [SerializeField]
         private bool clearDepth = true;
-        
+
+
+        void OnEnable()
+        {
+            builtinCamera = GetComponent<Camera>();
+        }
 
     }
 
