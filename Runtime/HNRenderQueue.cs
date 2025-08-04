@@ -20,8 +20,10 @@ namespace HN.HNRP
         }
 
 
-        public static readonly RenderQueueRange OpaqueNoAlphaTest = new RenderQueueRange((int)Priority.Background, (int)Priority.OpaqueAlphaTest - 1);
+        public static readonly RenderQueueRange Background = new RenderQueueRange((int)Priority.Background, (int)Priority.Opaque - 1);
+        public static readonly RenderQueueRange OpaqueNoAlphaTest = new RenderQueueRange((int)Priority.Opaque, (int)Priority.OpaqueAlphaTest - 1);
         public static readonly RenderQueueRange OpaqueAlphaTest = new RenderQueueRange((int)Priority.OpaqueAlphaTest, (int)Priority.OpaqueLast);
+        public static readonly RenderQueueRange AllOpaqueNoBackground = new RenderQueueRange((int)Priority.Opaque, (int)Priority.OpaqueLast);
         public static readonly RenderQueueRange AllOpaque = new RenderQueueRange((int)Priority.Background, (int)Priority.OpaqueLast);
 
         public static readonly RenderQueueRange Transparent = new RenderQueueRange((int)Priority.Transparent, (int)Priority.TransparentLast);

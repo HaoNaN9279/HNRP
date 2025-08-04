@@ -1,37 +1,55 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEditor;
+using UnityEditor.Rendering;
 
 namespace HN.HNRP.Editor
 {
-    public class LitGUI : ShaderGUI
+    public sealed class LitGUI : MaterialGUI
     {
-        public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
+        public MaterialGUIBlockList blocks = new MaterialGUIBlockList
         {
-            base.OnGUI(materialEditor, properties);
+            new LitSurfaceOptionsBlock((uint)LitGUIBlocks.LitSurfaceOptionsBlock),
+            new LitSurfaceInputBlock((uint)LitGUIBlocks.LitSurfaceInputBlock),
+        };
 
-            Material material = materialEditor.target as Material;
-
-            BlendMode srcBlend = (BlendMode)material.GetFloat("_SrcBlend");
-            BlendMode dstBlend = (BlendMode)material.GetFloat("_DstBlend");
-
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Blend Mode");
-            EditorGUILayout.BeginHorizontal();
-            srcBlend = (BlendMode)EditorGUILayout.EnumPopup(srcBlend);
-            dstBlend = (BlendMode)EditorGUILayout.EnumPopup(dstBlend);
-            EditorGUILayout.EndHorizontal();
-
-            material.SetFloat("_SrcBlend", (float)srcBlend);
-            material.SetFloat("_DstBlend", (float)dstBlend);
-
-            float alphaClip = material.GetFloat("_AlphaClip");
-            if (alphaClip > 0.5f)
-                material.EnableKeyword("_ALPHATEST_ON");
-            else
-                material.DisableKeyword("_ALPHATEST_ON");
+        protected override void DrawGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
+        {
+            blocks.OnGUI(materialEditor, properties);
         }
+
+        public override void ValidateMaterial(Material material)
+        {
+            blocks.OnValidateMaterial(material);
+        }
+
+        public MaterialProperty GetProperty(MaterialProperty[] properties, string propertyName)
+        {
+            if (properties == null | properties.Length == 0)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < properties.Length; i++)
+            {
+                if (propertyName == properties[i].name)
+                {
+                    return properties[i];
+                }
+            }
+            return null;
+        }
+
+        [Flags]
+        public enum LitGUIBlocks : uint
+        {
+            LitSurfaceOptionsBlock = 1 << 0,
+            LitSurfaceInputBlock = 1 << 1,
+        }
+
+
+
     }
 }

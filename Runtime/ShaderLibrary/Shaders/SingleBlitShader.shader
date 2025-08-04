@@ -14,7 +14,7 @@ Shader "Hidden/HNRP/SingleBlitShader"
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "Common.hlsl"
+            #include "../Common.hlsl"
 
             TEXTURE2D(_tex);
             SAMPLER(sampler_tex);
@@ -45,6 +45,12 @@ Shader "Hidden/HNRP/SingleBlitShader"
                 return o;
             }
 
+// #define TEST(flag) \
+//     #if (flag) \
+//         const int test = 112233; \
+//     #endif
+
+// TEST(1)
             float4 frag (Varyings i) : SV_Target
             {
 

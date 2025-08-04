@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: HNRenderPipelineRuntimeResources
   m_EditorClassIdentifier: 
   shaderResources:
-    singleBlit: {fileID: 0}
+    singleBlit: {fileID: 4800000, guid: 8708c14c35973cc47bc65524734fce5d, type: 3}

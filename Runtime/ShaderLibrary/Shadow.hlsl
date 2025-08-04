@@ -1,0 +1,6 @@
+#ifndef HNRP_SHADOW_INCLUDED
+#define HNRP_SHADOW_INCLUDED
+
+
+
+#endif
