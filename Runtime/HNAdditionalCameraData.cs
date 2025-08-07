@@ -1,0 +1,271 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using Codice.Client.BaseCommands;
+using Codice.Client.Common.GameUI;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace HN.HNRP
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(Camera))]
+    [ExecuteAlways]
+    public class HNAdditionalCameraData : MonoBehaviour, IAdditionalData
+    {
+        public Camera BuiltinCamera
+        {
+            get
+            {
+                if (!builtinCamera)
+                {
+                    gameObject.TryGetComponent<Camera>(out builtinCamera);
+                }
+                return builtinCamera;
+            }
+        }
+
+        public int RenderGraphViewIndex
+        {
+            get { return renderGraphViewIndex; }
+            set { renderGraphViewIndex = value; }
+        }
+
+        public bool Dithering
+        {
+            get { return dithering; }
+            set { dithering = value; }
+        }
+
+        public bool StopNaNs
+        {
+            get { return stopNaNs; }
+            set { stopNaNs = value; }
+        }
+
+        public bool AllowDynamicResolution
+        {
+            get { return allowDynamicResolution; }
+            set { allowDynamicResolution = value; }
+        }
+
+        public LayerMask VolumeLayerMask
+        {
+            get { return volumeLayerMask; }
+            set { volumeLayerMask = value; }
+        }
+
+        public bool ClearDepth
+        {
+            get { return clearDepth; }
+            set { clearDepth = value; }
+        }
+
+        public Rect FinalViewport
+        {
+            get { return new Rect(builtinCamera.pixelRect.x, builtinCamera.pixelRect.y, builtinCamera.pixelWidth, builtinCamera.pixelHeight); }
+        }
+
+
+        public ViewConstants viewConstants = default;
+        public Frustum frustum = default;
+        public Vector4[] frustumPlaneEquations;
+
+        private Camera builtinCamera;
+
+        [SerializeField]
+        private int renderGraphViewIndex = 0;
+
+        [SerializeField]
+        private bool dithering = false;
+
+        [SerializeField]
+        private bool stopNaNs = false;
+
+        [SerializeField]
+        private bool allowDynamicResolution = false;
+
+        [SerializeField]
+        private LayerMask volumeLayerMask = 1;
+
+        [SerializeField]
+        private bool clearDepth = true;
+
+
+        void OnEnable()
+        {
+            builtinCamera = GetComponent<Camera>();
+            viewConstants = new ViewConstants();
+            frustum = new Frustum { planes = new Plane[6], corners = new Vector3[8] };
+            frustumPlaneEquations = new Vector4[6];
+        }
+
+        void Update()
+        {
+            UpdateViewConstants();
+            UpdateFrustum();
+        }
+
+        unsafe public void UpdateCameraGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
+        {
+            globalConstantBuffer._ScreenSize = new Vector4(BuiltinCamera.scaledPixelWidth, BuiltinCamera.scaledPixelHeight, 1.0f / BuiltinCamera.scaledPixelWidth, 1.0f / BuiltinCamera.scaledPixelHeight);
+
+            globalConstantBuffer._WorldSpaceCameraPos = viewConstants.worldSpaceCameraPos;
+
+            globalConstantBuffer._ProjectionParams = viewConstants.projectionParams;
+
+            globalConstantBuffer._ScreenParams = viewConstants.screenParams;
+
+            globalConstantBuffer._ZBufferParams = viewConstants.zBufferParams;
+
+            globalConstantBuffer.unity_OrthoParams = viewConstants.unity_OrthoParams;
+
+            globalConstantBuffer.unity_MatrixV = viewConstants.viewMatrix;
+            globalConstantBuffer.unity_MatrixInvV = viewConstants.invViewMatrix;
+            globalConstantBuffer.glstate_matrix_projection = viewConstants.projMatrix;
+            globalConstantBuffer.unity_MatrixInvP = viewConstants.invProjMatrix;
+            globalConstantBuffer.unity_MatrixVP = viewConstants.viewProjMatrix;
+            globalConstantBuffer.unity_MatrixInvVP = viewConstants.invViewProjMatrix;
+            for (int i = 0; i < 6; i++)
+                for (int j = 0; j < 4; j++)
+                    globalConstantBuffer._FrustumPlanes[i * 4 + j] = frustumPlaneEquations[i][j];
+        }
+
+
+        private void UpdateViewConstants()
+        {
+            // var proj = Matrix4x4.Perspective(BuiltinCamera.fieldOfView, BuiltinCamera.aspect, BuiltinCamera.nearClipPlane, BuiltinCamera.farClipPlane);
+            var proj = BuiltinCamera.projectionMatrix;
+            var view = BuiltinCamera.worldToCameraMatrix;
+            var cameraPosition = transform.position;
+
+            var gpuProj = GL.GetGPUProjectionMatrix(proj, true);
+            var gpuView = view;
+            var gpuVP = gpuProj * gpuView;
+
+            viewConstants.viewMatrix = gpuView;
+            viewConstants.invViewMatrix = gpuView.inverse;
+            viewConstants.projMatrix = gpuProj;
+            viewConstants.invProjMatrix = gpuProj.inverse;
+            viewConstants.viewProjMatrix = gpuVP;
+            viewConstants.invViewProjMatrix = gpuVP.inverse;
+            viewConstants.worldSpaceCameraPos = cameraPosition;
+        }
+
+        private void UpdateFrustum()
+        {
+            float n = BuiltinCamera.nearClipPlane;
+            float f = BuiltinCamera.farClipPlane;
+
+            // p[2][3] = (reverseZ ? 1 : -1) * (depth_0_1 ? 1 : 2) * (f * n) / (f - n)
+            float scale = viewConstants.projMatrix[2, 3] / (f * n) * (f - n);
+            bool reverseZ = scale > 0;
+            bool flipProj = viewConstants.invProjMatrix.MultiplyPoint(new Vector3(0, 1, 0)).y < 0;
+
+            if (reverseZ)
+            {
+                viewConstants.zBufferParams = new Vector4(-1 + f / n, 1, -1 / f + 1 / n, 1 / f);
+            }
+            else
+            {
+                viewConstants.zBufferParams = new Vector4(1 - f / n, f / n, 1 / f - 1 / n, 1 / n);
+            }
+
+            viewConstants.projectionParams = new Vector4(flipProj ? -1 : 1, n, f, 1.0f / f);
+
+            float cameraWidth = BuiltinCamera.pixelWidth;
+            float cameraHeight = BuiltinCamera.pixelHeight;
+            viewConstants.screenParams = new Vector4(cameraWidth, cameraHeight, 1.0f + 1.0f / cameraWidth, 1.0f + 1.0f / cameraHeight);
+
+            float orthoHeight = BuiltinCamera.orthographic ? 2 * BuiltinCamera.orthographicSize : 0;
+            float orthoWidth = orthoHeight * BuiltinCamera.aspect;
+            viewConstants.unity_OrthoParams = new Vector4(orthoWidth, orthoHeight, 0, BuiltinCamera.orthographic ? 1 : 0);
+
+            Vector3 viewDir = -viewConstants.invViewMatrix.GetColumn(2);
+            viewDir.Normalize();
+            Frustum.Create(ref frustum, viewConstants.viewProjMatrix, viewConstants.invViewMatrix.GetColumn(3), viewDir, n, f);
+            for (int i = 0; i < 6; i++)
+            {
+                frustumPlaneEquations[i] = new Vector4(frustum.planes[i].normal.x, frustum.planes[i].normal.y, frustum.planes[i].normal.z, frustum.planes[i].distance);
+            }
+        }
+
+
+        public struct ViewConstants
+        {
+            public Matrix4x4 viewMatrix;
+            public Matrix4x4 invViewMatrix;
+            public Matrix4x4 projMatrix;
+            public Matrix4x4 invProjMatrix;
+            public Matrix4x4 viewProjMatrix;
+            public Matrix4x4 invViewProjMatrix;
+            public Vector3 worldSpaceCameraPos;
+            public Vector4 zBufferParams;
+            public Vector4 projectionParams;
+            public Vector4 screenParams;
+            public Vector4 unity_OrthoParams;
+        }
+
+
+        public struct Frustum
+        {
+            public Plane[] planes;
+            public Vector3[] corners;
+
+            static Vector3 IntersectFrustumPlanes(Plane p0, Plane p1, Plane p2)
+            {
+                Vector3 n0 = p0.normal;
+                Vector3 n1 = p1.normal;
+                Vector3 n2 = p2.normal;
+
+                float det = Vector3.Dot(Vector3.Cross(n0, n1), n2);
+                return (Vector3.Cross(n2, n1) * p0.distance + Vector3.Cross(n0, n2) * p1.distance - Vector3.Cross(n0, n1) * p2.distance) * (1.0f / det);
+            }
+
+            public static void Create(ref Frustum frustum, Matrix4x4 viewProjMatrix, Vector3 viewPos, Vector3 viewDir, float nearClipPlane, float farClipPlane)
+            {
+                GeometryUtility.CalculateFrustumPlanes(viewProjMatrix, frustum.planes);
+
+                // We need to recalculate the near and far planes otherwise it does not work for oblique projection matrices used for reflection.
+                Plane nearPlane = new Plane();
+                nearPlane.SetNormalAndPosition(viewDir, viewPos);
+                nearPlane.distance -= nearClipPlane;
+
+                Plane farPlane = new Plane();
+                farPlane.SetNormalAndPosition(-viewDir, viewPos);
+                farPlane.distance += farClipPlane;
+
+                frustum.planes[4] = nearPlane;
+                frustum.planes[5] = farPlane;
+
+                // Compute corners from the planes instead of projection matrix. Otherwise you get the same issue with near and far for oblique projection.
+                frustum.corners[0] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[3], frustum.planes[4]);
+                frustum.corners[1] = IntersectFrustumPlanes(frustum.planes[1], frustum.planes[3], frustum.planes[4]);
+                frustum.corners[2] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[2], frustum.planes[4]);
+                frustum.corners[3] = IntersectFrustumPlanes(frustum.planes[1], frustum.planes[2], frustum.planes[4]);
+                frustum.corners[4] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[3], frustum.planes[5]);
+                frustum.corners[5] = IntersectFrustumPlanes(frustum.planes[1], frustum.planes[3], frustum.planes[5]);
+                frustum.corners[6] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[2], frustum.planes[5]);
+                frustum.corners[7] = IntersectFrustumPlanes(frustum.planes[1], frustum.planes[2], frustum.planes[5]);
+            }
+        }
+
+    }
+
+
+    public static class CameraExtensions
+    {
+        public static HNAdditionalCameraData GetHNRPAdditionalCameraData(this Camera camera)
+        {
+            var gameObject = camera.gameObject;
+            bool componentExists = gameObject.TryGetComponent<HNAdditionalCameraData>(out var cameraData);
+            if (!componentExists)
+            {
+                cameraData = gameObject.AddComponent<HNAdditionalCameraData>();
+            }
+            return cameraData;
+        }
+
+    }
+}

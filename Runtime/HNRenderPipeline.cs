@@ -27,7 +27,7 @@ namespace HN.HNRP
         //TODO: pool
         private List<RenderRequest> renderRequests;
 
-        private FrameData frameData;
+        private RenderingData renderingData = default;
 
 
         public HNRenderPipeline(HNRenderPipelineAsset asset)
@@ -58,7 +58,7 @@ namespace HN.HNRP
                     return;
             }
 #endif
-            UpdateFrameData();
+            UpdateFrameCount();
 
             PrepareRenderRequests(context, cameras);
 
@@ -82,16 +82,11 @@ namespace HN.HNRP
         }
 
 
-        private void UpdateFrameData()
-        {
-            UpdateFrameCount();
-        }
-
         private void UpdateFrameCount()
         {
-            if (frameData.FrameCount != Time.frameCount)
+            if (renderingData.FrameCount != Time.frameCount)
             {
-                frameData.FrameCount = Time.frameCount;
+                renderingData.FrameCount = Time.frameCount;
             }
         }
 
@@ -136,16 +131,13 @@ namespace HN.HNRP
                     camera.targetTexture.IncrementUpdateCount();
                 }
 
-                GraphObjectData graphObjectData = new GraphObjectData
-                {
-                    Camera = camera,
-                    CameraData = camera.GetHNRPAdditionalCameraData(),
-                    Cmd = cmd,
-                    TargetId = targetId,
-                    runtimeResources = Asset.runtimeResources,
-                    GraphObject = graphObject,
-                };
-                renderRequests.Add(new RenderRequest(context, renderGraph, frameData, graphObjectData));
+                renderingData.Camera = camera;
+                renderingData.CameraData = camera.GetHNRPAdditionalCameraData();
+                renderingData.Cmd = cmd;
+                renderingData.TargetId = targetId;
+                renderingData.runtimeResources = Asset.runtimeResources;
+                renderingData.GraphObject = graphObject;
+                renderRequests.Add(new RenderRequest(context, renderGraph, ref renderingData));
             }
         }
 
@@ -153,13 +145,13 @@ namespace HN.HNRP
         {
             foreach (var request in renderRequests)
             {
-                request.GraphObjectData.Cmd.ClearRenderTarget(true, true, Color.gray);
+                renderingData.Cmd.ClearRenderTarget(true, true, Color.gray);
                 request.RecordAndExecute();
 
-                EndCameraRendering(request.Context, request.GraphObjectData.Camera);
-                request.Context.ExecuteCommandBuffer(request.GraphObjectData.Cmd);
+                EndCameraRendering(request.Context, renderingData.Camera);
+                request.Context.ExecuteCommandBuffer(renderingData.Cmd);
                 request.Context.Submit();
-                CommandBufferPool.Release(request.GraphObjectData.Cmd);
+                CommandBufferPool.Release(renderingData.Cmd);
             }
 
         }

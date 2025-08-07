@@ -9,91 +9,131 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public class RenderRequest
+    public partial class RenderRequest
     {
         public ScriptableRenderContext Context => context;
-        public GraphObjectData GraphObjectData => graphObjectData;
+        public RenderingData RenderingData => renderingData;
 
         private ScriptableRenderContext context;
         private RenderGraph renderGraph;
-        private FrameData frameData;
-        private GraphObjectData graphObjectData;
+        private RenderingData renderingData;
+
+        private GlobalConstantBuffer globalConstantBuffer = default;
 
 
         public RenderRequest(
             ScriptableRenderContext context,
             RenderGraph renderGraph,
-            FrameData frameData,
-            GraphObjectData graphObjectData
+            ref RenderingData renderingData
             )
         {
             this.context = context;
             this.renderGraph = renderGraph;
-            this.frameData = frameData;
-            this.graphObjectData = graphObjectData;
+            this.renderingData = renderingData;
         }
 
         public void RecordAndExecute()
         {
-            RTHandles.SetReferenceSize(graphObjectData.Camera.pixelWidth, graphObjectData.Camera.pixelHeight);
+            RTHandles.SetReferenceSize(renderingData.Camera.pixelWidth, renderingData.Camera.pixelHeight);
 
-            if (graphObjectData.Camera.cameraType == CameraType.SceneView)
+            if (renderingData.Camera.cameraType == CameraType.SceneView)
             {
-                ScriptableRenderContext.EmitWorldGeometryForSceneView(graphObjectData.Camera);
+                ScriptableRenderContext.EmitWorldGeometryForSceneView(renderingData.Camera);
             }
-
-            context.SetupCameraProperties(graphObjectData.Camera);
 
             if (!TryCull())
             {
-                Debug.LogError("Culling failed for camera: " + graphObjectData.Camera.name);
+                Debug.LogError("Culling failed for camera: " + renderingData.Camera.name);
                 return;
             }
 
+            InitializeRenderingData(renderingData.CullingResults);
+
+            UpdateGlobalConstantBuffer(renderingData.CameraData, renderingData.Cmd);
+
             if (GL.wireframe)
             {
-                RenderWireFrame(frameData.CullingResults, graphObjectData.Camera, graphObjectData.TargetId, context, graphObjectData.Cmd);
+                RenderWireFrame(renderingData.CullingResults, renderingData.Camera, renderingData.TargetId, context, renderingData.Cmd);
             }
 
             RecordPasses();
 
-            // graphObjectData.Camera.targetTexture = null;
         }
 
 
         private void RecordPasses()
         {
-            if (graphObjectData.GraphObject == null)
+            if (renderingData.GraphObject == null)
             {
                 Debug.LogError("RenderGraph is null.");
                 return;
             }
 
-            graphObjectData.GraphObject.UpdateData(renderGraph, frameData, graphObjectData);
+            renderingData.GraphObject.UpdateData(renderGraph, renderingData);
 
             using (renderGraph.RecordAndExecute(new RenderGraphParameters
             {
-                executionName = "execution_" + graphObjectData.Camera.name,
-                currentFrameIndex = frameData.FrameCount,
+                executionName = "execution_" + renderingData.Camera.name,
+                currentFrameIndex = renderingData.FrameCount,
                 rendererListCulling = true,
                 scriptableRenderContext = context,
-                commandBuffer = graphObjectData.Cmd
+                commandBuffer = renderingData.Cmd
             }))
             {
                 List<TextureHandle> textureHandles = new List<TextureHandle>();
 
-                graphObjectData.GraphObject.RecordRenderGraph(textureHandles);
+                renderingData.GraphObject.RecordRenderGraph(textureHandles);
             }
+        }
+
+        private void InitializeRenderingData(CullingResults cullingResults)
+        {
+            var visibleLights = cullingResults.visibleLights;
+
+            int mainLightIndex = GetMainLightIndex(visibleLights);
+            InitializeLightData(visibleLights, mainLightIndex, out renderingData.LightData);
+        }
+
+        private void UpdateGlobalConstantBuffer(HNAdditionalCameraData cameraData, CommandBuffer cmd)
+        {
+            SetupCameraProperties(context, cameraData.BuiltinCamera, cmd);
+
+            UpdateTimeGlobalConstantBuffer();
+            cameraData.UpdateCameraGlobalConstantBuffer(ref globalConstantBuffer);
+            UpdateLightGlobalConstantBuffer(ref globalConstantBuffer);
+
+            ConstantBuffer.PushGlobal(cmd, globalConstantBuffer, PropertyIDs.ShaderVariablesGlobal);
+        }
+
+        private void SetupCameraProperties(ScriptableRenderContext context, Camera camera, CommandBuffer cmd)
+        {
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+
+            context.SetupCameraProperties(camera);
         }
 
         private bool TryCull()
         {
-            if (graphObjectData.Camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
+            if (renderingData.Camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
             {
-                frameData.CullingResults = context.Cull(ref cullingParameters);
+                renderingData.CullingResults = context.Cull(ref cullingParameters);
                 return true;
             }
             return false;
+        }
+
+        private void UpdateTimeGlobalConstantBuffer()
+        {
+            float ct = Time.time;
+            float dt = Time.deltaTime;
+            float sdt = Time.smoothDeltaTime;
+
+            globalConstantBuffer._Time = new Vector4(ct * 0.05f, ct * 2.0f, ct * 3.0f);
+            globalConstantBuffer._SinTime = new Vector4(Mathf.Sin(ct * 0.125f), Mathf.Sin(ct * 0.25f), Mathf.Sin(ct * 0.5f), Mathf.Sin(ct));
+            globalConstantBuffer._CosTime = new Vector4(Mathf.Cos(ct * 0.125f), Mathf.Cos(ct * 0.25f), Mathf.Cos(ct * 0.5f), Mathf.Cos(ct));
+            globalConstantBuffer.unity_DeltaTime = new Vector4(dt, 1.0f / dt, sdt, 1.0f / sdt);
+            globalConstantBuffer._TimeParameters = new Vector4(ct, Mathf.Sin(ct), Mathf.Cos(ct), 0.0f);
         }
 
         private void RenderWireFrame(CullingResults cullingResults, Camera camera, RenderTargetIdentifier backBuffer, ScriptableRenderContext context, CommandBuffer cmd)

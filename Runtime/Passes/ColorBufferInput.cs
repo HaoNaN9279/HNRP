@@ -34,7 +34,7 @@ namespace HN.HNRP
             colorTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
         }
 
-        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {

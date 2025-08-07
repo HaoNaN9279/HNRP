@@ -1,5 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using GluonGui.Dialog;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -40,6 +43,11 @@ namespace HN.HNRP
             };
 
             return desc;
+        }
+
+        unsafe public static void GetVisibleLight(NativeArray<VisibleLight> visibleLights, int index, ref VisibleLight result)
+        {
+            result = UnsafeUtility.ArrayElementAsRef<VisibleLight>(visibleLights.GetUnsafePtr(), index);
         }
     }
 }

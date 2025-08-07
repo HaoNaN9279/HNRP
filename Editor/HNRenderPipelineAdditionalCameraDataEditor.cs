@@ -6,7 +6,7 @@ using UnityEditor;
 namespace HN.HNRP.Editor
 {
     [CanEditMultipleObjects]
-    [CustomEditor(typeof(HNRenderPipelineAdditionalCameraData))]
+    [CustomEditor(typeof(HNAdditionalCameraData))]
     public class HNRenderPipelineAdditionalCameraDataEditor : UnityEditor.Editor
     {
         public override void OnInspectorGUI()

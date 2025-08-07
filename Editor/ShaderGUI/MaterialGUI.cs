@@ -59,9 +59,9 @@ namespace HN.HNRP.Editor
 
         public enum CullMode
         {
-            Back,
-            Front,
             Off,
+            Front,
+            Back,
         }
 
         public enum ZTestMode

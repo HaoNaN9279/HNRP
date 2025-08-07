@@ -1,14 +1,18 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public struct GraphObjectData
+    public struct RenderingData
     {
+        public int FrameCount;
+        public CullingResults CullingResults;
+
         public Camera Camera;
-        public HNRenderPipelineAdditionalCameraData CameraData;
+        public HNAdditionalCameraData CameraData;
 
         public CommandBuffer Cmd;
 
@@ -17,5 +21,14 @@ namespace HN.HNRP
         public HNRenderPipelineRuntimeResources runtimeResources;
 
         public HNRenderGraphBase GraphObject;
+
+        public LightData LightData;
+    }
+
+
+    public struct LightData
+    {
+        public int mainLightIndex;
+        public NativeArray<VisibleLight> visibleLights;
     }
 }

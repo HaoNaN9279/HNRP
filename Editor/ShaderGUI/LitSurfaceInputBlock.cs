@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEditor;
-using Unity.Properties;
-using UnityEditor.Graphs;
 
 namespace HN.HNRP.Editor
 {
@@ -85,10 +83,7 @@ namespace HN.HNRP.Editor
 
         protected void SetMaterialKeywords(Material material)
         {
-            if ((MaterialGUI.SurfaceType)material.GetFloat(Property.surfaceType) == MaterialGUI.SurfaceType.Transparent)
-            {
-                SetKeywordByTexture(material, Property.baseMap, Keyword.basemap);    
-            }
+            SetKeywordByTexture(material, Property.baseMap, Keyword.basemap);    
             SetKeywordByTexture(material, Property.normalMap, Keyword.normalMap);
             SetKeywordByTexture(material, Property.maskMap, Keyword.maskMap);
             SetKeywordByTexture(material, Property.emissionMap, Keyword.emissionMap);

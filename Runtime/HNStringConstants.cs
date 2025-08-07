@@ -17,6 +17,12 @@ namespace HN.HNRP
     }
 
 
+    public static class PropertyIDs
+    {
+        public static readonly int ShaderVariablesGlobal = Shader.PropertyToID("ShaderVariablesGlobal");
+    }
+
+
     public static class Property
     {
         public static readonly string surfaceType = "_SurfaceType";

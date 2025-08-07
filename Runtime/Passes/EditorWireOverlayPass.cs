@@ -17,10 +17,10 @@ namespace HN.HNRP
         public int colorTargetIndex = -1;
 
 
-        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
 #if UNITY_EDITOR
-            Camera camera = graphObjectData.Camera;
+            Camera camera = renderingData.Camera;
             if (camera.cameraType == CameraType.SceneView)
             {
                 using (var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>($"{name}({PassName})", out var passData))

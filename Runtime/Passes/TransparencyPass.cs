@@ -25,7 +25,7 @@ namespace HN.HNRP
         public RendererListHandle rendererList;
 
 
-        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             using (var builder = renderGraph.AddRenderPass<TransparencyPassData>($"{name}({PassName})", out var passData))
             {
@@ -34,7 +34,7 @@ namespace HN.HNRP
                 {
                     passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.Read);
                 }
-                RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetTransparentRendererListDesc(ShaderPassNames.AllForwardNames, frameData.CullingResults, graphObjectData.Camera, renderingLayerMask);
+                RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetTransparentRendererListDesc(ShaderPassNames.AllForwardNames, renderingData.CullingResults, renderingData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
 

@@ -21,7 +21,7 @@ namespace HN.HNRP
         public RendererListHandle rendererList;
 
 
-        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             using (var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>($"{name}({PassName})", out var passData))
             {
@@ -35,7 +35,7 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                     {
-                        RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(graphObjectData.Camera);
+                        RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(renderingData.Camera);
                         ctx.cmd.DrawRendererList(rendererList);
                     }
                 );

@@ -51,7 +51,7 @@ namespace HN.HNRP.Editor
                 baseCameraSettings = settings;
             }
 
-            var camerasAdditionalData = CoreEditorUtils.GetAdditionalData<HNRenderPipelineAdditionalCameraData>(serializedObject.targetObjects);
+            var camerasAdditionalData = CoreEditorUtils.GetAdditionalData<HNAdditionalCameraData>(serializedObject.targetObjects);
             serializedAdditionalDataObject = new SerializedObject(camerasAdditionalData);
 
             // Common properties

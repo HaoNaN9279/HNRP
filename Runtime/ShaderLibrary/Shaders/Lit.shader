@@ -29,7 +29,7 @@ Shader "HNRP/Lit"
         _DstBlend("__dst", Float) = 0.0
         _SrcBlendAlpha("__srcA", Float) = 1.0
         _DstBlendAlpha("__dstA", Float) = 0.0
-        _CullMode("__cullmode", Float) = 0
+        _CullMode("__cullmode", Float) = 2
         _ZTestMode("__ztestmode", Float) = 4
         _ZWrite("__zwrite", Float) = 0
         _QueueOffset("__queueoffset", Float) = 0.0
@@ -61,6 +61,8 @@ Shader "HNRP/Lit"
             #pragma shader_feature_local_fragment _BASEMAP
             #pragma shader_feature_local_fragment _MASKMAP
             #pragma shader_feature_local_fragment _EMISSIONMAP
+
+            // #pragma enable_d3d11_debug_symbols
 
             #include "../Forward/ForwardPass.hlsl"
             ENDHLSL

@@ -56,7 +56,7 @@ namespace HN.HNRP.Editor
             if(asset == null)
                 return;
 
-            var cameraData = camera.GetComponent<HNRenderPipelineAdditionalCameraData>();
+            var cameraData = camera.GetComponent<HNAdditionalCameraData>();
             if(cameraData == null)
                 return;
             

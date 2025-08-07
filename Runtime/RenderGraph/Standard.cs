@@ -51,7 +51,7 @@ namespace HN.HNRP
                     continue;
                 }
 
-                pass.Record(renderGraph, frameData, graphObjectData, textureHandles);
+                pass.Record(renderGraph, renderingData, textureHandles);
             }
         }
     }

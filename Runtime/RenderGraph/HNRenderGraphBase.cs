@@ -21,8 +21,7 @@ namespace HN.HNRP
         protected int textureHandleIndex = -1;
 
         protected RenderGraph renderGraph;
-        protected FrameData frameData;
-        protected GraphObjectData graphObjectData;
+        protected RenderingData renderingData;
 
 
         void OnEnable()
@@ -69,11 +68,10 @@ namespace HN.HNRP
             return textureHandleIndex;
         }
 
-        public void UpdateData(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData)
+        public void UpdateData(RenderGraph renderGraph, RenderingData renderingData)
         {
             this.renderGraph = renderGraph;
-            this.frameData = frameData;
-            this.graphObjectData = graphObjectData;
+            this.renderingData = renderingData;
         }
 
         public abstract void Initialize();

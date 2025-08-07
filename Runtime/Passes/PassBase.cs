@@ -23,6 +23,6 @@ namespace HN.HNRP
             this.name = passName;
         }
         
-        public abstract void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles);
+        public abstract void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles);
     }
 }

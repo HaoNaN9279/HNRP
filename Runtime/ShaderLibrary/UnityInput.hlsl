@@ -1,13 +1,15 @@
 #ifndef HNRP_UNITY_INPUT_INCLUDED
 #define HNRP_UNITY_INPUT_INCLUDED
 
-GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0)
+GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
     // Time (t = time since current level load) values from Unity
     float4 _Time; // (t/20, t, t*2, t*3)
     float4 _SinTime; // sin(t/8), sin(t/4), sin(t/2), sin(t)
     float4 _CosTime; // cos(t/8), cos(t/4), cos(t/2), cos(t)
     float4 unity_DeltaTime; // dt, 1/dt, smoothdt, 1/smoothdt
     float4 _TimeParameters; // t, sin(t), cos(t)
+
+    float4 _ScreenSize;       // {w, h, 1/w, 1/h}
 
     float4 _WorldSpaceCameraPos;
 
@@ -41,43 +43,31 @@ GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0)
     // w = 1.0 if camera is ortho, 0.0 if perspective
     float4 unity_OrthoParams;
 
-    // Projection matrices of the camera. Note that this might be different from projection matrix
-    // that is set right now, e.g. while rendering shadows the matrices below are still the projection
-    // of original camera.
-    float4x4 unity_CameraProjection;
-    float4x4 unity_CameraInvProjection;
-    float4x4 unity_WorldToCamera;
-    float4x4 unity_CameraToWorld;
+    float4x4 unity_MatrixV;
+    float4x4 unity_MatrixInvV;
+    float4x4 glstate_matrix_projection;
+    float4x4 unity_MatrixInvP;
+    float4x4 unity_MatrixVP;
+    float4x4 unity_MatrixInvVP;
 
-    float4   _ScreenSize;       // {w, h, 1/w, 1/h}
-
-    float4   _InvProjParam;
-    float4   _FrustumPlanes[6]; // {(a, b, c) = N, d = -dot(N, P)} [L, R, T, B, N, F]
+    float4 _FrustumPlanes[6]; // {(a, b, c) = N, d = -dot(N, P)} [L, R, T, B, N, F]
 
 	float4 _MainLightPosition;
 	float4 _MainLightColor;
 
     float4 _GlossyEnvironmentColor;
-    float4 _SubtractiveShadowColor;
-
     float4 _GlossyEnvironmentCubeMap_HDR;
-
-    float4x4 glstate_matrix_projection;
-    float4x4 unity_MatrixV;
-    float4x4 unity_MatrixInvV;
-    float4x4 unity_MatrixInvP;
-    float4x4 unity_MatrixVP;
-    float4x4 unity_MatrixInvVP;
-
-    float4 glstate_lightmodel_ambient;
+    float4 _SubtractiveShadowColor;
     float4 unity_AmbientSky;
     float4 unity_AmbientEquator;
     float4 unity_AmbientGround;
-    float4 unity_IndirectSpecColor;
-    float4 unity_FogParams;
-    float4  unity_FogColor;
 
-    float4 unity_ShadowColor;
+    // float4 glstate_lightmodel_ambient;
+    // float4 unity_IndirectSpecColor;
+    // float4 unity_FogParams;
+    // float4 unity_FogColor;
+
+    // float4 unity_ShadowColor;
 CBUFFER_END
 
 CBUFFER_START(UnityPerDraw)
@@ -184,5 +174,10 @@ SAMPLER(sampler_GlossyEnvironmentCubeMap);
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 
+
+float3 GetViewDirectionWS(float3 positionWS)
+{
+    return normalize(_WorldSpaceCameraPos.xyz - positionWS);
+}
 
 #endif

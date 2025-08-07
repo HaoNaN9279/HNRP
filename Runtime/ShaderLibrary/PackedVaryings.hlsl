@@ -1,33 +1,6 @@
 #ifndef HNRP_PACKED_VARYINGS_INCLUDED
 #define HNRP_PACKED_VARYINGS_INCLUDED
 
-#include "PackageRegistry.hlsl"
-
-// normalWS
-#define VARYINGS_FLOAT_COUNT_NORMAL_WS 3
-#define SET_VARYINGS_NORMAL_WS(packedVaryings, value) SetVaryingsFloat3(packedVaryings, value, pointer);
-#define GET_VARYINGS_NORMAL_WS(packedVaryings, value) GetVaryingsFloat3(packedVaryings, value, pointer);
-
-// tangentWS
-#if defined(USE_TANGENT_WS_VARYING)
-    #define VARYINGS_FLOAT_COUNT_TANGENT_WS 4
-    #define SET_VARYINGS_TANGENT_WS(packedVaryings, value) SetVaryingsFloat4(packedVaryings, value, pointer);
-    #define GET_VARYINGS_TANGENT_WS(packedVaryings, value) GetVaryingsFloat4(packedVaryings, value, pointer);
-#else
-    #define VARYINGS_FLOAT_COUNT_TANGENT_WS 0
-    #define SET_VARYINGS_TANGENT_WS(packedVaryings, value)
-    #define GET_VARYINGS_TANGENT_WS(packedVaryings, value)
-#endif
-
-// uv0
-#define VARYINGS_FLOAT_COUNT_UV0 2
-#define SET_VARYINGS_UV0(packedVaryings, value) SetVaryingsFloat2(packedVaryings, value, pointer);
-#define GET_VARYINGS_UV0(packedVaryings, value) GetVaryingsFloat2(packedVaryings, value, pointer);
-
-// #define VARYINGS_FLOAT_COUNT (VARYINGS_FLOAT_COUNT_NORMAL_WS + VARYINGS_FLOAT_COUNT_TANGENT_WS + VARYINGS_FLOAT_COUNT_UV0 + VARYINGS_FLOAT_COUNT_PACKAGES)
-#define VARYINGS_FLOAT_COUNT 9
-
-
 struct PackedVaryings
 {
     float4 positionCS : SV_POSITION;
@@ -381,44 +354,6 @@ void GetVaryingsFloat4(PackedVaryings packedVaryings, inout float4 value, inout 
     GetVaryingsFloat(packedVaryings, value.z, pointer);
     GetVaryingsFloat(packedVaryings, value.y, pointer);
     GetVaryingsFloat(packedVaryings, value.x, pointer);
-}
-
-PackedVaryings BuildPackedVaryings(Varyings varyings)
-{
-    PackedVaryings packedVaryings;
-    ZERO_INITIALIZE(PackedVaryings, packedVaryings);
-    int pointer = 0;
-
-    packedVaryings.positionCS = varyings.positionCS;
-
-    SET_VARYINGS_NORMAL_WS(packedVaryings, varyings.normalWS);
-    SET_VARYINGS_TANGENT_WS(packedVaryings, varyings.tangentWS);
-    SET_VARYINGS_UV0(packedVaryings, varyings.uv0);
-
-    SetVaryingsFloat(packedVaryings, varyings.normalWS.x, pointer);
-    SetVaryingsFloat(packedVaryings, varyings.normalWS.y, pointer);
-    SetVaryingsFloat(packedVaryings, varyings.normalWS.z, pointer);
-    // SetVaryingsFloat(packedVaryings, varyings.tangentWS.x, pointer);
-    // SetVaryingsFloat(packedVaryings, varyings.tangentWS.y, pointer);
-    // SetVaryingsFloat(packedVaryings, varyings.tangentWS.z, pointer);
-    // SetVaryingsFloat(packedVaryings, varyings.tangentWS.w, pointer);
-    SetVaryingsFloat(packedVaryings, varyings.uv0.x, pointer);
-    SetVaryingsFloat(packedVaryings, varyings.uv0.y, pointer);
-
-    return packedVaryings;
-}
-
-Varyings BuildUnpackedVaryings(PackedVaryings packedVaryings)
-{
-    Varyings varyings;
-    ZERO_INITIALIZE(Varyings, varyings);
-    int pointer = VARYINGS_FLOAT_COUNT;
-
-    GET_VARYINGS_UV0(packedVaryings, varyings.uv0);
-    GET_VARYINGS_TANGENT_WS(packedVaryings, varyings.tangentWS);
-    GET_VARYINGS_NORMAL_WS(packedVaryings, varyings.normalWS);
-
-    return varyings;
 }
 
 #endif

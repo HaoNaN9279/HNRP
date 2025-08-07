@@ -16,19 +16,19 @@ namespace HN.HNRP
         public int colorTargetIndex = -1;
 
 
-        public override void Record(RenderGraph renderGraph, FrameData frameData, GraphObjectData graphObjectData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
-            Material singleBlitMat = CoreUtils.CreateEngineMaterial(graphObjectData.runtimeResources.shaderResources.singleBlit);
+            Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.singleBlit);
 
             using (var builder = renderGraph.AddRenderPass<RenderOutputData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
 
                 passData.blitMaterial = singleBlitMat;
-                passData.flip = graphObjectData.Camera.cameraType == CameraType.Game && graphObjectData.Camera.targetTexture == null;
-                passData.viewport = graphObjectData.CameraData.FinalViewport;
+                passData.flip = renderingData.Camera.cameraType == CameraType.Game && renderingData.Camera.targetTexture == null;
+                passData.viewport = renderingData.CameraData.FinalViewport;
                 passData.inputTexture = builder.ReadTexture(textureHandles[colorTargetIndex]);
-                TextureHandle backBuffer = renderGraph.ImportBackbuffer(graphObjectData.TargetId);
+                TextureHandle backBuffer = renderGraph.ImportBackbuffer(renderingData.TargetId);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(
                     (RenderOutputData data, RenderGraphContext ctx) =>
