@@ -8,6 +8,7 @@ struct Attributes
     float4 tangentOS : TANGENT;
     float2 texcoord : TEXCOORD0;
     // float2 staticLightmapUV : TEXCOORD1;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 #endif

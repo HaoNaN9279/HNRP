@@ -9,6 +9,8 @@
 
 PackedVaryings vertMain(Attributes attributes)
 {
+    UNITY_SETUP_INSTANCE_ID(attributes);
+
     VertexInput vertexInput;
     ZERO_INITIALIZE(VertexInput, vertexInput);
     vertexInput = BuildVertexInput(attributes);
@@ -21,11 +23,15 @@ PackedVaryings vertMain(Attributes attributes)
     ZERO_INITIALIZE(PackedVaryings, packedVaryings);
     packedVaryings = ForwardBuildPackedVaryings(varyings);
 
+    UNITY_TRANSFER_INSTANCE_ID(attributes, packedVaryings);
+
     return packedVaryings;
 }
 
 float4 fragMain(PackedVaryings packedVaryings)
 {
+    UNITY_SETUP_INSTANCE_ID(packedVaryings);
+
     Varyings varyings;
     ZERO_INITIALIZE(Varyings, varyings);
     varyings = ForwardBuildUnpackedVaryings(packedVaryings);

@@ -84,6 +84,8 @@ struct PackedVaryings
 #elif (VARYINGS_FLOAT_COUNT >= 32)
     float4 packBuffer7 : TEXCOORD7;
 #endif
+
+UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 void SetVaryingsFloat(inout PackedVaryings packedVaryings, float value, inout int pointer)

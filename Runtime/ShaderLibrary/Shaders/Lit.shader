@@ -62,6 +62,8 @@ Shader "HNRP/Lit"
             #pragma shader_feature_local_fragment _MASKMAP
             #pragma shader_feature_local_fragment _EMISSIONMAP
 
+            #pragma multi_compile_instancing
+
             // #pragma enable_d3d11_debug_symbols
 
             #include "../Forward/ForwardPass.hlsl"
