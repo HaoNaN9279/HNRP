@@ -20,7 +20,7 @@ namespace HN.HNRP
         private static HNRenderPipelineGlobalSettings instance = null;
 
         public static readonly string defaultAssetName = "HNRenderPipelineGlobalSettings";
-        internal static readonly string HNRenderPipelinePath = "Assets/HNRP/";
+        public static readonly string HNRenderPipelinePath = "Assets/HNRP/";
 
         public static void UpdateGraphicsSettings(HNRenderPipelineGlobalSettings newSettings)
         {
@@ -197,7 +197,7 @@ namespace HN.HNRP
         {
             get
             {
-                EnsureResources<HNRenderPipelineRuntimeResources>(ref hnRenderPipelineRuntimeResources, runtimeResourcesPath);
+                EnsureResources(ref hnRenderPipelineRuntimeResources, runtimeResourcesPath);
                 return hnRenderPipelineRuntimeResources;
             }
         }
@@ -206,6 +206,22 @@ namespace HN.HNRP
 
         internal static readonly string runtimeResourcesName = "HNRenderPipelineRuntimeResources";
         internal static readonly string runtimeResourcesPath = $"{HNRenderPipelinePath}Runtime/Resources/{runtimeResourcesName}.asset";
+
+#if UNITY_EDITOR
+        internal HNRenderPipelineEditorResources HNRenderPipelineEditorResources
+        {
+            get
+            {
+                EnsureResources(ref hnRenderPipelineEditorResources, editorResourcesPath);
+                return hnRenderPipelineEditorResources;
+            }
+        }
+        [SerializeField]
+        private HNRenderPipelineEditorResources hnRenderPipelineEditorResources;
+
+        internal static readonly string editorResourcesName = "HNRenderPipelineEditorResources";
+        internal static readonly string editorResourcesPath = $"{HNRenderPipelinePath}Editor/Resources/{editorResourcesName}.asset";
+#endif
 
 
         #endregion

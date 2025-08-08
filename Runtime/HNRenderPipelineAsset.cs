@@ -20,9 +20,15 @@ namespace HN.HNRP
 
         public override string[] renderingLayerMaskNames => globalSettings.RenderingLayerNames;
         public override string[] prefixedRenderingLayerMaskNames => globalSettings.PrefixedRenderingLayerNames;
+        public override Material defaultMaterial => editorResources.materialResources.defaultMaterial;
+        public override Shader defaultShader => editorResources.shaderResources.defaultShader;
+
 
         public HNRenderPipelineGlobalSettings globalSettings => HNRenderPipelineGlobalSettings.Instance;
         internal HNRenderPipelineRuntimeResources runtimeResources => globalSettings.HNRenderPipelineRuntimeResources;
+#if UNITY_EDITOR
+        internal HNRenderPipelineEditorResources editorResources => globalSettings.HNRenderPipelineEditorResources;
+#endif
 
         public HNRenderPipelineAsset()
         {
