@@ -17,6 +17,21 @@ struct BRDFData
     float roughness2MinusOne;
 };
 
+struct BSDFCommonData
+{
+    float NdotL;
+    float saturateNdotL;
+    float3 nH;   // normalized HalfDir
+    float NdotH;
+    float saturateNdotH;
+    float LdotH;
+    float saturateLdotH;
+    float3 refViewDirectionWS;
+    float NdotV;
+    float saturateNdotV;
+    float fresnelTerm;
+};
+
 float OnMinusReflectivityMetallic(float metallic, float4 kDielectricSpec)
 {
     // We'll need oneMinusReflectivity, so
@@ -57,32 +72,48 @@ void InitializeBRDFData(float3 albedo, float metallic, float smoothness, float a
     brdfData.roughness2MinusOne = brdfData.roughness2 - 1.0;
 }
 
-struct BSDFCommonData
-{
-    float NdotL;
-    float saturateNdotL;
-    float3 nH;   // normalized HalfDir
-    float NdotH;
-    float saturateNdotH;
-    float LdotH;
-    float saturateLdotH;
-};
-
 void InitializeBSDFCommonData(float3 normalWS, float3 viewDirectionWS, Light light, out BSDFCommonData bsdfCommonData)
 {
     ZERO_INITIALIZE(BSDFCommonData, bsdfCommonData);
 
     float NdotL = dot(normalWS, light.direction);
-    bsdfCommonData.NdotL = NdotL;
-    bsdfCommonData.saturateNdotL = saturate(NdotL);
+    float saturateNdotL = saturate(NdotL);
     float3 halfDir = SafeNormalize(light.direction + viewDirectionWS);
-    bsdfCommonData.nH = halfDir;
     float NdotH = dot(normalWS, halfDir);
-    bsdfCommonData.NdotH = NdotH;
-    bsdfCommonData.saturateNdotH = saturate(NdotH);
+    float saturateNdotH = saturate(NdotH);
     float LdotH = dot(light.direction, halfDir);
+    float saturateLdotH = saturate(LdotH);
+    float3 refViewDirectionWS = reflect(-viewDirectionWS, normalWS);
+    float NdotV = dot(normalWS, viewDirectionWS);
+    float saturateNdotV = saturate(NdotV);
+    float fresnelTerm = Pow4(1.0 - saturateNdotV);
+
+    bsdfCommonData.NdotL = NdotL;
+    bsdfCommonData.saturateNdotL = saturateNdotL;
+    bsdfCommonData.nH = halfDir;
+    bsdfCommonData.NdotH = NdotH;
+    bsdfCommonData.saturateNdotH = saturateNdotH;
     bsdfCommonData.LdotH = LdotH;
-    bsdfCommonData.saturateLdotH = saturate(LdotH);
+    bsdfCommonData.saturateLdotH = saturateLdotH;
+    bsdfCommonData.refViewDirectionWS = refViewDirectionWS;
+    bsdfCommonData.NdotV = NdotV;
+    bsdfCommonData.saturateNdotV = saturateNdotV;
+    bsdfCommonData.fresnelTerm = fresnelTerm;
 }
+
+float DirectBRDFSpecular(BRDFData brdfData, BSDFCommonData bsdfCommonData)
+{
+    float d = Sq(bsdfCommonData.saturateNdotH) * brdfData.roughness2MinusOne + 1.00001f;
+    float specularTerm = brdfData.roughness2 / (Sq(d) * max(0.1, Sq(bsdfCommonData.saturateLdotH)) * brdfData.normalizationTerm);
+
+    return specularTerm;
+}
+
+float3 EnvironmentBRDFSpecular(BRDFData brdfData, BSDFCommonData bsdfCommonData)
+{
+    float surfaceReduction = 1.0 / (brdfData.roughness2 + 1.0);
+    return float3(surfaceReduction * lerp(brdfData.specular, brdfData.grazingTerm, bsdfCommonData.fresnelTerm));
+}
+
 
 #endif

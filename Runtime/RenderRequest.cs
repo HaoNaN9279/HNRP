@@ -50,6 +50,7 @@ namespace HN.HNRP
             InitializeRenderingData(renderingData.CullingResults);
 
             UpdateGlobalConstantBuffer(renderingData.CameraData, renderingData.Cmd);
+            UpdateGlobalKeywords(renderingData);
 
             if (GL.wireframe)
             {
@@ -103,6 +104,19 @@ namespace HN.HNRP
             UpdateLightGlobalConstantBuffer(ref globalConstantBuffer);
 
             ConstantBuffer.PushGlobal(cmd, globalConstantBuffer, PropertyIDs.ShaderVariablesGlobal);
+        }
+
+        private void UpdateGlobalKeywords(RenderingData renderingData)
+        {
+            ResetGlobalKeywords(renderingData.Cmd);
+
+            UpdateLightGlobalKeywords(renderingData);
+        }
+
+        private void ResetGlobalKeywords(CommandBuffer cmd)
+        {
+            cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHVertex);
+            cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHMixed);
         }
 
         private void SetupCameraProperties(ScriptableRenderContext context, Camera camera, CommandBuffer cmd)

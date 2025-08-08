@@ -23,7 +23,7 @@ namespace HN.HNRP
     }
 
 
-    public static class Property
+    public static class Propertys
     {
         public static readonly string surfaceType = "_SurfaceType";
         public static readonly string blendMode = "_BlendMode";
@@ -58,12 +58,19 @@ namespace HN.HNRP
     }
 
 
-    public static class Keyword
+    public static class MaterialLitKeywords
     {
         public static readonly string alphaTest = "_ALPHATEST_ON";
         public static readonly string basemap = "_BASEMAP";
         public static readonly string normalMap = "_NORMALMAP";
         public static readonly string maskMap = "_MASKMAP";
         public static readonly string emissionMap = "_EMISSIONMAP";
+    }
+
+
+    public static class GlobalKeywords
+    {
+        public static readonly string evaluateSHMixed = "EVALUATE_SH_MIXED";
+        public static readonly string evaluateSHVertex = "EVALUATE_SH_VERTEX";
     }
 }

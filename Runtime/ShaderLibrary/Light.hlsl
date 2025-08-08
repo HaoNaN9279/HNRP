@@ -8,6 +8,11 @@ struct Light
     float shadowAttenuation;
 };
 
+float3 GetViewDirectionWS(float3 positionWS)
+{
+    return normalize(_WorldSpaceCameraPos.xyz - positionWS);
+}
+
 Light GetMainLight()
 {
     Light light;

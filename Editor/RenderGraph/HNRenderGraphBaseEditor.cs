@@ -36,6 +36,9 @@ namespace HN.HNRP.Editor
             string renderGraphName = serializedObject.targetObject.name;
             string renderGraphType = serializedObject.targetObject.GetType().Name;
             EditorGUILayout.LabelField($"{renderGraphName}({renderGraphType})", EditorStyles.boldLabel);
+            var shEvalModeProperty = serializedObject.FindProperty("shEvalMode");
+            EditorGUILayout.PropertyField(shEvalModeProperty, new GUIContent("SH Evaluation Mode"));
+            EditorGUILayout.Space();
             DrawSettings();
             EditorGUILayout.Space();
         }

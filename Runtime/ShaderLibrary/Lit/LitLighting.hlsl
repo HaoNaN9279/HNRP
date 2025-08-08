@@ -1,34 +1,14 @@
-#ifndef HNRP_FORWARD_LIGHTING_INCLUDED
-#define HNRP_FORWARD_LIGHTING_INCLUDED
-
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonShadow.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/AreaLighting.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/BSDF.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Sampling/Sampling.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonLighting.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/VolumeRendering.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/MetaPass.hlsl"
-
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl"
-
-#include "../SurfaceData.hlsl"
-#include "../Light.hlsl"
-#include "../BRDF.hlsl"
-#include "../GI.hlsl"
-#include "../Shadow.hlsl"
-#include "../Lighting.hlsl"
+#ifndef HNRP_LIT_LIGHTING_INCLUDED
+#define HNRP_LIT_LIGHTING_INCLUDED
 
 struct LightingInputData
 {
+    float3 positionWS;
     float3 viewDirectionWS;
     Light mainLight;
-    float2 uv0;
+    float2 mainUV;
     NormalData normalData;
+    float3 bakedGI;
 };
 
 struct LightingData
@@ -55,14 +35,21 @@ LightingInputData BuildLightingInputData(Varyings varyings, SurfaceData surfaceD
     LightingInputData lightingInputData;
     ZERO_INITIALIZE(LightingInputData, lightingInputData);
 
+    lightingInputData.positionWS = varyings.positionWS;
+
     float3 viewDirectionWS = GetViewDirectionWS(varyings.positionWS);
     lightingInputData.viewDirectionWS = viewDirectionWS;
 
     Light mainLight = GetMainLight();
     lightingInputData.mainLight = mainLight;
 
+    lightingInputData.mainUV = varyings.uv0;
+
     NormalData normalData = GetNormalData(varyings.normalWS, varyings.tangentWS, surfaceData.normalTS);
     lightingInputData.normalData = normalData;
+
+    float3 bakedGI = SAMPLE_GI(varyings.staticLightmapUV, varyings.dynamicLightmapUV, varyings.vertexSH, normalData.normalWS);
+    lightingInputData.bakedGI = bakedGI;
 
     return lightingInputData;
 }
@@ -88,17 +75,19 @@ LightingData BuildLightingData(LightingInputData lightingInputData, BRDFData brd
     LightingData lightingData;
     ZERO_INITIALIZE(LightingData, lightingData);
 
-    lightingData.directLight = LightingPBR(brdfData, bsdfCommonData, lightingInputData.mainLight);
+    lightingData.directLight = DirectLightingPBR(brdfData, bsdfCommonData, lightingInputData.mainLight);
+    lightingData.indirectLight = IndirectLightingPBR(brdfData, bsdfCommonData, lightingInputData.bakedGI, lightingInputData.positionWS);
 
     return lightingData;
 }
 
-LightingOutputData BuildLightingOutputData(LightingData lightingData)
+LightingOutputData BuildLightingOutputData(SurfaceData surfaceData, LightingData lightingData)
 {
     LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
 
     lightingOutputData.lightingColor.rgb = lightingData.directLight.diffuse.rgb + lightingData.directLight.specular.rgb + lightingData.indirectLight.diffuse.rgb + lightingData.indirectLight.specular.rgb;
+    lightingOutputData.lightingColor.rgb += surfaceData.emission.rgb;
 
     return lightingOutputData;
 }

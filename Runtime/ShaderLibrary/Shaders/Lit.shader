@@ -56,17 +56,30 @@ Shader "HNRP/Lit"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+
+            // Material Keywords
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _BASEMAP
-            #pragma shader_feature_local_fragment _MASKMAP
-            #pragma shader_feature_local_fragment _EMISSIONMAP
+            #pragma shader_feature_local _BASEMAP
+            #pragma shader_feature_local _MASKMAP
+            #pragma shader_feature_local _EMISSIONMAP
+            
+            // HNRP Keywords
+            #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
 
+            // Unity defined Keywords
+            #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+            #pragma multi_compile _ SHADOWS_SHADOWMASK
+            #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ DYNAMICLIGHTMAP_ON
+            
+            // GPU Instancing
             #pragma multi_compile_instancing
 
-            // #pragma enable_d3d11_debug_symbols
+            #pragma enable_d3d11_debug_symbols
 
-            #include "../Forward/ForwardPass.hlsl"
+            #include "../Passes/LitForwardPass.hlsl"
             ENDHLSL
         }
     }

@@ -13,19 +13,40 @@ struct IndirectLightingData
     float3 specular;
 };
 
-DirectLightingData LightingPBR(BRDFData brdfData, BSDFCommonData bsdfCommonData, Light light)
+DirectLightingData DirectLightingPBR(BRDFData brdfData, BSDFCommonData bsdfCommonData, Light light)
 {
     DirectLightingData directLightingData;
     ZERO_INITIALIZE(DirectLightingData, directLightingData);
 
     float3 radiance = light.color * (light.shadowAttenuation * bsdfCommonData.saturateNdotL);
     directLightingData.diffuse = brdfData.diffuse * radiance;
-
-    float d = Sq(bsdfCommonData.saturateNdotH) * brdfData.roughness2MinusOne + 1.00001f;
-    float specularTerm = brdfData.roughness2 / (Sq(d) * max(0.1, Sq(bsdfCommonData.saturateLdotH)) * brdfData.normalizationTerm);
-    directLightingData.specular = brdfData.specular * specularTerm;
+    directLightingData.specular = brdfData.specular * DirectBRDFSpecular(brdfData, bsdfCommonData);
 
     return directLightingData;
+}
+
+float3 GI(BRDFData brdfData, BSDFCommonData bsdfCommonData, float3 bakedGI, float3 positionWS)
+{
+    float3 indirectDiffuse = bakedGI;
+    float3 indirectSpecular = GlossyEnvironmentReflection(bsdfCommonData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
+
+    float3 color = indirectDiffuse * brdfData.diffuse;
+    color += indirectSpecular * EnvironmentBRDFSpecular(brdfData, bsdfCommonData);
+
+    return color;
+}
+
+IndirectLightingData IndirectLightingPBR(BRDFData brdfData, BSDFCommonData bsdfCommonData, float3 bakedGI, float3 positionWS)
+{
+    IndirectLightingData indirectLightingData;
+    ZERO_INITIALIZE(IndirectLightingData, indirectLightingData);
+
+    indirectLightingData.diffuse = bakedGI * brdfData.diffuse;
+    float3 envReflection = GlossyEnvironmentReflection(bsdfCommonData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
+    float3 envSpecular = EnvironmentBRDFSpecular(brdfData, bsdfCommonData);
+    indirectLightingData.specular = envReflection * envSpecular;
+
+    return indirectLightingData;
 }
 
 #endif

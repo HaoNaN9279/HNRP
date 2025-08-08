@@ -18,7 +18,7 @@ namespace HN.HNRP
             var desc = new RendererListDesc(passNames, cullingResults, camera)
             {
                 renderingLayerMask = renderingLayerMask,
-                rendererConfiguration = 0,
+                rendererConfiguration = GetPerObjectLightFlags(),
                 renderQueueRange = HNRenderQueue.AllOpaque,
                 sortingCriteria = SortingCriteria.CommonOpaque,
                 stateBlock = null,
@@ -34,7 +34,7 @@ namespace HN.HNRP
             var desc = new RendererListDesc(passNames, cullingResults, camera)
             {
                 renderingLayerMask = renderingLayerMask,
-                rendererConfiguration = 0,
+                rendererConfiguration = GetPerObjectLightFlags(),
                 renderQueueRange = HNRenderQueue.Transparent,
                 sortingCriteria = SortingCriteria.CommonTransparent,
                 stateBlock = null,
@@ -48,6 +48,20 @@ namespace HN.HNRP
         unsafe public static void GetVisibleLight(NativeArray<VisibleLight> visibleLights, int index, ref VisibleLight result)
         {
             result = UnsafeUtility.ArrayElementAsRef<VisibleLight>(visibleLights.GetUnsafePtr(), index);
+        }
+
+        public static PerObjectData GetPerObjectLightFlags()
+        {
+            var configuration =
+                PerObjectData.Lightmaps
+                | PerObjectData.LightProbe
+                | PerObjectData.OcclusionProbe
+                | PerObjectData.ShadowMask
+                | PerObjectData.ReflectionProbes
+                | PerObjectData.LightData
+                ;
+
+            return configuration;
         }
     }
 }

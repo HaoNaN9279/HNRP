@@ -1,18 +1,35 @@
-#ifndef HNRP_FORWARD_INPUT_INCLUDED
-#define HNRP_FORWARD_INPUT_INCLUDED
+#ifndef HNRP_LIT_INPUT_INCLUDED
+#define HNRP_LIT_INPUT_INCLUDED
 
-#if defined(_NORMALMAP)
-    #undef USE_TANGENT_WS_VARYING
-    #define USE_TANGENT_WS_VARYING 1
+#define ATTRIBUTES_NEED_NORMAL
+#define USE_POSITION_WS_VARYING
+#define USE_NORMAL_WS_VARYING
+
+#if defined(_BASEMAP) || defined(_NORMALMAP) || defined(_MASKMAP) || defined(_EMISSIONMAP)
+    #define ATTRIBUTES_NEED_UV0
+    #define USE_UV0_VARYING
 #endif
 
-#undef USE_POSITION_WS_VARYING
-#define USE_POSITION_WS_VARYING 1
+#if defined(_NORMALMAP)
+    #define ATTRIBUTES_NEED_TANGENT
+    #define USE_TANGENT_WS_VARYING
+#endif
+
+#if defined(LIGHTMAP_ON)
+    #define ATTRIBUTES_NEED_UV1
+    #define USE_STATIC_LIGHTMAP_UV_VARYING
+#endif
+
+#if defined(DYNAMICLIGHTMAP_ON)
+    #define ATTRIBUTES_NEED_UV2
+    #define USE_DYNAMIC_LIGHTMAP_UV_VARYING
+#endif
+
+#if defined(EVALUATE_SH_MIXED) || defined(EVALUATE_SH_VERTEX)
+    #define USE_VERTEX_SH_VARYING
+#endif
 
 #include "../UnityInput.hlsl"
-#include "../Attributes.hlsl"
-#include "../VertexInput.hlsl"
-#include "../Varyings.hlsl"
 
 #if defined(_BASEMAP)
 TEXTURE2D(_BaseMap);
@@ -164,5 +181,16 @@ void SetupDOTSLitMaterialPropertyCaches()
 #endif
 
 #endif
+
+#include "../SurfaceData.hlsl"
+#include "../Light.hlsl"
+#include "../BRDF.hlsl"
+#include "../GI.hlsl"
+#include "../Shadow.hlsl"
+#include "../Lighting.hlsl"
+
+#include "../Attributes.hlsl"
+#include "../VertexInput.hlsl"
+#include "../Varyings.hlsl"
 
 #endif

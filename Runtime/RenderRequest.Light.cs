@@ -89,6 +89,16 @@ namespace HN.HNRP
             globalConstantBuffer._SubtractiveShadowColor = CoreUtils.ConvertSRGBToActiveColorSpace(RenderSettings.subtractiveShadowColor);
         }
 
+        private void UpdateLightGlobalKeywords(RenderingData renderingData)
+        {
+            var graphObject = renderingData.GraphObject;
+            var cmd = renderingData.Cmd;
+
+            var shEvalMode = graphObject.SHEvalMode;
+            CoreUtils.SetKeyword(cmd, GlobalKeywords.evaluateSHVertex, shEvalMode == SHEvalMode.PerVertex);
+            CoreUtils.SetKeyword(cmd, GlobalKeywords.evaluateSHMixed, shEvalMode == SHEvalMode.Mixed);
+        }
+
 
         private static readonly Vector3 defaultLightPosition = Vector3.zero;
         private static readonly Color defaultLightColor = Color.white;

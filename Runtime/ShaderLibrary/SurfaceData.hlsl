@@ -64,7 +64,7 @@ float4 GetMasks(float2 uv)
 float3 GetEmission(float2 uv)
 {
 #if defined(_EMISSIONMAP)
-    return float4(SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap)).rgb;
+    return float4(SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, uv)).rgb * _EmissionColor.rgb;
 #else
     return float3(_EmissionColor.rgb);
 #endif

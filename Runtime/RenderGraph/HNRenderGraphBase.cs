@@ -24,6 +24,17 @@ namespace HN.HNRP
         protected RenderingData renderingData;
 
 
+        public SHEvalMode SHEvalMode
+        {
+            get { return shEvalMode; }
+            set { shEvalMode = value; }
+        }
+
+
+        [SerializeField]
+        protected SHEvalMode shEvalMode = SHEvalMode.PerPixel;
+
+
         void OnEnable()
         {
             if (passes.Count > 0)
@@ -76,7 +87,15 @@ namespace HN.HNRP
 
         public abstract void Initialize();
         public abstract void RecordRenderGraph(List<TextureHandle> textureHandles);
-        
+
+    }
+
+
+    public enum SHEvalMode
+    {
+        PerVertex,
+        Mixed,
+        PerPixel,
     }
 
 
