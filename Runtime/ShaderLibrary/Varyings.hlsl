@@ -13,7 +13,6 @@ struct Varyings
     float2 uv3;
     float4 color;
     float2 staticLightmapUV;
-    float2 dynamicLightmapUV;
     float3 vertexSH;
 };
 
@@ -31,7 +30,6 @@ Varyings BuildVaryings(VertexInput vertexInput)
     varyings.uv3 = vertexInput.uv3;
     varyings.color = vertexInput.color;
     varyings.staticLightmapUV = vertexInput.staticLightmapUV.xy * unity_LightmapST.xy + unity_LightmapST.zw;
-    varyings.dynamicLightmapUV = vertexInput.dynamicLightmapUV.xy * unity_DynamicLightmapST.xy + unity_DynamicLightmapST.zw;
     varyings.vertexSH = SampleSHVertex(varyings.normalWS);
     varyings.positionCS = TransformObjectToHClip(vertexInput.positionOS);
 

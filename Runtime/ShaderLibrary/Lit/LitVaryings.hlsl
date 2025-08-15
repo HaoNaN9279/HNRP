@@ -102,17 +102,6 @@
     #define GET_VARYINGS_STATIC_LIGHTMAP_UV(packedVaryings, value)
 #endif
 
-// dynamic lightmap uv
-#if defined(USE_DYNAMIC_LIGHTMAP_UV_VARYING)
-    #define VARYINGS_FLOAT_COUNT_DYNAMIC_LIGHTMAP_UV 2
-    #define SET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, value) SetVaryingsFloat2(packedVaryings, value, pointer);
-    #define GET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, value) GetVaryingsFloat2(packedVaryings, value, pointer);
-#else
-    #define VARYINGS_FLOAT_COUNT_DYNAMIC_LIGHTMAP_UV 0
-    #define SET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, value)
-    #define GET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, value)
-#endif
-
 // vertex SH
 #if defined(USE_VERTEX_SH_VARYING)
     #define VARYINGS_FLOAT_COUNT_VERTEX_SH 3
@@ -134,7 +123,6 @@
     + VARYINGS_FLOAT_COUNT_UV3 \
     + VARYINGS_FLOAT_COUNT_COLOR \
     + VARYINGS_FLOAT_COUNT_STATIC_LIGHTMAP_UV \
-    + VARYINGS_FLOAT_COUNT_DYNAMIC_LIGHTMAP_UV \
     + VARYINGS_FLOAT_COUNT_VERTEX_SH \
     )
 
@@ -157,7 +145,6 @@ PackedVaryings ForwardBuildPackVaryings(Varyings varyings)
     SET_VARYINGS_UV3(packedVaryings, varyings.uv3);
     SET_VARYINGS_COLOR(packedVaryings, varyings.color);
     SET_VARYINGS_STATIC_LIGHTMAP_UV(packedVaryings, varyings.staticLightmapUV);
-    SET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, varyings.dynamicLightmapUV);
     SET_VARYINGS_VERTEX_SH(packedVaryings, varyings.vertexSH);
 
     return packedVaryings;
@@ -170,7 +157,6 @@ Varyings ForwardBuildUnpackVaryings(PackedVaryings packedVaryings)
     int pointer = VARYINGS_FLOAT_COUNT - 1;
 
     GET_VARYINGS_VERTEX_SH(packedVaryings, varyings.vertexSH);
-    GET_VARYINGS_DYNAMIC_LIGHTMAP_UV(packedVaryings, varyings.dynamicLightmapUV);
     GET_VARYINGS_STATIC_LIGHTMAP_UV(packedVaryings, varyings.staticLightmapUV);
     GET_VARYINGS_COLOR(packedVaryings, varyings.color);
     GET_VARYINGS_UV3(packedVaryings, varyings.uv3);

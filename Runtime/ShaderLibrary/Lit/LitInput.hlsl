@@ -20,11 +20,6 @@
     #define USE_STATIC_LIGHTMAP_UV_VARYING
 #endif
 
-#if defined(DYNAMICLIGHTMAP_ON)
-    #define ATTRIBUTES_NEED_UV2
-    #define USE_DYNAMIC_LIGHTMAP_UV_VARYING
-#endif
-
 #if defined(EVALUATE_SH_MIXED) || defined(EVALUATE_SH_VERTEX)
     #define USE_VERTEX_SH_VARYING
 #endif

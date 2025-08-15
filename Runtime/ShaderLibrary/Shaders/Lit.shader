@@ -72,7 +72,6 @@ Shader "HNRP/Lit"
             #pragma multi_compile _ SHADOWS_SHADOWMASK
             #pragma multi_compile _ DIRLIGHTMAP_COMBINED
             #pragma multi_compile _ LIGHTMAP_ON
-            #pragma multi_compile _ DYNAMICLIGHTMAP_ON
             
             // GPU Instancing
             #pragma multi_compile_instancing

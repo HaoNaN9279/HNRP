@@ -141,8 +141,8 @@ TEXTURE2D_ARRAY(unity_Lightmaps);
 SAMPLER(samplerunity_Lightmaps);
 
 // Dynamic lightmap
-TEXTURE2D(unity_DynamicLightmap);
-SAMPLER(samplerunity_DynamicLightmap);
+// TEXTURE2D(unity_DynamicLightmap);
+// SAMPLER(samplerunity_DynamicLightmap);
 
 // Dual or directional lightmap (always used with unity_Lightmap, so can share sampler)
 TEXTURE2D(unity_LightmapInd);

@@ -48,7 +48,7 @@ LightingInputData BuildLightingInputData(Varyings varyings, SurfaceData surfaceD
     NormalData normalData = GetNormalData(varyings.normalWS, varyings.tangentWS, surfaceData.normalTS);
     lightingInputData.normalData = normalData;
 
-    float3 bakedGI = SAMPLE_GI(varyings.staticLightmapUV, varyings.dynamicLightmapUV, varyings.vertexSH, normalData.normalWS);
+    float3 bakedGI = SAMPLE_GI(varyings.staticLightmapUV, varyings.vertexSH, normalData.normalWS);
     lightingInputData.bakedGI = bakedGI;
 
     return lightingInputData;

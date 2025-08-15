@@ -56,7 +56,7 @@ float3 SampleSHPixel(float3 L2Term, float3 normalWS)
 #define LIGHTMAP_SAMPLE_EXTRA_ARGS staticLightmapUV
 #endif
 
-float3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, float3 normalWS)
+float3 SampleLightmap(float2 staticLightmapUV, float3 normalWS)
 {
 #if defined(UNITY_LIGHTMAP_FULL_HDR)
     bool encodedLightmap = false;
@@ -77,26 +77,13 @@ float3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, float3 
     diffuseLighting = SampleSingleLightmap(TEXTURE2D_LIGHTMAP_ARGS(LIGHTMAP_NAME, LIGHTMAP_SAMPLER_NAME), LIGHTMAP_SAMPLE_EXTRA_ARGS, transformCoords, encodedLightmap, decodeInstructions);
 #endif
 
-#if defined(DYNAMICLIGHTMAP_ON) && defined(DIRLIGHTMAP_COMBINED)
-    diffuseLighting += SampleDirectionalLightmap(TEXTURE2D_ARGS(unity_DynamicLightmap, samplerunity_DynamicLightmap),
-        TEXTURE2D_ARGS(unity_DynamicDirectionality, samplerunity_DynamicLightmap),
-        dynamicLightmapUV, transformCoords, normalWS, false, decodeInstructions);
-#elif defined(DYNAMICLIGHTMAP_ON)
-    diffuseLighting += SampleSingleLightmap(TEXTURE2D_ARGS(unity_DynamicLightmap, samplerunity_DynamicLightmap),
-        dynamicLightmapUV, transformCoords, false, decodeInstructions);
-#endif
-
     return diffuseLighting;
 }
 
-#if defined(LIGHTMAP_ON) && defined(DYNAMICLIGHTMAP_ON)
-#define SAMPLE_GI(staticLmName, dynamicLmName, shName, normalWSName) SampleLightmap(staticLmName, dynamicLmName, normalWSName)
-#elif defined(DYNAMICLIGHTMAP_ON)
-#define SAMPLE_GI(staticLmName, dynamicLmName, shName, normalWSName) SampleLightmap(0, dynamicLmName, normalWSName)
-#elif defined(LIGHTMAP_ON)
-#define SAMPLE_GI(staticLmName, dynamicLmName, shName, normalWSName) SampleLightmap(staticLmName, 0, normalWSName)
+#if defined(LIGHTMAP_ON)
+#define SAMPLE_GI(staticLmName, shName, normalWSName) SampleLightmap(staticLmName, normalWSName)
 #else
-#define SAMPLE_GI(staticLmName, dynamicLmName, shName, normalWSName) SampleSHPixel(shName, normalWSName)
+#define SAMPLE_GI(staticLmName, shName, normalWSName) SampleSHPixel(shName, normalWSName)
 #endif
 
 half3 BoxProjectedCubemapDirection(half3 reflectionWS, float3 positionWS, float4 cubemapPositionWS, float4 boxMin, float4 boxMax)
@@ -137,36 +124,6 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
 {
     half3 irradiance = half3(0.0h, 0.0h, 0.0h);
     half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
-#if USE_FORWARD_PLUS
-//     float totalWeight = 0.0f;
-//     uint probeIndex;
-//     ClusterIterator it = ClusterInit(normalizedScreenSpaceUV, positionWS, 1);
-//     [loop] while (ClusterNext(it, probeIndex) && totalWeight < 0.99f)
-//     {
-//         probeIndex -= URP_FP_PROBES_BEGIN;
-
-//         float weight = CalculateProbeWeight(positionWS, urp_ReflProbes_BoxMin[probeIndex], urp_ReflProbes_BoxMax[probeIndex]);
-//         weight = min(weight, 1.0f - totalWeight);
-
-//         half3 sampleVector = reflectVector;
-//         sampleVector = BoxProjectedCubemapDirection(reflectVector, positionWS, urp_ReflProbes_ProbePosition[probeIndex], urp_ReflProbes_BoxMin[probeIndex], urp_ReflProbes_BoxMax[probeIndex]);
-
-//         uint maxMip = (uint)abs(urp_ReflProbes_ProbePosition[probeIndex].w) - 1;
-//         half probeMip = min(mip, maxMip);
-//         float2 uv = saturate(PackNormalOctQuadEncode(sampleVector) * 0.5 + 0.5);
-
-//         float mip0 = floor(probeMip);
-//         float mip1 = mip0 + 1;
-//         float mipBlend = probeMip - mip0;
-//         float4 scaleOffset0 = urp_ReflProbes_MipScaleOffset[probeIndex * 7 + (uint)mip0];
-//         float4 scaleOffset1 = urp_ReflProbes_MipScaleOffset[probeIndex * 7 + (uint)mip1];
-
-//         half3 irradiance0 = half4(SAMPLE_TEXTURE2D_LOD(urp_ReflProbes_Atlas, samplerurp_ReflProbes_Atlas, uv * scaleOffset0.xy + scaleOffset0.zw, 0.0)).rgb;
-//         half3 irradiance1 = half4(SAMPLE_TEXTURE2D_LOD(urp_ReflProbes_Atlas, samplerurp_ReflProbes_Atlas, uv * scaleOffset1.xy + scaleOffset1.zw, 0.0)).rgb;
-//         irradiance += weight * lerp(irradiance0, irradiance1, mipBlend);
-//         totalWeight += weight;
-//     }
-#else
     half probe0Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
     half probe1Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
 
@@ -212,7 +169,6 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
 
         irradiance += weightProbe1 * DecodeHDREnvironment(encodedIrradiance, unity_SpecCube1_HDR);
     }
-#endif
 
     // Use any remaining weight to blend to environment reflection cube map
     if (totalWeight < 0.99f)
