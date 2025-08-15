@@ -10,10 +10,6 @@ namespace HN.HNRP.Editor
 
     public class HNRenderPipelineCameraUI
     {
-        private static readonly ExpandedState<Expandable, Camera> expandedState = new(Expandable.Projection, "HNRP");
-        private static readonly AdditionalPropertiesState<ExpandableAdditional, Camera> expandedAdditionalState = new(0, "HNRP");
-
-
         public static CED.IDrawer[] Inspector()
         {
             return new CED.IDrawer[]
@@ -129,6 +125,8 @@ namespace HN.HNRP.Editor
         }
 #endregion
 
+        private static readonly ExpandedState<Expandable, Camera> expandedState = new(Expandable.Projection, "HNRP");
+        private static readonly AdditionalPropertiesState<ExpandableAdditional, Camera> expandedAdditionalState = new(0, "HNRP");
 
 
         public enum Expandable

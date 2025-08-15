@@ -12,24 +12,6 @@ namespace HN.HNRP
 {
     public class HNRenderPipeline : RenderPipeline
     {
-        public static HNRenderPipelineAsset Asset
-        {
-            get => GraphicsSettings.currentRenderPipeline as HNRenderPipelineAsset;
-        }
-
-        internal RenderGraph renderGraph = new RenderGraph("HNRP");
-
-        public override RenderPipelineGlobalSettings defaultSettings => globalSettings;
-
-
-        private HNRenderPipelineGlobalSettings globalSettings;
-
-        //TODO: pool
-        private List<RenderRequest> renderRequests;
-
-        private RenderingData renderingData = default;
-
-
         public HNRenderPipeline(HNRenderPipelineAsset asset)
         {
             GraphicsSettings.lightsUseLinearIntensity = QualitySettings.activeColorSpace == ColorSpace.Linear;
@@ -167,6 +149,25 @@ namespace HN.HNRP
             renderGraph.Cleanup();
             renderGraph = null;
         }
+
+
+        public static HNRenderPipelineAsset Asset
+        {
+            get => GraphicsSettings.currentRenderPipeline as HNRenderPipelineAsset;
+        }
+
+        internal RenderGraph renderGraph = new RenderGraph("HNRP");
+
+        public override RenderPipelineGlobalSettings defaultSettings => globalSettings;
+
+
+        private HNRenderPipelineGlobalSettings globalSettings;
+
+        //TODO: pool
+        private List<RenderRequest> renderRequests;
+
+        private RenderingData renderingData = default;
+
 
 
         internal const int defaultRenderingLayerMask = 0x00000001;

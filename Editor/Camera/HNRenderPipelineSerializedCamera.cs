@@ -9,31 +9,6 @@ namespace HN.HNRP.Editor
 {
     public class HNRenderPipelineSerializedCamera : ISerializedCamera
     {
-        public SerializedObject serializedObject { get; }
-
-        public SerializedObject serializedAdditionalDataObject { get; }
-
-        public CameraEditor.Settings baseCameraSettings { get; }
-
-
-        public SerializedProperty projectionMatrixMode { get; }
-
-        // Common properties
-        public SerializedProperty dithering { get; }
-
-        public SerializedProperty stopNaNs { get; }
-
-        public SerializedProperty allowDynamicResolution { get; }
-
-        public SerializedProperty volumeLayerMask { get; }
-
-        public SerializedProperty clearDepth { get; }
-
-        public SerializedProperty antialiasing { get; }
-
-        // HNRP specific properties
-
-
         public HNRenderPipelineSerializedCamera(SerializedObject serializedObject, CameraEditor.Settings settings)
         {
             this.serializedObject = serializedObject;
@@ -73,7 +48,7 @@ namespace HN.HNRP.Editor
 
         public void Refresh()
         {
-            
+
         }
 
         public void Update()
@@ -82,5 +57,32 @@ namespace HN.HNRP.Editor
             serializedObject.Update();
             serializedAdditionalDataObject.Update();
         }
+        
+
+        public SerializedObject serializedObject { get; }
+
+        public SerializedObject serializedAdditionalDataObject { get; }
+
+        public CameraEditor.Settings baseCameraSettings { get; }
+
+
+        public SerializedProperty projectionMatrixMode { get; }
+
+        // Common properties
+        public SerializedProperty dithering { get; }
+
+        public SerializedProperty stopNaNs { get; }
+
+        public SerializedProperty allowDynamicResolution { get; }
+
+        public SerializedProperty volumeLayerMask { get; }
+
+        public SerializedProperty clearDepth { get; }
+
+        public SerializedProperty antialiasing { get; }
+
+        // HNRP specific properties
+
+
     }
 }

@@ -9,11 +9,6 @@ namespace HN.HNRP.Editor
 {
     public abstract class HNRenderGraphBaseEditor : UnityEditor.Editor
     {
-        protected SerializedProperty passesProperty;
-
-        protected List<UnityEditor.Editor> editors = new List<UnityEditor.Editor>();
-
-
         protected abstract void DrawSettings();
 
         public override void OnInspectorGUI()
@@ -67,7 +62,7 @@ namespace HN.HNRP.Editor
                     SerializedProperty isExpandedInInspectorProperty = passEditor.serializedObject.FindProperty("isExpandedInInspector");
 
                     EditorGUI.BeginChangeCheck();
-                    
+
                     isExpandedInInspectorProperty.boolValue = CoreEditorUtils.DrawHeaderFoldout(EditorGUIUtility.TrTextContent(title), isExpandedInInspectorProperty.boolValue, false);
                     hasChangedProperties |= EditorGUI.EndChangeCheck();
 
@@ -86,7 +81,7 @@ namespace HN.HNRP.Editor
                         EditorUtility.SetDirty(target);
                     }
                 }
-                
+
                 CoreEditorUtils.DrawSplitter();
             }
         }
@@ -115,6 +110,13 @@ namespace HN.HNRP.Editor
             }
             editors.Clear();
         }
+        
+
+        protected SerializedProperty passesProperty;
+
+        protected List<UnityEditor.Editor> editors = new List<UnityEditor.Editor>();
+
+
 
     }
 }

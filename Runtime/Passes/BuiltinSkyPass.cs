@@ -12,15 +12,6 @@ namespace HN.HNRP
     [Serializable]
     public class BuiltinSkyPass : PassBase
     {
-        [SerializeField]
-        public int colorTargetIndex = -1;
-
-        [SerializeField]
-        public int depthTargetIndex = -1;
-
-        public RendererListHandle rendererList;
-
-
         public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             using (var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>($"{name}({PassName})", out var passData))
@@ -43,14 +34,21 @@ namespace HN.HNRP
         }
 
 
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
+        [SerializeField]
+        public int depthTargetIndex = -1;
+
+        public const string PassName = "Builtin Sky Pass";
+
+
         public class BuiltinSkyPassData : PassData
         {
             public TextureHandle colorTarget;
             public TextureHandle depthTarget;
-            public RendererListHandle rendererList;
         }
         
 
-        public const string PassName = "Builtin Sky Pass";
     }
 }

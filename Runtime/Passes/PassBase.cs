@@ -8,6 +8,15 @@ namespace HN.HNRP
 {
     public abstract class PassBase : ScriptableObject
     {
+        public virtual void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
+        {
+            this.hnRenderGraph = hnRenderGraph;
+            this.name = passName;
+        }
+
+        public abstract void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles);
+        
+
         [SerializeReference]
         protected HNRenderGraphBase hnRenderGraph;
 
@@ -15,14 +24,5 @@ namespace HN.HNRP
         [SerializeField]
         protected bool isExpandedInInspector = false;
 #endif
-
-
-        public virtual void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
-        {
-            this.hnRenderGraph = hnRenderGraph;
-            this.name = passName;
-        }
-        
-        public abstract void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles);
     }
 }

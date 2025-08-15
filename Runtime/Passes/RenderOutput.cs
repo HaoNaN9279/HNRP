@@ -12,10 +12,6 @@ namespace HN.HNRP
     [Serializable]
     public class RenderOutput : PassBase
     {
-        [SerializeField]
-        public int colorTargetIndex = -1;
-
-
         public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.singleBlit);
@@ -50,6 +46,12 @@ namespace HN.HNRP
         }
 
 
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
+        public const string PassName = "Render Output";
+
+
         public class RenderOutputData : PassData
         {
             public TextureHandle inputTexture;
@@ -60,8 +62,6 @@ namespace HN.HNRP
 
         }
 
-
-        public const string PassName = "Render Output";
     }
 
 }

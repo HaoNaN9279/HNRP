@@ -12,13 +12,6 @@ namespace HN.HNRP.Editor
     [CanEditMultipleObjects]
     public class HNRenderPipelineCameraEditor : CameraEditor
     {
-        private Camera camera => target as Camera;
-        private HNRenderPipelineSerializedCamera serializedCamera;
-
-
-        private int renderGraphViewSelectedIndex = 0;
-        
-
         public override void OnInspectorGUI()
         {
             var rpAsset = GraphicsSettings.currentRenderPipeline as HNRenderPipelineAsset;
@@ -53,16 +46,16 @@ namespace HN.HNRP.Editor
         public void DrawRenderGraphView()
         {
             var asset = HNRenderPipeline.Asset;
-            if(asset == null)
+            if (asset == null)
                 return;
 
             var cameraData = camera.GetComponent<HNAdditionalCameraData>();
-            if(cameraData == null)
+            if (cameraData == null)
                 return;
-            
+
             var viewNames = asset.runtimeRenderGraphViews.RenderGraphViews.Keys.ToArray();
             renderGraphViewSelectedIndex = EditorGUILayout.Popup("Render Graph View", renderGraphViewSelectedIndex, viewNames);
-            if(renderGraphViewSelectedIndex != cameraData.RenderGraphViewIndex)
+            if (renderGraphViewSelectedIndex != cameraData.RenderGraphViewIndex)
             {
                 cameraData.RenderGraphViewIndex = renderGraphViewSelectedIndex;
                 EditorUtility.SetDirty(camera);
@@ -76,5 +69,14 @@ namespace HN.HNRP.Editor
             OnDisable();
             OnEnable();
         }
+        
+
+        private Camera camera => target as Camera;
+        private HNRenderPipelineSerializedCamera serializedCamera;
+
+
+        private int renderGraphViewSelectedIndex = 0;
+        
+
     }
 }

@@ -11,23 +11,6 @@ namespace HN.HNRP
     [Serializable]
     public class ColorBufferInput : PassBase
     {
-        [SerializeField]
-        public Vector2 textureScale = Vector2.one;
-
-        [SerializeField]
-        public GraphicsFormat colorFormat = GraphicsFormat.R8G8B8A8_UNorm;
-
-        [SerializeField]
-        public bool clearBuffer = true;
-
-        [SerializeField]
-        public Color clearColor = Color.black;
-
-
-        [SerializeField]
-        public int colorTargetIndex = -1;
-
-
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
@@ -45,6 +28,24 @@ namespace HN.HNRP
             });
             textureHandles.Add(outputColorTarget);
         }
+
+
+        [SerializeField]
+        public Vector2 textureScale = Vector2.one;
+
+        [SerializeField]
+        public GraphicsFormat colorFormat = GraphicsFormat.R8G8B8A8_UNorm;
+
+        [SerializeField]
+        public bool clearBuffer = true;
+
+        [SerializeField]
+        public Color clearColor = Color.black;
+
+
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
 
     }
 

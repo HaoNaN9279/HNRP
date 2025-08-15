@@ -9,13 +9,6 @@ namespace HN.HNRP
     [Serializable]
     public class RenderGraphViewBlock
     {
-        public RenderGraphView RenderGraphViews => renderGraphViews;
-
-
-        [SerializeField]
-        private RenderGraphView renderGraphViews;
-
-
         public RenderGraphViewBlock()
         {
             renderGraphViews = new RenderGraphView();
@@ -48,19 +41,26 @@ namespace HN.HNRP
 
         public HNRenderGraphBase GetRenderGraphObject(int index)
         {
-            if(index >= renderGraphViews.Count)
+            if (index >= renderGraphViews.Count)
                 return null;
-            
+
             return renderGraphViews.Values.ToList()[index];
         }
 
         public HNRenderGraphBase GetRenderGraphObject(string viewName)
         {
-            if(!ContainsView(viewName))
+            if (!ContainsView(viewName))
                 return null;
-            
+
             return renderGraphViews[viewName];
         }
+
+
+        public RenderGraphView RenderGraphViews => renderGraphViews;
+
+        [SerializeField]
+        private RenderGraphView renderGraphViews;
+
 
 
     }

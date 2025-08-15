@@ -12,18 +12,6 @@ namespace HN.HNRP
     [Serializable]
     public class ForwardOpaquePass : PassBase
     {
-        [SerializeField]
-        public uint renderingLayerMask = 0x00000001;
-
-        [SerializeField]
-        public int colorTargetIndex = -1;
-
-        [SerializeField]
-        public int depthTargetIndex = -1;
-
-        public RendererListHandle rendererList;
-
-
         public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>($"{name}({PassName})", out var passData))
@@ -48,6 +36,18 @@ namespace HN.HNRP
         }
 
 
+        [SerializeField]
+        public uint renderingLayerMask = 0x00000001;
+
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
+        [SerializeField]
+        public int depthTargetIndex = -1;
+
+        public const string PassName = "Forward Opaque Pass";
+
+
         public class ForwardOpaquePassData : PassData
         {
             public TextureHandle colorTarget;
@@ -55,9 +55,6 @@ namespace HN.HNRP
             public RendererListHandle rendererList;
 
         }
-
-
-        public const string PassName = "Forward Opaque Pass";
 
     }
 

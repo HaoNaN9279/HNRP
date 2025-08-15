@@ -15,15 +15,6 @@ namespace HN.HNRP
     [Serializable]
     public abstract class HNRenderGraphBase : ScriptableObject
     {
-        [SerializeField]
-        public List<PassBase> passes = new List<PassBase>();
-
-        protected int textureHandleIndex = -1;
-
-        protected RenderGraph renderGraph;
-        protected RenderingData renderingData;
-
-
         public SHEvalMode SHEvalMode
         {
             get { return shEvalMode; }
@@ -87,6 +78,17 @@ namespace HN.HNRP
 
         public abstract void Initialize();
         public abstract void RecordRenderGraph(List<TextureHandle> textureHandles);
+
+
+        [SerializeField]
+        public List<PassBase> passes = new List<PassBase>();
+
+        protected int textureHandleIndex = -1;
+
+        protected RenderGraph renderGraph;
+        protected RenderingData renderingData;
+
+
 
     }
 

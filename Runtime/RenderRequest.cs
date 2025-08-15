@@ -11,16 +11,6 @@ namespace HN.HNRP
 {
     public partial class RenderRequest
     {
-        public ScriptableRenderContext Context => context;
-        public RenderingData RenderingData => renderingData;
-
-        private ScriptableRenderContext context;
-        private RenderGraph renderGraph;
-        private RenderingData renderingData;
-
-        private GlobalConstantBuffer globalConstantBuffer = default;
-
-
         public RenderRequest(
             ScriptableRenderContext context,
             RenderGraph renderGraph,
@@ -169,6 +159,18 @@ namespace HN.HNRP
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
         }
+
+
+        public ScriptableRenderContext Context => context;
+        public RenderingData RenderingData => renderingData;
+
+        private ScriptableRenderContext context;
+        private RenderGraph renderGraph;
+        private RenderingData renderingData;
+
+        private GlobalConstantBuffer globalConstantBuffer = default;
+
+
         
     }
 }

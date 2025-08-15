@@ -13,10 +13,6 @@ namespace HN.HNRP
     [Serializable]
     public class EditorWireOverlayPass : PassBase
     {
-        [SerializeField]
-        public int colorTargetIndex = -1;
-
-
         public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
         {
 #if UNITY_EDITOR
@@ -42,12 +38,16 @@ namespace HN.HNRP
         }
 
 
+        [SerializeField]
+        public int colorTargetIndex = -1;
+
+        public const string PassName = "Editor Wire Overlay Pass";
+
+
         public class EditorWireOverlayPassData : PassData
         {
             public Camera camera;
         }
 
-
-        public const string PassName = "Editor Wire Overlay Pass";
     }
 }
