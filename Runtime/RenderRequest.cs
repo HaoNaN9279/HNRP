@@ -49,6 +49,7 @@ namespace HN.HNRP
 
             InitializeRenderingData(renderingData.CullingResults);
 
+            UpdateGlobalTexture(renderingData.Cmd);
             UpdateGlobalConstantBuffer(renderingData.CameraData, renderingData.Cmd);
             UpdateGlobalKeywords(renderingData);
 
@@ -93,6 +94,11 @@ namespace HN.HNRP
 
             int mainLightIndex = GetMainLightIndex(visibleLights);
             InitializeLightData(visibleLights, mainLightIndex, out renderingData.LightData);
+        }
+
+        private void UpdateGlobalTexture(CommandBuffer cmd)
+        {
+            cmd.SetGlobalTexture(PropertyIDs.glossyEnvironmentCubeMap, ReflectionProbe.defaultTexture);
         }
 
         private void UpdateGlobalConstantBuffer(HNAdditionalCameraData cameraData, CommandBuffer cmd)

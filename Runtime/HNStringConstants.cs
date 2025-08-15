@@ -20,6 +20,7 @@ namespace HN.HNRP
     public static class PropertyIDs
     {
         public static readonly int ShaderVariablesGlobal = Shader.PropertyToID("ShaderVariablesGlobal");
+        public static readonly int glossyEnvironmentCubeMap = Shader.PropertyToID("_GlossyEnvironmentCubeMap");
     }
 
 

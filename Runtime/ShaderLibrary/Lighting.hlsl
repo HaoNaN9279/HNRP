@@ -25,17 +25,6 @@ DirectLightingData DirectLightingPBR(BRDFData brdfData, BSDFCommonData bsdfCommo
     return directLightingData;
 }
 
-float3 GI(BRDFData brdfData, BSDFCommonData bsdfCommonData, float3 bakedGI, float3 positionWS)
-{
-    float3 indirectDiffuse = bakedGI;
-    float3 indirectSpecular = GlossyEnvironmentReflection(bsdfCommonData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
-
-    float3 color = indirectDiffuse * brdfData.diffuse;
-    color += indirectSpecular * EnvironmentBRDFSpecular(brdfData, bsdfCommonData);
-
-    return color;
-}
-
 IndirectLightingData IndirectLightingPBR(BRDFData brdfData, BSDFCommonData bsdfCommonData, float3 bakedGI, float3 positionWS)
 {
     IndirectLightingData indirectLightingData;

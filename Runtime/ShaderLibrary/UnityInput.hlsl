@@ -131,6 +131,8 @@ TEXTURECUBE(unity_SpecCube0);
 SAMPLER(samplerunity_SpecCube0);
 TEXTURECUBE(unity_SpecCube1);
 SAMPLER(samplerunity_SpecCube1);
+TEXTURECUBE(_GlossyEnvironmentCubeMap);
+SAMPLER(sampler_GlossyEnvironmentCubeMap);
 
 // Main lightmap
 TEXTURE2D(unity_Lightmap);
@@ -152,9 +154,6 @@ TEXTURE2D(unity_ShadowMask);
 SAMPLER(samplerunity_ShadowMask);
 TEXTURE2D_ARRAY(unity_ShadowMasks);
 SAMPLER(samplerunity_ShadowMasks);
-
-TEXTURECUBE(_GlossyEnvironmentCubeMap);
-SAMPLER(sampler_GlossyEnvironmentCubeMap);
 
 #define UNITY_MATRIX_M        unity_ObjectToWorld
 #define UNITY_MATRIX_I_M      unity_WorldToObject

@@ -70,7 +70,7 @@ float4 fragMain(PackedVaryings packedVaryings)
 //     float test = 0;
 // #endif
     // float test = VARYINGS_FLOAT_COUNT - 7;
-    float3 test3 = lightingData.indirectLight.diffuse; /* float3(test, test, test); */
+    float3 test3 = lightingData.indirectLight.specular; /* float3(test, test, test); */
     // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
     float4 outColor = float4(lightingOutputData.lightingColor.r, lightingOutputData.lightingColor.g, lightingOutputData.lightingColor.b, 1);
