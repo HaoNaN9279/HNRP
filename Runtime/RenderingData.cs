@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 
 namespace HN.HNRP
@@ -22,7 +23,17 @@ namespace HN.HNRP
 
         public HNRenderGraphBase GraphObject;
 
+        public GraphData GraphData;
+
         public LightData LightData;
+    }
+
+
+    public struct GraphData
+    {
+        public List<TextureHandle> textureHandles;
+        public List<ComputeBufferHandle> computeBufferHandles;
+        public List<RendererListHandle> rendererListHandles;
     }
 
 

@@ -45,7 +45,9 @@ namespace HN.HNRP
             }
 
             passes.Clear();
-            textureHandleIndex = -1;
+            textureHandleMaxIndex = -1;
+            computeBufferHandleMaxIndex = -1;
+            rendererListHandleMaxIndex = -1;
         }
 
         public T AddPass<T>(string name) where T : PassBase
@@ -66,24 +68,39 @@ namespace HN.HNRP
 
         public int RegistAndGetTextureHandleIndex()
         {
-            textureHandleIndex++;
-            return textureHandleIndex;
+            textureHandleMaxIndex++;
+            return textureHandleMaxIndex;
         }
 
-        public void UpdateData(RenderGraph renderGraph, RenderingData renderingData)
+        public int RegistAndGetComputeBufferHandleIndex()
+        {
+            computeBufferHandleMaxIndex++;
+            return computeBufferHandleMaxIndex;
+        }
+
+        public int RegistAndGetRendererListHandleIndex()
+        {
+            rendererListHandleMaxIndex++;
+            return rendererListHandleMaxIndex;
+        }
+
+        public void UpdateData(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             this.renderGraph = renderGraph;
             this.renderingData = renderingData;
         }
 
         public abstract void Initialize();
-        public abstract void RecordRenderGraph(List<TextureHandle> textureHandles);
+        public abstract void RecordRenderGraph();
+        public abstract void EndRecordRenderGraph();
 
 
         [SerializeField]
         public List<PassBase> passes = new List<PassBase>();
 
-        protected int textureHandleIndex = -1;
+        protected int textureHandleMaxIndex = -1;
+        protected int computeBufferHandleMaxIndex = -1;
+        protected int rendererListHandleMaxIndex = -1;
 
         protected RenderGraph renderGraph;
         protected RenderingData renderingData;

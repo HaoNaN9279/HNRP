@@ -13,10 +13,11 @@ namespace HN.HNRP
     [Serializable]
     public class TransparencyPass : PassBase
     {
-        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             using (var builder = renderGraph.AddRenderPass<TransparencyPassData>($"{name}({PassName})", out var passData))
             {
+                var textureHandles = renderingData.GraphData.textureHandles;
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
                 if (textureHandles[depthTargetIndex].IsValid())
                 {
@@ -33,6 +34,11 @@ namespace HN.HNRP
                     }
                 );
             }
+        }
+
+        public override void EndRecord()
+        {
+            
         }
 
 

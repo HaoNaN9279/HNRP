@@ -58,7 +58,6 @@ namespace HN.HNRP
             base.Dispose(disposing);
 
             Graphics.SetRenderTarget(null);
-            Blitter.Cleanup();
 
             CleanupRenderGraph();
         }
@@ -127,13 +126,14 @@ namespace HN.HNRP
         {
             foreach (var request in renderRequests)
             {
-                renderingData.Cmd.ClearRenderTarget(true, true, Color.gray);
                 request.RecordAndExecute();
 
                 EndCameraRendering(request.Context, renderingData.Camera);
                 request.Context.ExecuteCommandBuffer(renderingData.Cmd);
                 request.Context.Submit();
                 CommandBufferPool.Release(renderingData.Cmd);
+
+                request.EndRecord();
             }
 
         }

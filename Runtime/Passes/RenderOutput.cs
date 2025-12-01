@@ -12,7 +12,7 @@ namespace HN.HNRP
     [Serializable]
     public class RenderOutput : PassBase
     {
-        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.singleBlit);
 
@@ -23,7 +23,7 @@ namespace HN.HNRP
                 passData.blitMaterial = singleBlitMat;
                 passData.flip = renderingData.Camera.cameraType == CameraType.Game && renderingData.Camera.targetTexture == null;
                 passData.viewport = renderingData.CameraData.FinalViewport;
-                passData.inputTexture = builder.ReadTexture(textureHandles[colorTargetIndex]);
+                passData.inputTexture = builder.ReadTexture(renderingData.GraphData.textureHandles[colorTargetIndex]);
                 TextureHandle backBuffer = renderGraph.ImportBackbuffer(renderingData.TargetId);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(
@@ -43,6 +43,11 @@ namespace HN.HNRP
                     }
                 );
             }
+        }
+
+        public override void EndRecord()
+        {
+            
         }
 
 

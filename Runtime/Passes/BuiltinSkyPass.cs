@@ -12,10 +12,11 @@ namespace HN.HNRP
     [Serializable]
     public class BuiltinSkyPass : PassBase
     {
-        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             using (var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>($"{name}({PassName})", out var passData))
             {
+                var textureHandles = renderingData.GraphData.textureHandles;
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
                 if (textureHandles[depthTargetIndex].IsValid())
                 {
@@ -23,14 +24,20 @@ namespace HN.HNRP
                 }
                 builder.AllowPassCulling(false);
 
+                var camera = renderingData.Camera;
                 builder.SetRenderFunc(
                     (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                     {
-                        RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(renderingData.Camera);
+                        RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(camera);
                         ctx.cmd.DrawRendererList(rendererList);
                     }
                 );
             }
+        }
+
+        public override void EndRecord()
+        {
+            
         }
 
 

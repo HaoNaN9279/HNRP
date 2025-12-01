@@ -1,2 +1,10 @@
+将GlobalSettings资源放在RenderPipelineAsset子级
+GlobalSettings、Editor/Runtime Resources面板显示在Project Settings中
+Lit材质支持Specular工作流
+自定义PBL光照面板
+添加SetGlobalDataPass
+Debug
+池化
+RenderingLayerMask支持
 Volume系统支持
 

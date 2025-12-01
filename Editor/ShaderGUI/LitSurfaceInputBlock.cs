@@ -15,23 +15,23 @@ namespace HN.HNRP.Editor
 
         protected override void GetProperties(MaterialProperty[] properties)
         {
-            baseMapProperty = GetProperty(properties, Propertys.baseMap);
-            baseColorProperty = GetProperty(properties, Propertys.baseColor);
-            alphaRemapMinProperty = GetProperty(properties, Propertys.alphaRemapMin);
-            alphaRemapMaxProperty = GetProperty(properties, Propertys.alphaRemapMax);
-            maskMapProperty = GetProperty(properties, Propertys.maskMap);
-            metallicRemapMinProperty = GetProperty(properties, Propertys.metallicRemapMin);
-            metallicRemapMaxProperty = GetProperty(properties, Propertys.metallicRemapMax);
-            smoothnessRemapMinProperty = GetProperty(properties, Propertys.smoothnessRemapMin);
-            smoothnessRemapMaxProperty = GetProperty(properties, Propertys.smoothnessRemapMax);
-            aoRemapMinProperty = GetProperty(properties, Propertys.aoRemapMin);
-            aoRemapMaxProperty = GetProperty(properties, Propertys.aoRemapMax);
-            metallicProperty = GetProperty(properties, Propertys.metallic);
-            smoothnessProperty = GetProperty(properties, Propertys.smoothness);
-            normalMapProperty = GetProperty(properties, Propertys.normalMap);
-            normalScaleProperty = GetProperty(properties, Propertys.normalScale);
-            emissionMapProperty = GetProperty(properties, Propertys.emissionMap);
-            emissionColorProperty = GetProperty(properties, Propertys.emissionColor);
+            baseMapProperty = GetProperty(properties, MaterialPropertys.baseMap);
+            baseColorProperty = GetProperty(properties, MaterialPropertys.baseColor);
+            alphaRemapMinProperty = GetProperty(properties, MaterialPropertys.alphaRemapMin);
+            alphaRemapMaxProperty = GetProperty(properties, MaterialPropertys.alphaRemapMax);
+            maskMapProperty = GetProperty(properties, MaterialPropertys.maskMap);
+            metallicRemapMinProperty = GetProperty(properties, MaterialPropertys.metallicRemapMin);
+            metallicRemapMaxProperty = GetProperty(properties, MaterialPropertys.metallicRemapMax);
+            smoothnessRemapMinProperty = GetProperty(properties, MaterialPropertys.smoothnessRemapMin);
+            smoothnessRemapMaxProperty = GetProperty(properties, MaterialPropertys.smoothnessRemapMax);
+            aoRemapMinProperty = GetProperty(properties, MaterialPropertys.aoRemapMin);
+            aoRemapMaxProperty = GetProperty(properties, MaterialPropertys.aoRemapMax);
+            metallicProperty = GetProperty(properties, MaterialPropertys.metallic);
+            smoothnessProperty = GetProperty(properties, MaterialPropertys.smoothness);
+            normalMapProperty = GetProperty(properties, MaterialPropertys.normalMap);
+            normalScaleProperty = GetProperty(properties, MaterialPropertys.normalScale);
+            emissionMapProperty = GetProperty(properties, MaterialPropertys.emissionMap);
+            emissionColorProperty = GetProperty(properties, MaterialPropertys.emissionColor);
         }
 
         protected override void DrawGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
@@ -40,7 +40,7 @@ namespace HN.HNRP.Editor
             DrawTextureAndColor(materialEditor, baseMapProperty, baseColorProperty, Styles.baseMap);
 
             // Alpha
-            MaterialGUI.SurfaceType blendMode = (MaterialGUI.SurfaceType)(materialEditor.target as Material).GetFloat(Propertys.surfaceType);
+            MaterialGUI.SurfaceType blendMode = (MaterialGUI.SurfaceType)(materialEditor.target as Material).GetFloat(MaterialPropertys.surfaceType);
             if (baseMapProperty != null && baseMapProperty.textureValue != null && blendMode == MaterialGUI.SurfaceType.Transparent)
             {
                 DrawMinMaxSlider(materialEditor, alphaRemapMinProperty, alphaRemapMaxProperty, 0.0f, 1.0f, Styles.alphaRemapping);
@@ -83,10 +83,10 @@ namespace HN.HNRP.Editor
 
         protected void SetMaterialKeywords(Material material)
         {
-            SetKeywordByTexture(material, Propertys.baseMap, MaterialLitKeywords.basemap);    
-            SetKeywordByTexture(material, Propertys.normalMap, MaterialLitKeywords.normalMap);
-            SetKeywordByTexture(material, Propertys.maskMap, MaterialLitKeywords.maskMap);
-            SetKeywordByTexture(material, Propertys.emissionMap, MaterialLitKeywords.emissionMap);
+            SetKeywordByTexture(material, MaterialPropertys.baseMap, MaterialLitKeywords.basemap);    
+            SetKeywordByTexture(material, MaterialPropertys.normalMap, MaterialLitKeywords.normalMap);
+            SetKeywordByTexture(material, MaterialPropertys.maskMap, MaterialLitKeywords.maskMap);
+            SetKeywordByTexture(material, MaterialPropertys.emissionMap, MaterialLitKeywords.emissionMap);
         }
 
 

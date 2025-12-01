@@ -33,17 +33,17 @@ namespace HN.HNRP
             Connect(editorWireOverlayPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
 
-        public override void RecordRenderGraph(List<TextureHandle> textureHandles)
+        public override void RecordRenderGraph()
         {
-            Debug.Log("Standard RenderGraph Record Called");
+            Debug.Log("Standard RenderGraph Record Called.");
 
             if (passes == null || passes.Count == 0)
             {
                 Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
                 return;
             }
-            
-            foreach(var pass in passes)
+
+            foreach (var pass in passes)
             {
                 if (pass == null)
                 {
@@ -51,7 +51,39 @@ namespace HN.HNRP
                     continue;
                 }
 
-                pass.Record(renderGraph, renderingData, textureHandles);
+                if (!pass.IsEnable)
+                {
+                    return;
+                }
+
+                pass.Record(renderGraph, ref renderingData);
+            }
+        }
+
+        public override void EndRecordRenderGraph()
+        {
+            Debug.Log("Standard RenderGraph End Record Called.");
+
+            if (passes == null || passes.Count == 0)
+            {
+                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
+                return;
+            }
+
+            foreach (var pass in passes)
+            {
+                if (pass == null)
+                {
+                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
+                    continue;
+                }
+
+                if (!pass.IsEnable)
+                {
+                    return;
+                }
+
+                pass.EndRecord();
             }
         }
     }

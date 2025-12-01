@@ -17,14 +17,14 @@ namespace HN.HNRP
     }
 
 
-    public static class PropertyIDs
+    public static class GlobalPropertyIDs
     {
         public static readonly int ShaderVariablesGlobal = Shader.PropertyToID("ShaderVariablesGlobal");
         public static readonly int glossyEnvironmentCubeMap = Shader.PropertyToID("_GlossyEnvironmentCubeMap");
     }
 
 
-    public static class Propertys
+    public static class MaterialPropertys
     {
         public static readonly string surfaceType = "_SurfaceType";
         public static readonly string blendMode = "_BlendMode";

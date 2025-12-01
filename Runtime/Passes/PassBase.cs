@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting.YamlDotNet.Core.Tokens;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -14,11 +15,22 @@ namespace HN.HNRP
             this.name = passName;
         }
 
-        public abstract void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles);
-        
+        public abstract void Record(RenderGraph renderGraph, ref RenderingData renderingData);
+        public abstract void EndRecord();
+
+
+        public bool IsEnable
+        {
+            get { return isEnable; }
+            set { isEnable = value; }
+        }
+
 
         [SerializeReference]
         protected HNRenderGraphBase hnRenderGraph;
+
+        [SerializeField]
+        protected bool isEnable = true;
 
 #if UNITY_EDITOR
         [SerializeField]

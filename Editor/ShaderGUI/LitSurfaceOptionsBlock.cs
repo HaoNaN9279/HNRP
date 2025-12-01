@@ -17,14 +17,14 @@ namespace HN.HNRP.Editor
 
         protected override void GetProperties(MaterialProperty[] properties)
         {
-            surfaceTypeProperty = GetProperty(properties, Propertys.surfaceType);
-            blendModeProperty = GetProperty(properties, Propertys.blendMode);
-            alphaClipProperty = GetProperty(properties, Propertys.alphaClip);
-            cutoffProperty = GetProperty(properties, Propertys.cutoff);
-            cullModeProperty = GetProperty(properties, Propertys.cullMode);
-            ztestModeProperty = GetProperty(properties, Propertys.ztestMode);
-            zwriteProperty = GetProperty(properties, Propertys.zwrite);
-            queueOffsetProperty = GetProperty(properties, Propertys.queueOffset);
+            surfaceTypeProperty = GetProperty(properties, MaterialPropertys.surfaceType);
+            blendModeProperty = GetProperty(properties, MaterialPropertys.blendMode);
+            alphaClipProperty = GetProperty(properties, MaterialPropertys.alphaClip);
+            cutoffProperty = GetProperty(properties, MaterialPropertys.cutoff);
+            cullModeProperty = GetProperty(properties, MaterialPropertys.cullMode);
+            ztestModeProperty = GetProperty(properties, MaterialPropertys.ztestMode);
+            zwriteProperty = GetProperty(properties, MaterialPropertys.zwrite);
+            queueOffsetProperty = GetProperty(properties, MaterialPropertys.queueOffset);
         }
 
         protected override void DrawGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
@@ -183,27 +183,27 @@ namespace HN.HNRP.Editor
                     break;
             }
 
-            if (material.HasProperty(Propertys.srcBlend))
+            if (material.HasProperty(MaterialPropertys.srcBlend))
             {
-                material.SetFloat(Propertys.srcBlend, (float)srcBlendRGB);
+                material.SetFloat(MaterialPropertys.srcBlend, (float)srcBlendRGB);
             }
-            if (material.HasProperty(Propertys.dstBlend))
+            if (material.HasProperty(MaterialPropertys.dstBlend))
             {
-                material.SetFloat(Propertys.dstBlend, (float)dstBlendRGB);
+                material.SetFloat(MaterialPropertys.dstBlend, (float)dstBlendRGB);
             }
-            if (material.HasProperty(Propertys.srcBlendAlpha))
+            if (material.HasProperty(MaterialPropertys.srcBlendAlpha))
             {
-                material.SetFloat(Propertys.srcBlendAlpha, (float)srcBlendA);
+                material.SetFloat(MaterialPropertys.srcBlendAlpha, (float)srcBlendA);
             }
-            if (material.HasProperty(Propertys.dstBlendAlpha))
+            if (material.HasProperty(MaterialPropertys.dstBlendAlpha))
             {
-                material.SetFloat(Propertys.dstBlendAlpha, (float)dstBlendA);
+                material.SetFloat(MaterialPropertys.dstBlendAlpha, (float)dstBlendA);
             }
         }
 
         protected void SetMaterialKeywords(Material material)
         {
-            SetKeywordByFloat(material, Propertys.alphaClip, MaterialLitKeywords.alphaTest);
+            SetKeywordByFloat(material, MaterialPropertys.alphaClip, MaterialLitKeywords.alphaTest);
         }
 
 

@@ -63,5 +63,14 @@ namespace HN.HNRP
 
             return configuration;
         }
+
+        public static void ValidateComputeBuffer(ref ComputeBuffer computeBuffer, int size, int stride, ComputeBufferType type = ComputeBufferType.Default)
+        {
+            if (computeBuffer == null || computeBuffer.count < size)
+            {
+                CoreUtils.SafeRelease(computeBuffer);
+                computeBuffer = new ComputeBuffer(size, stride, type);
+            }
+        }
     }
 }

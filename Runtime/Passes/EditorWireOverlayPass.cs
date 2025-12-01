@@ -13,7 +13,7 @@ namespace HN.HNRP
     [Serializable]
     public class EditorWireOverlayPass : PassBase
     {
-        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
 #if UNITY_EDITOR
             Camera camera = renderingData.Camera;
@@ -21,7 +21,7 @@ namespace HN.HNRP
             {
                 using (var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>($"{name}({PassName})", out var passData))
                 {
-                    builder.WriteTexture(textureHandles[colorTargetIndex]);
+                    builder.WriteTexture(renderingData.GraphData.textureHandles[colorTargetIndex]);
                     passData.camera = camera;
 
                     builder.SetRenderFunc(
@@ -35,6 +35,11 @@ namespace HN.HNRP
                 }
             }
 #endif
+        }
+
+        public override void EndRecord()
+        {
+            
         }
 
 

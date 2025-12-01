@@ -2,8 +2,8 @@
     "name": "HN.HNRP",
     "rootNamespace": "HN.HNRP",
     "references": [
-        "GUID:df380645f10b7bc4b97d4f5eb6303d95",
-        "GUID:1a5bce3b468aa464482ce8c8c66bb914"
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

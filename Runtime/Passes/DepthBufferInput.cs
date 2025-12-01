@@ -17,7 +17,7 @@ namespace HN.HNRP
             depthTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
         }
 
-        public override void Record(RenderGraph renderGraph, RenderingData renderingData, List<TextureHandle> textureHandles)
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             TextureHandle outputDepthTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
@@ -25,7 +25,12 @@ namespace HN.HNRP
                 clearBuffer = clearBuffer,
                 name = name
             });
-            textureHandles.Add(outputDepthTarget);
+            renderingData.GraphData.textureHandles.Add(outputDepthTarget);
+        }
+
+        public override void EndRecord()
+        {
+            
         }
 
 

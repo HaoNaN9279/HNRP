@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using HN.Serialize;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -25,6 +23,8 @@ namespace HN.HNRP
         public void RecordAndExecute()
         {
             RTHandles.SetReferenceSize(renderingData.Camera.pixelWidth, renderingData.Camera.pixelHeight);
+
+            renderingData.Cmd.ClearRenderTarget(true, true, Color.gray);
 
             if (renderingData.Camera.cameraType == CameraType.SceneView)
             {
@@ -49,7 +49,11 @@ namespace HN.HNRP
             }
 
             RecordPasses();
+        }
 
+        public void EndRecord()
+        {
+            EndRecordPasses();
         }
 
 
@@ -61,8 +65,6 @@ namespace HN.HNRP
                 return;
             }
 
-            renderingData.GraphObject.UpdateData(renderGraph, renderingData);
-
             using (renderGraph.RecordAndExecute(new RenderGraphParameters
             {
                 executionName = "execution_" + renderingData.Camera.name,
@@ -72,9 +74,10 @@ namespace HN.HNRP
                 commandBuffer = renderingData.Cmd
             }))
             {
-                List<TextureHandle> textureHandles = new List<TextureHandle>();
+                UpdateGraphData();
 
-                renderingData.GraphObject.RecordRenderGraph(textureHandles);
+                renderingData.GraphObject.UpdateData(renderGraph, ref renderingData);
+                renderingData.GraphObject.RecordRenderGraph();
             }
         }
 
@@ -88,7 +91,7 @@ namespace HN.HNRP
 
         private void UpdateGlobalTexture(CommandBuffer cmd)
         {
-            cmd.SetGlobalTexture(PropertyIDs.glossyEnvironmentCubeMap, ReflectionProbe.defaultTexture);
+            cmd.SetGlobalTexture(GlobalPropertyIDs.glossyEnvironmentCubeMap, ReflectionProbe.defaultTexture);
         }
 
         private void UpdateGlobalConstantBuffer(HNAdditionalCameraData cameraData, CommandBuffer cmd)
@@ -99,7 +102,7 @@ namespace HN.HNRP
             cameraData.UpdateCameraGlobalConstantBuffer(ref globalConstantBuffer);
             UpdateLightGlobalConstantBuffer(ref globalConstantBuffer);
 
-            ConstantBuffer.PushGlobal(cmd, globalConstantBuffer, PropertyIDs.ShaderVariablesGlobal);
+            ConstantBuffer.PushGlobal(cmd, globalConstantBuffer, GlobalPropertyIDs.ShaderVariablesGlobal);
         }
 
         private void UpdateGlobalKeywords(RenderingData renderingData)
@@ -160,6 +163,41 @@ namespace HN.HNRP
             cmd.Clear();
         }
 
+        private void UpdateGraphData()
+        {
+            if (renderingData.GraphData.textureHandles == null)
+            {
+                renderingData.GraphData.textureHandles = new List<TextureHandle>();
+            }
+            else
+            {
+                renderingData.GraphData.textureHandles.Clear();
+            }
+
+            if (renderingData.GraphData.computeBufferHandles == null)
+            {
+                renderingData.GraphData.computeBufferHandles = new List<ComputeBufferHandle>();
+            }
+            else
+            {
+                renderingData.GraphData.computeBufferHandles.Clear();
+            }
+
+            if (renderingData.GraphData.rendererListHandles == null)
+            {
+                renderingData.GraphData.rendererListHandles = new List<RendererListHandle>();
+            }
+            else
+            {
+                renderingData.GraphData.rendererListHandles.Clear();
+            }
+        }
+
+        private void EndRecordPasses()
+        {
+            renderingData.GraphObject.EndRecordRenderGraph();
+        }
+
 
         public ScriptableRenderContext Context => context;
         public RenderingData RenderingData => renderingData;
@@ -171,6 +209,5 @@ namespace HN.HNRP
         private GlobalConstantBuffer globalConstantBuffer = default;
 
 
-        
     }
 }
