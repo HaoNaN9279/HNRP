@@ -133,6 +133,26 @@ namespace HN.HNRP
 
 
         #region RenderingLayer
+        public void ResetRenderingLayerNames()
+        {
+            renderingLayerNames = new string[] { DEFAULT_LAYER_NAME };
+        }
+
+        public void UpdateRenderingLayerNames()
+        {
+            if (prefixedRenderingLayerNames == null)
+            {
+                prefixedRenderingLayerNames = new string[32];
+            }
+            for (int i = 0; i < prefixedRenderingLayerNames.Length; i++)
+            {
+                uint layer = (uint)(1 << i);
+                renderingLayers = i < renderingLayerNames.Length ? (renderingLayers | layer) : (renderingLayers & ~layer);
+                prefixedRenderingLayerNames[i] = i < renderingLayerNames.Length ? renderingLayerNames[i] : $"{UNUSED_LAYER_PREFIX} {i}";
+            }
+        }
+
+
         public uint RenderingLayers
         {
             get
@@ -144,8 +164,6 @@ namespace HN.HNRP
                 return renderingLayers;
             }
         }
-        [SerializeField]
-        private uint renderingLayers;
 
         public string[] RenderingLayerNames
         {
@@ -158,8 +176,6 @@ namespace HN.HNRP
                 return renderingLayerNames;
             }
         }
-        [SerializeField]
-        private string[] renderingLayerNames = new string[] { "Default" };
 
         public string[] PrefixedRenderingLayerNames
         {
@@ -172,23 +188,20 @@ namespace HN.HNRP
                 return prefixedRenderingLayerNames;
             }
         }
+
+
+        [SerializeField]
+        private uint renderingLayers;
+        
+        [SerializeField]
+        private string[] renderingLayerNames = new string[] { DEFAULT_LAYER_NAME };
+
         [System.NonSerialized]
         private string[] prefixedRenderingLayerNames;
 
 
-        internal void UpdateRenderingLayerNames()
-        {
-            if (prefixedRenderingLayerNames == null)
-            {
-                prefixedRenderingLayerNames = new string[32];
-            }
-            for (int i = 0; i < prefixedRenderingLayerNames.Length; i++)
-            {
-                uint layer = (uint)(1 << i);
-                renderingLayers = i < renderingLayerNames.Length ? (renderingLayers | layer) : (renderingLayers & ~layer);
-                prefixedRenderingLayerNames[i] = i < renderingLayerNames.Length ? renderingLayerNames[i] : $"Unused Layer {i}";
-            }
-        }
+        private const string DEFAULT_LAYER_NAME = "Default";
+        private const string UNUSED_LAYER_PREFIX = "Unused Layer";
         #endregion
 
 
@@ -201,13 +214,7 @@ namespace HN.HNRP
                 return hnRenderPipelineRuntimeResources;
             }
         }
-        [SerializeField]
-        private HNRenderPipelineRuntimeResources hnRenderPipelineRuntimeResources;
 
-        internal static readonly string runtimeResourcesName = "HNRenderPipelineRuntimeResources";
-        internal static readonly string runtimeResourcesPath = $"{HNRenderPipelinePath}Runtime/Resources/{runtimeResourcesName}.asset";
-
-#if UNITY_EDITOR
         internal HNRenderPipelineEditorResources HNRenderPipelineEditorResources
         {
             get
@@ -216,12 +223,20 @@ namespace HN.HNRP
                 return hnRenderPipelineEditorResources;
             }
         }
+
+
+        [SerializeField]
+        private HNRenderPipelineRuntimeResources hnRenderPipelineRuntimeResources;
+
         [SerializeField]
         private HNRenderPipelineEditorResources hnRenderPipelineEditorResources;
 
+
+        internal static readonly string runtimeResourcesName = "HNRenderPipelineRuntimeResources";
+        internal static readonly string runtimeResourcesPath = $"{HNRenderPipelinePath}Runtime/Resources/{runtimeResourcesName}.asset";
+
         internal static readonly string editorResourcesName = "HNRenderPipelineEditorResources";
         internal static readonly string editorResourcesPath = $"{HNRenderPipelinePath}Editor/Resources/{editorResourcesName}.asset";
-#endif
 
 
         #endregion
