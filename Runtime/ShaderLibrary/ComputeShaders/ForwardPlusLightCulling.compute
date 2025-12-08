@@ -1,0 +1,912 @@
+#pragma kernel LightMinMaxZ
+#pragma kernel ReflectionProbeMinMaxZ
+#pragma kernel ZBinning
+#pragma kernel Tiling
+#pragma kernel TileRangeExpansion
+
+#define PI 3.14159265358979323846
+#define FLT_MIN  1.175494351e-38
+#define FLT_MAX  3.402823466e+38
+#define HALF_MIN 6.103515625e-5
+#define HALF_MAX 65504.0
+#define UINT_MIN 0
+#define UINT_MAX 0xFFFFFFFFu
+
+#define ZBINNING_BATCH_SIZE 128
+#define ZBINNING_HEADER_LENGTH 2
+
+struct Light
+{
+    float4x4 localToWorldMatrix;
+    float range;
+    int lightType;  // 0: point light 1: spot light
+    float spotAngle;
+};
+
+struct ReflectionProbe
+{
+    float3 boundCenter;
+    float3 boundExtents;
+};
+
+struct InclusiveRange
+{
+    uint start;
+    uint end;
+
+    void Expand(uint index)
+    {
+        start = min(start, index);
+        end = max(end, index);
+    }
+
+    void Clamp(uint minValue, uint maxValue)
+    {
+        start = max(minValue, start);
+        end = min(maxValue, end);
+    }
+};
+
+StructuredBuffer<Light> lights;
+StructuredBuffer<ReflectionProbe> reflectionProbes;
+RWStructuredBuffer<float2> minMaxZs;
+RWStructuredBuffer<uint> bins;
+RWStructuredBuffer<InclusiveRange> tileRanges;
+RWStructuredBuffer<uint> tileMasks;
+float4x4 worldToView;
+float4 viewToViewportScaleBias;
+float4 tileScale;
+float zBinScale;
+float zBinOffset;
+float viewPlaneBottom;
+float viewPlaneTop;
+float near;
+int tileCountX;
+int tileCountY;
+int binCount;
+int wordsPerTile;
+int itemsPerTile;
+int rangePerItem;
+int lightCount;
+int reflectionProbeCount;
+int batchCount;
+int viewCount;
+int isOrthographic;
+
+InclusiveRange tileYRange;
+int offset;
+int viewIndex;
+
+static float3 cubePoints[8] = {
+    float3(-1, -1, -1),
+    float3(-1, -1, +1),
+    float3(-1, +1, -1),
+    float3(-1, +1, +1),
+    float3(+1, -1, -1),
+    float3(+1, -1, +1),
+    float3(+1, +1, -1),
+    float3(+1, +1, +1),
+};
+
+static int4 cubeLineIndices[4] = {
+    int4(0, 4, 2, 1),
+    int4(3, 7, 1, 2),
+    int4(5, 1, 7, 4),
+    int4(6, 2, 4, 7),
+};
+
+[numthreads(8, 8, 1)]
+void LightMinMaxZ(uint3 gid : SV_GroupID, uint id : SV_GroupIndex)
+{
+    int index = gid.x * 64 + id;
+    Light light = lights[index];
+    float3 originWS = light.localToWorldMatrix._m03_m13_m23;
+    float3 originVS = mul(worldToView, float4(originWS, 1.0)).xyz;
+    originVS.z *= -1;
+    float2 minMax = float2(originVS.z - light.range, originVS.z + light.range);
+    if(light.lightType == 1) // spot light
+    {
+        float angleA = radians(light.spotAngle) * 0.5f;
+        float cosAngleA = cos(angleA);
+        float coneHeight = light.range * cosAngleA;
+        float3 spotDirectionWS = light.localToWorldMatrix._m02_m12_m22;
+        float3 endPointWS = originWS + spotDirectionWS * coneHeight;
+        float3 endPointVS = mul(worldToView, float4(endPointWS, 1.0)).xyz;
+        endPointVS.z *= -1;
+        float angleB = PI * 0.5f - angleA;
+        float coneRadius = light.range * cosAngleA * sin(angleA) / sin(angleB);
+        float3 a = endPointVS - originVS;
+        float e = sqrt(1.0f - a.z * a.z / dot(a, a));
+
+        if(-a.z < coneHeight * cosAngleA)
+        {
+            minMax.x = min(originVS.z, endPointVS.z - e * coneRadius);
+        }
+        if(a.z < coneHeight * cosAngleA)
+        {
+            minMax.y = max(originVS.z, endPointVS.z + e * coneRadius);
+        }
+    }
+
+    minMax.x = max(minMax.x, 0);
+    minMax.y = max(minMax.y, 0);
+    minMaxZs[index] = minMax;
+}
+
+
+[numthreads(8, 8, 1)]
+void ReflectionProbeMinMaxZ(uint3 gid : SV_GroupID, uint id : SV_GroupIndex)
+{
+    int index = gid.x * 64 + id;
+    ReflectionProbe reflectionProbe = reflectionProbes[index];
+    float3 centerWS = reflectionProbe.boundCenter;
+    float3 extentsWS = reflectionProbe.boundExtents;
+    float2 minMax = float2(FLT_MAX, FLT_MIN);
+    for(int i = 0; i < 8; i++)
+    {
+        int x = ((i << 1) & 2) - 1;
+        int y = (i & 2) - 1;
+        int z = ((i >> 1) & 2) - 1;
+        float3 cornerVS = mul(worldToView, float4(centerWS + extentsWS * float3(x, y, z), 1)).xyz;
+        cornerVS.z *= -1;
+        minMax.x = min(minMax.x, cornerVS.z);
+        minMax.y = max(minMax.y, cornerVS.z);
+    }
+
+    minMaxZs[lightCount + index] = minMax;
+}
+
+
+void EncodeHeader(uint min, uint max, inout uint value)
+{
+    value = (min & 0xFFFF) | ((max & 0xFFFF) << 16);
+}
+
+void DecodeHeader(uint zBin, inout uint minIndex, inout uint maxIndex)
+{
+    minIndex = zBin & 0xFFFF;
+    maxIndex = (zBin >> 16) & 0xFFFF;
+}
+
+void FillZBins(int binStart, int binEnd, int itemStart, int itemEnd, int headerIndex, int itemOffset)
+{
+    for(int index = itemStart; index < itemEnd; index++)
+    {
+        float2 minMax = minMaxZs[itemOffset + index];
+        int minBin = max((int)((isOrthographic ? minMax.x : log2(minMax.x)) * zBinScale + zBinOffset), binStart);
+        int maxBin = min((int)((isOrthographic ? minMax.y : log2(minMax.y)) * zBinScale + zBinOffset), binEnd);
+        int wordIndex = index / 32;
+        uint bitMask = 1u << (index % 32);
+        for(int binIndex = minBin; binIndex <= maxBin; binIndex++)
+        {
+            int baseIndex = binIndex * (ZBINNING_HEADER_LENGTH + wordsPerTile);
+            int minIndex, maxIndex;
+            DecodeHeader(bins[baseIndex + headerIndex], minIndex, maxIndex);
+            minIndex = min(minIndex, (uint)index);
+            maxIndex = max(maxIndex, (uint)index);
+            EncodeHeader(minIndex, maxIndex, bins[baseIndex + headerIndex]);
+            bins[baseIndex + ZBINNING_HEADER_LENGTH + wordIndex] |= bitMask;
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void ZBinning(uint3 gid : SV_GroupID, uint id : SV_GroupIndex)
+{
+    int index = gid.x * 64 + id;
+    int batchIndex = index % batchCount;
+    int binStart = ZBINNING_BATCH_SIZE * batchIndex;
+    int binEnd = min(binStart + ZBINNING_BATCH_SIZE, binCount) - 1;
+    uint emptyHeader;
+    EncodeHeader(UINT_MAX, UINT_MIN, emptyHeader);
+    for(int binIndex = binStart; binIndex <= binEnd; binIndex++)
+    {
+        bins[binIndex * (ZBINNING_HEADER_LENGTH + wordsPerTile) + 0] = emptyHeader;
+        bins[binIndex * (ZBINNING_HEADER_LENGTH + wordsPerTile) + 1] = emptyHeader;
+    }
+    FillZBins(binStart, binEnd, 0, lightCount, 0, viewIndex * lightCount);
+    FillZBins(binStart, binEnd, lightCount, lightCount + reflectionProbeCount, 1, lightCount * (viewCount - 1) + viewIndex * reflectionProbeCount);
+}
+
+
+float2 ViewToTileSpace(float3 positionVS)
+{
+    return (positionVS.xy / positionVS.z * viewToViewportScaleBias.xy + viewToViewportScaleBias.zw) * tileScale;
+}
+
+float2 ViewToTileSpaceOrthographic(float3 positionVS)
+{
+    return (positionVS.xy * viewToViewportScaleBias.xy + viewToViewportScaleBias.zw) * tileScale;
+}
+
+void ExpandOrthographic(float3 positionVS)
+{
+    float2 positionTS = ViewToTileSpaceOrthographic(positionVS);
+    int tileY = (int)positionTS.y;
+    int tileX = (int)positionTS.x;
+    tileYRange.Expand((uint)clamp(tileY, 0, tileCountY - 1));
+    if(tileY >= 0 && tileY < tileCountY && tileX >= 0 && tileX < tileCountX)
+    {
+        InclusiveRange rowXRange = tileRanges[offset + 1 + tileY];
+        rowXRange.Expand((uint)tileX);
+        tileRanges[offset + 1 + tileY] = rowXRange;
+    }
+}
+
+void ExpandRangeOrthographic(float xVS, inout InclusiveRange range)
+{
+    range.Expand((uint)clamp(ViewToTileSpaceOrthographic(xVS).x, 0, tileCountX - 1));
+}
+
+bool SpherePointIsValid(Light light, float3 p, float3 lightPosVS, float3 lightDirVS, float cosHalfAngle)
+{
+    return light.lightType == 0 || dot(normalize(p - lightPosVS), lightDirVS) >= cosHalfAngle;
+}
+
+InclusiveRange InclusiveRangeMerge(InclusiveRange a, InclusiveRange b)
+{
+    InclusiveRange result;
+    result.start = min(a.start, b.start);
+    result.end = max(a.end, b.end);
+    return result;
+}
+
+void TileLightOrthographic(int lightIndex)
+{
+    Light light = lights[lightIndex];
+    float4x4 lightToWorld = light.localToWorldMatrix;
+    float3 lightPosVS = mul(worldToView, float4(lightToWorld._m03_m13_m23, 1)).xyz;
+    lightPosVS.z *= -1;
+    ExpandOrthographic(lightPosVS);
+    float3 lightDirVS = mul(worldToView, float4(lightToWorld._m02_m12_m22, 0)).xyz;
+    lightDirVS.z *= -1;
+    lightDirVS = normalize(lightDirVS);
+
+    float halfAngle = radians(light.spotAngle * 0.5);
+    float range = light.range;
+    float rangeSq = range * range;
+    float cosHalfAngle = cos(halfAngle);
+    float coneHeight = cosHalfAngle * range;
+    float coneHeightSq = coneHeight * coneHeight;
+    float coneHeightInv = 1.0 / coneHeight;
+    float coneHeightInvSq = coneHeightInv * coneHeightInv;
+
+    float3 sphereBoundY0 = lightPosVS - float3(0, range, 0);
+    float3 sphereBoundY1 = lightPosVS + float3(0, range, 0);
+    float3 sphereBoundX0 = lightPosVS - float3(range, 0, 0);
+    float3 sphereBoundX1 = lightPosVS + float3(range, 0, 0);
+
+    if(SpherePointIsValid(light, sphereBoundY0, lightPosVS, lightDirVS, cosHalfAngle)) ExpandOrthographic(sphereBoundY0);
+    if(SpherePointIsValid(light, sphereBoundY1, lightPosVS, lightDirVS, cosHalfAngle)) ExpandOrthographic(sphereBoundY1);
+    if(SpherePointIsValid(light, sphereBoundX0, lightPosVS, lightDirVS, cosHalfAngle)) ExpandOrthographic(sphereBoundX0);
+    if(SpherePointIsValid(light, sphereBoundX1, lightPosVS, lightDirVS, cosHalfAngle)) ExpandOrthographic(sphereBoundX1);
+
+    float3 circleCenter = lightPosVS + lightDirVS * coneHeight;
+    float circleRadius = sqrt(rangeSq - coneHeightSq);
+    float circleRadiusSq = circleRadius * circleRadius;
+    float3 circleUp = normalize(float3(0, 1, 0) - lightDirVS * lightDirVS.y);
+    float3 circleRight = normalize(float3(1, 0, 0) - lightDirVS * lightDirVS.x);
+    float3 circleBoundY0 = circleCenter - circleUp * circleRadius;
+    float3 circleBoundY1 = circleCenter + circleUp * circleRadius;
+
+    if(light.lightType == 1) // spot light
+    {
+        float3 circleBoundX0 = circleCenter + circleRight * circleRadius;
+        float3 circleBoundX1 = circleCenter + circleRight * circleRadius;
+        ExpandOrthographic(circleBoundY0);
+        ExpandOrthographic(circleBoundY1);
+        ExpandOrthographic(circleBoundX0);
+        ExpandOrthographic(circleBoundX1);
+    }
+
+    tileYRange.Clamp(0, (uint)(tileCountY - 1));
+
+    float coneDir0X = 0, coneDir0YInv = 0, coneDir1X = 0, coneDir1YInv = 0;
+    if(light.lightType == 1) // spot light
+    {
+        float sphereDistance = coneHeight + circleRadiusSq * coneHeightInv;
+        float sphereRadius = sqrt(circleRadiusSq * circleRadiusSq * coneHeightInvSq + circleRadiusSq);
+        float directionXYSqInv = 1.0 / dot(lightDirVS.xy, lightDirVS.xy);
+        float2 polarIntersection = -circleRadiusSq * coneHeightInv * directionXYSqInv * lightDirVS.xy;
+        float2 polarDir = sqrt((sphereRadius * sphereRadius - dot(polarIntersection, polarIntersection)) * directionXYSqInv) * float2(lightDirVS.y, -lightDirVS.x);
+        float2 conePBase = lightPosVS.xy + sphereDistance * lightDirVS.xy + polarIntersection;
+        float2 coneP0 = conePBase - polarDir;
+        float2 coneP1 = conePBase + polarDir;
+
+        coneDir0X = coneP0.x - lightPosVS.x;
+        coneDir0YInv = 1.0 / (coneP0.y - lightPosVS.y);
+        coneDir1X = coneP1.x - lightPosVS.x;
+        coneDir1YInv = 1.0 / (coneP1.y - lightPosVS.y);
+    }
+
+    for(int planeIndex = tileYRange.start + 1; planeIndex <= tileYRange.end; planeIndex++)
+    {
+        InclusiveRange planeRange = (InclusiveRange)0;
+        planeRange.start = HALF_MAX;
+        planeRange.end = HALF_MIN;
+
+        float planeY = lerp(viewPlaneBottom, viewPlaneTop, planeIndex * tileScale.w);
+        float sphereX = sqrt(rangeSq - (planeY - lightPosVS.y) * (planeY - lightPosVS.y));
+        float3 sphereX0 = float3(lightPosVS.x - sphereX, planeY, lightPosVS.z);
+        float3 sphereX1 = float3(lightPosVS.x + sphereX, planeY, lightPosVS.z);
+        if(SpherePointIsValid(light, sphereX0, lightPosVS, lightDirVS, cosHalfAngle)) { ExpandRangeOrthographic(sphereX0.x, planeRange); }
+        if(SpherePointIsValid(light, sphereX1, lightPosVS, lightDirVS, cosHalfAngle)) { ExpandRangeOrthographic(sphereX1.x, planeRange); }
+
+        if(light.lightType == 1) // spot light
+        {
+            if(planeY >= circleBoundY0.y && planeY <= circleBoundY1.y)
+            {
+                float intersectionDistance = (planeY - circleCenter.y) / circleUp.y;
+                float closestPointX = circleCenter.x + intersectionDistance * circleUp.x;
+                float intersectionDirX = -lightDirVS.z / length(float3(-lightDirVS.z, 0, lightDirVS.x));
+                float sideDistance = sqrt(circleRadius * circleRadius - intersectionDistance * intersectionDistance);
+                float circleX0 = closestPointX - sideDistance * intersectionDirX;
+                float circleX1 = closestPointX + sideDistance * intersectionDirX;
+                ExpandRangeOrthographic(circleX0, planeRange);
+                ExpandRangeOrthographic(circleX1, planeRange);
+            }
+
+            float deltaY = planeY - lightPosVS.y;
+            float coneT0 = deltaY * coneDir0YInv;
+            float coneT1 = deltaY * coneDir1YInv;
+            if(coneT0 >= 0 && coneT0 <= 1) { ExpandRangeOrthographic(lightPosVS.x + coneT0 * coneDir0X, planeRange); }
+            if(coneT1 >= 0 && coneT1 <= 1) { ExpandRangeOrthographic(lightPosVS.x + coneT1 * coneDir1X, planeRange); }
+        }
+
+        int tileIndex = offset + 1 + planeIndex;
+        tileRanges[tileIndex] = InclusiveRangeMerge(tileRanges[tileIndex], planeRange);
+        tileRanges[tileIndex - 1] = InclusiveRangeMerge(tileRanges[tileIndex - 1], planeRange);
+    }
+
+    tileRanges[offset] = tileYRange;
+}
+
+void ExpandY(float3 positionVS)
+{
+    float2 positionTS = ViewToTileSpace(positionVS);
+    float tileY = (int)positionTS.y;
+    float tileX = (int)positionTS.x;
+    tileYRange.Expand((uint)clamp(tileY, 0, tileCountY - 1));
+    if(tileY >= 0 && tileY < tileCountY && tileX >= 0 && tileX < tileCountX)
+    {
+        InclusiveRange rowXRange = tileRanges[offset + 1 + tileY];
+        rowXRange.Expand((uint)tileX);
+        tileRanges[offset + 1 + tileY] = rowXRange;
+    }
+}
+
+void GetSphereHorizon(float2 center, float radius, float near, float clipRadius, out float2 p0, out float2 p1)
+{
+    float2 direction = normalize(center);
+    float d = length(center);
+    float l = sqrt(d * d - radius * radius);
+    float h = l * radius / d;
+    float2 c = direction * (l * h / radius);
+
+    p0 = float2(FLT_MIN, 1.0);
+    p1 = float2(FLT_MAX, 1.0);
+
+    if(center.y - radius < near)
+    {
+        p0 = float2(center.x + clipRadius, near);
+        p1 = float2(center.x - clipRadius, near);
+    }
+
+    float2 c0 = c + float2(-direction.y, direction.x) * h;
+    if((d * d) >= (radius * radius) && c0.y >= near)
+    {
+        if(c0.x > p0.x) { p0 = c0; }
+        if(c0.x < p1.x) { p1 = c0; }
+    }
+
+    float2 c1 = c + float2(direction.y, -direction.x) * h;
+    if((d * d) >= (radius * radius) && c1.y >= near)
+    {
+        if(c1.x > p0.x) { p0 = c1; }
+        if(c1.x < p1.x) { p1 = c1; }
+    }
+}
+
+void IntersectEllipseLine(float a, float b, float3 polar, out float x1, out float x2)
+{
+    float div = 1.0 / ((polar.y * polar.y) * (b * b));
+    float qa = 1.0 / (a * a) + (polar.x, polar.x) * div;
+    float qb = 2.0 * polar.x * polar.z * div;
+    float qc = polar.z * polar.z * div - 1.0;
+    float sqrtD = sqrt(qb * qb - 4.0 * qa * qc);
+    x1 = (-qb + sqrtD) / (2.0 * qa);
+    x2 = (-qb - sqrtD) / (2.0 * qa);
+}
+
+void GetProjectedCircleHorizon(float2 center, float radius, float2 U, float2 V, out float2 uv1, out float2 uv2)
+{
+    float vl = length(V);
+    if(vl < 1e-6)
+    {
+        uv1 = float2(radius, 0);
+        uv2 = float2(-radius, 0);
+    }
+    else
+    {
+        float ul = length(U);
+        float ulinv = 1.0 / ul;
+        float vlinv = 1.0 / vl;
+        float2 u = U * ulinv;
+        float2 v = V * vlinv;
+        float a = ul * radius;
+        float b = vl * radius;
+
+        float2 cameraUV = float2(dot(-center, u), dot(-center, v));
+
+        float3 polar = float3(cameraUV.x / (a * a), cameraUV.y / b * b, -1);
+        float t1, t2;
+        IntersectEllipseLine(a, b, polar, t1, t2);
+
+        uv1 = float2(t1 * ulinv, (-polar.x / polar.y * t1 - polar.z / polar.y) * vlinv);
+        uv2 = float2(t2 * ulinv, (-polar.x / polar.y * t2 - polar.z / polar.y) * vlinv);
+    }
+}
+
+bool GetCircleClipPoints(float3 circleCenter, float3 circleNormal, float circleRadius, float near, out float3 p0, out float3 p1)
+{
+    float3 lineDirection = normalize(cross(circleNormal, float3(0, 0, 1)));
+    float3 nearestDirection = cross(lineDirection, circleNormal);
+    float distance = (near - circleCenter.z) / nearestDirection.z;
+    float3 nearestPoint = circleCenter + nearestDirection * distance;
+    float chordHalfLength = sqrt(circleRadius * circleRadius - distance * distance);
+    p0 = nearestPoint + lineDirection * chordHalfLength;
+    p1 = nearestPoint - lineDirection * chordHalfLength;
+    return abs(distance) <= circleRadius;
+}
+
+bool ConicPointIsValid(float3 p, float3 lightPositionVS, float3 lightDirectionVS, float coneHeight)
+{
+    return dot(normalize(p - lightPositionVS), lightDirectionVS) >= 0 && dot(p - lightPositionVS, lightDirectionVS) <= coneHeight;
+}
+
+float2 FindNearConicTangentTheta(float2 o, float2 d, float r, float2 u, float2 v)
+{
+    float sq = sqrt(d.x * d.x * u.y * u.y + d.x * d.x * v.y * v.y - 2 * d.x * d.y * u.x * u.y - 2 * d.x * d.y * v.x * v.y + d.y * d.y * u.x * u.x + d.y * d.y * v.x * v.x - r * r * u.x * u.x * v.y * v.y + 2 * r * r * u.x * u.y * v.x * v.y - r * r * u.y * u.y * v.x * v.x);
+    float denom = d.x * v.y - d.y * v.x - r * u.x * v.y + r * u.y * v.x;
+    return 2 * atan((-d.x * u.y + d.y * u.x + float2(1, -1) * sq) / denom);
+}
+
+float3 EvaluateNearConic(float near, float3 o, float3 d, float r, float3 u, float3 v, float theta)
+{
+    float h = (near - o.z) / (d.z + r * u.z * cos(theta) + r * v.z * sin(theta));
+    return float3(o.xy + h * (d.xy + r * u.xy * cos(theta) + r * v.xy * sin(theta)), near);
+}
+
+void GetConeSideTangentPoints(float3 vertex, float3 axis, float cosHalfAngle, float circleRadius, float coneHeight, float range, float3 circleU, float3 circleV, out float3 l1, out float3 l2)
+{
+    l1 = l2 = 0;
+
+    if(dot(normalize(-vertex), axis) >= cosHalfAngle)
+    {
+        return;
+    }
+
+    float d = -dot(vertex, axis);
+    if(d == 0) d = 1e-6;
+    float sign = d < 0 ? -1 : 1;
+    float3 origin = vertex + axis * d;
+    float radius = abs(d) * circleRadius / coneHeight;
+    float2 cameraUV = float2(dot(circleU, -origin), dot(circleV, -origin));
+    float3 polar = float3(cameraUV, -(radius * radius));
+    float2 p1 = float2(-1, -polar.x / polar.y * (-1) - polar.z / polar.y);
+    float2 p2 = float2(1, -polar.x / polar.y * 1 - polar.z / polar.y);
+    float2 lineDirection = normalize(p2 - p1);
+    float2 lineNormal = float2(lineDirection.y, -lineDirection.x);
+    float distToLine = dot(p1, lineNormal);
+    float2 lineCenter = lineNormal * distToLine;
+    float l = sqrt(radius * radius - distToLine * distToLine);
+    float2 x1UV = lineCenter + l * lineDirection;
+    float2 x2UV = lineCenter - l * lineDirection;
+    float3 dir1 = normalize((origin + x1UV.x * circleU + x1UV.y * circleV) - vertex) * sign;
+    float3 dir2 = normalize((origin + x2UV.x * circleU + x2UV.y * circleV) - vertex) * sign;
+    l1 = dir1 * range;
+    l2 = dir2 * range;
+}
+
+bool IntersectCircleYPlane(float y, float3 circleCenter, float3 circleNormal, float3 circleU, float3 circleV, float circleRadius, out float3 p1, out float3 p2)
+{
+    p1 = p2 = float3(0, 0, 0);
+
+    float3 CdotN = dot(circleCenter, circleNormal);
+    float3 h1v = float3(1, y, 1) * CdotN / dot(float3(1, y, 1), circleNormal) - circleCenter;
+    float2 h1 = float2(dot(h1v, circleU), dot(h1v, circleV));
+    float3 h2v = float3(-1, y, 1) * CdotN / dot(float3(-1, y, 1), circleNormal) - circleCenter;
+    float2 h2 = float2(dot(h2v, circleU), dot(h2v, circleV));
+
+    float2 lineDirection = normalize(h2 - h1);
+    float2 lineNormal = float2(lineDirection.y, -lineDirection.x);
+    float distToLine = dot(h1, lineNormal);
+    float2 lineCenter = lineNormal * distToLine;
+
+    if(distToLine > circleRadius) return false;
+
+    float l = sqrt(circleRadius * circleRadius - distToLine * distToLine);
+
+    float2 x1 = lineCenter + l * lineDirection;
+    float2 x2 = lineCenter - l * lineDirection;
+    p1 = circleCenter + x1.x * circleU + x1.y * circleV;
+    p2 = circleCenter + x2.x * circleU + x2.y * circleV;
+
+    return true;
+}
+
+float2 FindNearConicYTheta(float near, float3 o, float3 d, float r, float3 u, float3 v, float y)
+{
+    float sq = sqrt(-d.y * d.y * o.z * o.z + 2 * d.y * d.y * o.z * near - d.y * d.y * near * near + 2 * d.y * d.z * o.y * o.z - 2 * d.y * d.z * o.y * near - 2 * d.y * d.z * o.z * y + 2 * d.y * d.z * y * near - d.z * d.z * o.y * o.y + 2 * d.z * d.z * o.y * y - d.z * d.z * y * y + o.y * o.y * r * r * u.z * u.z + o.y * o.y * r * r * v.z * v.z - 2 * o.y * o.z * r * r * u.y * u.z - 2 * o.y * o.z * r * r * v.y * v.z - 2 * o.y * y * r * r * u.z * u.z - 2 * o.y * y * r * r * v.z * v.z + 2 * o.y * r * r * u.y * u.z * near + 2 * o.y * r * r * v.y * v.z * near + o.z * o.z * r * r * u.y * u.y + o.z * o.z * r * r * v.y * v.y + 2 * o.z * y * r * r * u.y * u.z + 2 * o.z * y * r * r * v.y * v.z - 2 * o.z * r * r * u.y * u.y * near - 2 * o.z * r * r * v.y * v.y * near + y * y * r * r * u.z * u.z + y * y * r * r * v.z * v.z - 2 * y * r * r * u.y * u.z * near - 2 * y * r * r * v.y * v.z * near + r * r * u.y * u.y * near * near + r * r * v.y * v.y * near * near);
+    float denom = d.y * o.z - d.y * near - d.z * o.y + d.z * y + o.y * r * u.z - o.z * r * u.y - y * r * u.z + r * u.y * near;
+    return 2 * atan((r * (o.y * v.z - o.z * v.y - y * v.z + v.y * near) + float2(1, -1) * sq) / denom);
+}
+
+void GetSphereYPlaneHorizon(float3 center, float sphereRadius, float near, float clipRadius, float y, out float3 left, out float3 right)
+{
+    float yNear = y * near;
+    float clipHalfWidth = sqrt(clipRadius * clipRadius - (yNear - center.y) * (yNear - center.y));
+    left = float3(center.x - clipHalfWidth, yNear, near);
+    right = float3(center.x + clipHalfWidth, yNear, near);
+
+    float3 planeU = normalize(float3(0, y, 1));
+    float3 planeV = float3(1, 0, 0);
+
+    float3 normal = normalize(float3(0, 1, -y));
+    
+    float signedDistance = dot(normal, center);
+    float distanceToPlane = abs(signedDistance);
+    float2 centerOnPlane = float2(dot(center, planeU), dot(center, planeV));
+    float distanceInPlane = length(centerOnPlane);
+    float2 directionPS = centerOnPlane / distanceInPlane;
+    float circleRadius = sqrt(sphereRadius * sphereRadius - distanceToPlane * distanceToPlane);
+    if(distanceToPlane * distanceToPlane <= sphereRadius * sphereRadius && circleRadius * circleRadius <= distanceInPlane * distanceInPlane)
+    {
+        float l = sqrt(distanceInPlane * distanceInPlane - circleRadius * circleRadius);
+        float h = l * circleRadius / distanceInPlane;
+        float c = directionPS * (l * h / circleRadius);
+        float2 leftOnPlane = c + float2(directionPS.y, -directionPS.x) * h;
+        float2 rightOnPlane = c + float2(-directionPS.y, directionPS.x) * h;
+        
+        float3 leftCandidate = leftOnPlane.x * planeU + leftOnPlane.y * planeV;
+        if(leftCandidate.z >= near) left = leftCandidate;
+
+        float3 rightCandidate = rightOnPlane.x * planeU + rightOnPlane.y * planeV;
+        if(rightCandidate.z >= near) right = rightCandidate;
+    }
+}
+
+void TileLight(int lightIndex)
+{
+    Light light = lights[lightIndex];
+    float4x4 lightToWorld = light.localToWorldMatrix;
+    float3 lightPositionVS = mul(worldToView, float4(lightToWorld._m03_m13_m23, 1)).xyz;
+    lightPositionVS.z *= -1;
+    if(lightPositionVS.z >= near) ExpandY(lightPositionVS);
+    float3 lightDirectionVS = normalize(mul(worldToView, float4(lightToWorld._m02_m12_m22, 0)).xyz);
+    lightDirectionVS.z *= -1;
+
+    float halfAngle = radians(light.spotAngle * 0.5);
+    float range = light.range;
+    float rangeSq = range * range;
+    float cosHalfAngle = cos(halfAngle);
+    float coneHeight = cosHalfAngle * range;
+    float sphereClipRadius = sqrt(rangeSq - (near - lightPositionVS.z) * (near - lightPositionVS.z));
+    
+    float2 sphereBoundYZ0, sphereBoundYZ1;
+    GetSphereHorizon(lightPositionVS.yz, range, near, sphereClipRadius, sphereBoundYZ0, sphereBoundYZ1);
+    float3 sphereBoundY0 = float3(lightPositionVS.x, sphereBoundYZ0);
+    float3 sphereBoundY1 = float3(lightPositionVS.x, sphereBoundYZ1);
+    if(SpherePointIsValid(light, sphereBoundY0, lightPositionVS, lightDirectionVS, cosHalfAngle)) ExpandY(sphereBoundY0);
+    if(SpherePointIsValid(light, sphereBoundY1, lightPositionVS, lightDirectionVS, cosHalfAngle)) ExpandY(sphereBoundY1);
+
+    float2 sphereBoundXZ0, sphereBoundXZ1;
+    GetSphereHorizon(lightPositionVS.xz, range, near, sphereClipRadius, sphereBoundXZ0, sphereBoundXZ1);
+    float3 sphereBoundX0 = float3(sphereBoundXZ0.x, lightPositionVS.y, sphereBoundXZ0.y);
+    float3 sphereBoundX1 = float3(sphereBoundXZ1.x, lightPositionVS.y, sphereBoundXZ1.y);
+    if(SpherePointIsValid(light, sphereBoundX0, lightPositionVS, lightDirectionVS, cosHalfAngle)) ExpandY(sphereBoundX0);
+    if(SpherePointIsValid(light, sphereBoundX1, lightPositionVS, lightDirectionVS, cosHalfAngle)) ExpandY(sphereBoundX1);
+
+    if(light.lightType == 1) // spot light
+    {
+        float baseRadius = sqrt(range * range - coneHeight * coneHeight);
+        float3 baseCenter = lightPositionVS + lightDirectionVS * coneHeight;
+
+        float3 baseUY = abs(abs(lightDirectionVS.x) - 1) < 1e-6 ? float3(0, 1, 0) : normalize(cross(lightDirectionVS, float3(1, 0, 0)));
+        float3 baseVY = cross(lightDirectionVS, baseUY);
+        float2 baseY1UV, baseY2UV;
+        GetProjectedCircleHorizon(baseCenter.yz, baseRadius, baseUY.yz, baseVY.yz, baseY1UV, baseY2UV);
+        float3 baseY1 = baseCenter + baseY1UV.x * baseUY + baseY1UV.y * baseVY;
+        float3 baseY2 = baseCenter + baseY2UV.x * baseUY + baseY2UV.y * baseVY;
+        if(baseY1.z >= near) ExpandY(baseY1);
+        if(baseY2.z >= near) ExpandY(baseY2);
+
+        float3 baseUX = abs(abs(lightDirectionVS.y) - 1) < 1e-6 ? float3(1, 0, 0) : normalize(cross(lightDirectionVS, float3(0, 1, 0)));
+        float3 baseVX = cross(lightDirectionVS, baseUX);
+        float2 baseX1UV, baseX2UV;
+        GetProjectedCircleHorizon(baseCenter.xz, baseRadius, baseUX.xz, baseVX.xz, baseX1UV, baseX2UV);
+        float3 baseX1 = baseCenter + baseX1UV.x * baseUX + baseX1UV.y * baseVX;
+        float3 baseX2 = baseCenter + baseX2UV.x * baseUX + baseX2UV.y * baseVX;
+        if(baseX1.z >= near) ExpandY(baseX1);
+        if(baseX2.z >= near) ExpandY(baseX2);
+
+        float3 baseClip0, baseClip1;
+        if(GetCircleClipPoints(baseCenter, lightDirectionVS, baseRadius, near, baseClip0, baseClip1))
+        {
+            ExpandY(baseClip0);
+            ExpandY(baseClip1);
+        }
+
+        float baseExtentZ = baseRadius * sqrt(1.0 - (lightDirectionVS.z * lightDirectionVS.z));
+        bool coneIsClipping = near >= min(baseCenter.z - baseExtentZ, lightPositionVS.z) && near <= max(baseCenter.z + baseExtentZ, lightPositionVS.z);
+
+        float3 coneU = cross(lightDirectionVS, lightPositionVS);
+        coneU = (coneU.x + coneU.y + coneU.z) != 0.0 ? normalize(coneU) : float3(1, 0, 0);
+        float3 coneV = cross(lightDirectionVS, coneU);
+
+        if(coneIsClipping)
+        {
+            float r = baseRadius / coneHeight;
+
+            float2 thetaY = FindNearConicTangentTheta(lightPositionVS.yz, lightDirectionVS.yz, r, coneU.yz, coneV.yz);
+            float3 p0Y = EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, thetaY.x);
+            float3 p1Y = EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, thetaY.y);
+            if(ConicPointIsValid(p0Y, lightPositionVS, lightDirectionVS, coneHeight)) ExpandY(p0Y);
+            if(ConicPointIsValid(p1Y, lightPositionVS, lightDirectionVS, coneHeight)) ExpandY(p1Y);
+
+            float2 thetaX = FindNearConicTangentTheta(lightPositionVS.xz, lightDirectionVS.xz, r, coneU.xz, coneV.xz);
+            float3 p0X = EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, thetaX.x);
+            float3 p1X = EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, thetaX.y);
+            if(ConicPointIsValid(p0X, lightPositionVS, lightDirectionVS, coneHeight)) ExpandY(p0X);
+            if(ConicPointIsValid(p1X, lightPositionVS, lightDirectionVS, coneHeight)) ExpandY(p1X);
+        }
+
+        float3 l1, l2;
+        GetConeSideTangentPoints(lightPositionVS, lightDirectionVS, cosHalfAngle, baseRadius, coneHeight, range, coneU, coneV, l1, l2);
+
+        {
+            float3 planeNormal = float3(0, 1, viewPlaneBottom);
+            float l1t = dot(-lightPositionVS, planeNormal) / dot(l1, planeNormal);
+            float3 l1x = lightPositionVS + l1 * l1t;
+            if(l1t >= 0 && l1t <= 1 && l1x.z >= near) ExpandY(l1x);
+        }
+        {
+            float3 planeNormal = float3(0, 1, viewPlaneTop);
+            float l1t = dot(-lightPositionVS, planeNormal) / dot(l1, planeNormal);
+            float3 l1x = lightPositionVS + l1 * l1t;
+            if(l1t >= 0 && l1t <= 1 && l1x.z >= near) ExpandY(l1x);
+        }
+
+        tileYRange.Clamp(0, (uint)(tileCountY - 1));
+
+        for(int planeIndex = tileYRange.start + 1; planeIndex <= tileYRange.end; planeIndex++)
+        {
+            InclusiveRange planeRange = (InclusiveRange)0;
+            planeRange.start = HALF_MAX;
+            planeRange.end = HALF_MIN;
+
+            float planeY = lerp(viewPlaneBottom, viewPlaneTop, planeIndex * tileScale.w);
+
+            float3 planeNormal = float3(0, 1, -planeY);
+
+            float l1t = dot(-lightPositionVS, planeNormal) / dot(l1, planeNormal);
+            float3 l1x = lightPositionVS + l1 * l1t;
+            if(l1t >= 0 && l1t <= 1 && l1x.z >= near) planeRange.Expand((uint)clamp(ViewToTileSpace(l1x).x, 0, tileCountX - 1));
+
+            float l2t = dot(-lightPositionVS, planeNormal) / dot(l2, planeNormal);
+            float3 l2x = lightPositionVS + l2 * l2t;
+            if(l2t >= 0 && l2t <= 1 && l2x.z >= near) planeRange.Expand((uint)clamp(ViewToTileSpace(l2x).x, 0, tileCountX - 1));
+
+            float3 circleTile0, circleTile1;
+            if(IntersectCircleYPlane(planeY, baseCenter, lightDirectionVS, baseUY, baseVY, baseRadius, circleTile0, circleTile1))
+            {
+                if(circleTile0.z >= near) planeRange.Expand((uint)clamp(ViewToTileSpace(circleTile0).x, 0, tileCountX - 1));
+                if(circleTile1.z >= near) planeRange.Expand((uint)clamp(ViewToTileSpace(circleTile1).x, 0, tileCountX - 1));
+            }
+
+            if(coneIsClipping)
+            {
+                float y = planeY * near;
+                float r = baseRadius / coneHeight;
+                float2 theta = FindNearConicYTheta(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, y);
+                float3 p0 = float3(EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, theta.x).x, y, near);
+                float3 p1 = float3(EvaluateNearConic(near, lightPositionVS, lightDirectionVS, r, coneU, coneV, theta.y).x, y, near);
+                if(ConicPointIsValid(p0, lightPositionVS, lightDirectionVS, coneHeight)) planeRange.Expand((uint)clamp(ViewToTileSpace(p0).x, 0, tileCountX - 1));
+                if(ConicPointIsValid(p1, lightPositionVS, lightDirectionVS, coneHeight)) planeRange.Expand((uint)clamp(ViewToTileSpace(p1).x, 0, tileCountX - 1));
+            }
+
+            int tileIndex = offset + 1 + planeIndex;
+            tileRanges[tileIndex] = InclusiveRangeMerge(tileRanges[tileIndex], planeRange);
+            tileRanges[tileIndex - 1] = InclusiveRangeMerge(tileRanges[tileIndex - 1], planeRange);
+        }
+    }
+
+    tileYRange.Clamp(0, (uint)(tileCountY - 1));
+
+    for(int planeIndex = tileYRange.start + 1; planeIndex <= tileYRange.end; planeIndex++)
+    {
+        InclusiveRange planeRange = (InclusiveRange)0;
+        planeRange.start = HALF_MAX;
+        planeRange.end = HALF_MIN;
+
+        float planeY = lerp(viewPlaneBottom, viewPlaneTop, planeIndex * tileScale.w);
+        float3 sphereTile0, sphereTile1;
+        GetSphereYPlaneHorizon(lightPositionVS, range, near, sphereClipRadius, planeY, sphereTile0, sphereTile1);
+        if(SpherePointIsValid(light, sphereTile0, lightPositionVS, lightDirectionVS, cosHalfAngle)) planeRange.Expand((uint)clamp(ViewToTileSpace(sphereTile0).x, 0, tileCountX - 1));
+        if(SpherePointIsValid(light, sphereTile1, lightPositionVS, lightDirectionVS, cosHalfAngle)) planeRange.Expand((uint)clamp(ViewToTileSpace(sphereTile1).x, 0, tileCountX - 1));
+
+        int tileIndex = offset + 1 + planeIndex;
+        tileRanges[tileIndex] = InclusiveRangeMerge(tileRanges[tileIndex], planeRange);
+        tileRanges[tileIndex - 1] = InclusiveRangeMerge(tileRanges[tileIndex - 1], planeRange);
+    }
+    tileRanges[offset] = tileYRange;
+}
+
+void TileReflectionProbe(int index)
+{
+    ReflectionProbe reflectionProbe = reflectionProbes[index - lights.Length];
+    float3 centerWS = (float3)reflectionProbe.boundCenter;
+    float3 extentsWS = (float3)reflectionProbe.boundExtents;
+
+    float3 points[8];
+    float2 clippedPoints[20];
+    int clippedPointsCount = 0;
+    int leftmostIndex = 0;
+    for(int i = 0; i < cubePoints.Length; i++)
+    {
+        float3 pt = mul(worldToView, float4(centerWS + extentsWS * cubePoints[i], 1)).xyz;
+        pt.z *= -1;
+        points[i] = pt;
+        if(pt.z >= near)
+        {
+            float2 clippedPoint = isOrthographic ? pt.xy : pt.xy / pt.z;
+            int clippedIndex = clippedPointsCount++;
+            clippedPoints[clippedIndex] = clippedPoint;
+            if(clippedPoint.x < clippedPoints[leftmostIndex].x) leftmostIndex = clippedIndex;
+        }
+    }
+
+    for(int i = 0; i < cubeLineIndices.Length; i++)
+    {
+        int4 indices = cubeLineIndices[i];
+        float3 p0 = points[indices.x];
+        for(int j = 0; j < 3; j++)
+        {
+            float3 p1 = points[indices[j + 1]];
+            if(p0.z < near && p1.z < near) continue;
+            if(p0.z < near || p1.z < near)
+            {
+                float d = (near - p0.z) / (p1.z - p0.z);
+                float3 p = lerp(p0, p1, d);
+                float2 clippedPoint = isOrthographic ? p.xy : p.xy / p.z;
+                int clippedIndex = clippedPointsCount++;
+                clippedPoints[clippedIndex] = clippedPoint;
+                if(clippedPoint.x < clippedPoints[leftmostIndex].x) leftmostIndex = clippedIndex;
+            }
+        }
+    }
+
+    float2[] hullPoints = new float2[clippedPointsCount];
+    int hullPointsCount = 0;
+
+    if(clippedPointsCount > 0)
+    {
+        int hullPointIndex = leftmostIndex;
+
+        do
+        {
+            float2 hullPoint = clippedPoints[hullPointIndex];
+            ExpandY(float3(hullPoint, 1));
+            hullPoints[hullPointsCount++] = hullPoint;
+
+            int endPointIndex = 0;
+            float2 endPointLine = clippedPoints[endPointIndex] - hullPoint;
+            for(int i = 0;  i < clippedPointsCount; i++)
+            {
+                float2 candidateLine = clippedPoints[i] - hullPoint;
+                float det = endPointLine.x * candidateLine.y - endPointLine.y * candidateLine.x;
+                if(endPointIndex == hullPointIndex || det > 0 || (det == 0.0 && dot(candidateLine, candidateLine) > dot(endPointLine, endPointLine)))
+                {
+                    endPointIndex = i;
+                    endPointLine = candidateLine;
+                }
+            }
+
+            hullPointIndex = endPointIndex;
+        }while(hullPointIndex != leftmostIndex && hullPointsCount < clippedPointsCount);
+
+        tileYRange.Clamp(0, (uint)(tileCountY - 1));
+
+        for(int planeIndex = tileYRange.start + 1; planeIndex <= tileYRange.end; planeIndex++)
+        {
+            InclusiveRange planeRange = (InclusiveRange)0;
+            planeRange.start = HALF_MAX;
+            planeRange.end = HALF_MIN;
+
+            float planeY = lerp(viewPlaneBottom, viewPlaneTop, planeIndex * tileScale.w);
+            
+            for(int i = 0; i < hullPointsCount; i++)
+            {
+                float3 hp0 = hullPoints[i];
+                float3 hp1 = hullPoints[(i + 1) % hullPointsCount];
+
+                int t = (planeY - hp0.y) / (hp1.y - hp0.y);
+                if(t < 0 || t > 1) continue;
+                float x = lerp(hp0.x, hp1.x, t);
+
+                float3 p = float3(x, planeY, 1);
+                float3 pTS = isOrthographic ? ViewToTileSpaceOrthographic(p) : ViewToTileSpace(p);
+                planeRange.Expand((uint)clamp(pTS.x, 0, tileCountX - 1));
+            }
+
+            int tileIndex = offset + 1 + planeIndex;
+            tileRanges[tileIndex] = InclusiveRangeMerge(tileRanges[tileIndex], planeRange);
+            tileRanges[tileIndex - 1] = InclusiveRangeMerge(tileRanges[tileIndex - 1], planeRange);
+        }
+
+        tileRanges[offset] = tileYRange;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void Tiling(uint3 gid : SV_GroupID, uint id : SV_GroupIndex)
+{
+    int index = gid.x * 64 + id;
+    int itemIndex = index % itemsPerTile;
+    viewIndex = index / itemsPerTile;
+    offset = index * rangePerItem;
+    tileYRange.start = HALF_MAX;
+    tileYRange.end = HALF_MIN;
+    for(int i = 0; i < rangePerItem; i++)
+    {
+        tileRanges[offset + i] = tileYRange;
+    }
+
+    if(itemIndex < lightCount)
+    {
+        if(isOrthographic == 1) { TileLightOrthographic(itemIndex); }
+        else { TileLight(itemIndex); }
+    }
+    else
+    {
+        TileReflectionProbe(itemIndex);
+    }
+}
+
+[numthreads(8, 8, 1)]
+void TileRangeExpansion(uint3 gid : SV_GroupID, uint id : SV_GroupIndex)
+{
+    int index = gid.x * 64 + id;
+    int rowIndex = index % tileCountY;
+    int compactCount = 0;
+    uint[] itemIndices = new uint[itemsPerTile];
+    InclusiveRange[] itemRanges = new InclusiveRange[itemsPerTile];
+
+    for(int itemIndex = 0; itemIndex < itemsPerTile; itemIndex++)
+    {
+        InclusiveRange range = tileRanges[rangePerItem * itemsPerTile + itemIndex * rangePerItem + 1 + rowIndex];
+        if(range.end < range.start)
+        {
+            itemIndices[compactCount] = (uint)itemIndex;
+            itemRanges[compactCount] = range;
+            compactCount++;
+        }
+
+        int rowBaseMaskIndex = wordsPerTile * tileCountX * tileCountY + rowIndex * wordsPerTile * tileCountX;
+        for(int tileIndex = 0; tileIndex < tileCountX; tileIndex++)
+        {
+            int tileBaseIndex = rowBaseMaskIndex + tileIndex * wordsPerTile;
+            for(int i = 0; i < compactCount; i++)
+            {
+                int itemIndex = (int)itemIndices[i];
+                int wordIndex = itemIndex / 32;
+                uint itemMask = 1u << (itemIndex % 32);
+                InclusiveRange range = itemRanges[i];
+                if(range.Contains((uint)tileIndex))
+                {
+                    tileMasks[tileBaseIndex + wordIndex] |= itemMask;
+                }
+            }
+        }
+    }
+}

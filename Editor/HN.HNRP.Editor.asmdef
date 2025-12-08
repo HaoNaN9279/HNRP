@@ -2,11 +2,11 @@
     "name": "HN.HNRP.Editor",
     "rootNamespace": "HN.HNRP.Editor",
     "references": [
-        "GUID:1a5bce3b468aa464482ce8c8c66bb914",
-        "GUID:d9637c28d864d7340a353bc971cd5be9",
+        "GUID:a9ef5b9e8ac376a40b07d6f4277e4f14",
         "GUID:df380645f10b7bc4b97d4f5eb6303d95",
         "GUID:3eae0364be2026648bf74846acb8a731",
-        "GUID:a9ef5b9e8ac376a40b07d6f4277e4f14"
+        "GUID:b75d3cd3037d383a8d1e2f9a26d73d8a",
+        "GUID:329b4ccd385744985bf3f83cfd77dfe7"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
