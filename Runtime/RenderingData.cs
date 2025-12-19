@@ -25,7 +25,8 @@ namespace HN.HNRP
 
         public GraphData GraphData;
 
-        public LightData LightData;
+        public int mainLightIndex;
+        public NativeArray<VisibleLight> visibleLights;
     }
 
 
@@ -37,9 +38,4 @@ namespace HN.HNRP
     }
 
 
-    public struct LightData
-    {
-        public int mainLightIndex;
-        public NativeArray<VisibleLight> visibleLights;
-    }
 }

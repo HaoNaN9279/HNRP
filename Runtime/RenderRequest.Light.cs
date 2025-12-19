@@ -8,12 +8,6 @@ namespace HN.HNRP
 {
     public partial class RenderRequest
     {
-        private void InitializeLightData(NativeArray<VisibleLight> visibleLights, int mainLightIndex, out LightData lightData)
-        {
-            lightData.mainLightIndex = mainLightIndex;
-            lightData.visibleLights = visibleLights;
-        }
-
         private int GetMainLightIndex(NativeArray<VisibleLight> visibleLights)
         {
             int totalVisibleLights = visibleLights.Length;
@@ -52,24 +46,19 @@ namespace HN.HNRP
         private void UpdateLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
         {
             UpdateMainLightGlobalConstantBuffer(ref globalConstantBuffer);
+            UpdateAdditionalLightGlobalConstantBuffer(ref globalConstantBuffer);
             UpdateEnvironmentLightGlobalConstantBuffer(ref globalConstantBuffer);
         }
 
         private void UpdateMainLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
         {
-            Vector4 mainLightDirection = defaultLightPosition;
-            Color mainLightColor = defaultLightColor;
+            int mainLightIndex = GetMainLightIndex(renderingData.visibleLights);
+            globalConstantBuffer._LightConstantData = new Vector4(mainLightIndex, renderingData.visibleLights.Length, 0.0f, 0.0f);
+        }
 
-            LightData lightData = renderingData.LightData;
-            VisibleLight mainVisibleLight = default;
-            HNRenderPipelineUtils.GetVisibleLight(lightData.visibleLights, lightData.mainLightIndex, ref mainVisibleLight);
-            var mainLightLocalToWorld = mainVisibleLight.localToWorldMatrix;
-            Vector4 mainLightMatDir = mainLightLocalToWorld.GetColumn(2);
-            mainLightDirection = new Vector4(mainLightMatDir.x, mainLightMatDir.y, mainLightMatDir.z, 0.0f);
-            mainLightColor = mainVisibleLight.finalColor;
-
-            globalConstantBuffer._MainLightPosition = -mainLightDirection;
-            globalConstantBuffer._MainLightColor = mainLightColor;
+        private void UpdateAdditionalLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
+        {
+            
         }
 
         private void UpdateEnvironmentLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
@@ -100,7 +89,7 @@ namespace HN.HNRP
         }
 
 
-        private static readonly Vector3 defaultLightPosition = Vector3.zero;
-        private static readonly Color defaultLightColor = Color.white;
     }
+
+
 }

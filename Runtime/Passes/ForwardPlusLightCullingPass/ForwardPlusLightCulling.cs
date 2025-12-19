@@ -21,20 +21,20 @@ namespace HN.HNRP
         {
             camera = renderingData.Camera;
 
-            lightCount = renderingData.LightData.visibleLights.Length;
+            lightCount = renderingData.visibleLights.Length;
             int lightOffset = 0;
-            while (lightOffset < lightCount && renderingData.LightData.visibleLights[lightOffset].lightType == LightType.Directional)
+            while (lightOffset < lightCount && renderingData.visibleLights[lightOffset].lightType == LightType.Directional)
             {
                 lightOffset++;
             }
             lightCount -= lightOffset;
             directionalLightCount = lightCount;
-            if (renderingData.LightData.mainLightIndex != -1 && directionalLightCount != 0)
+            if (renderingData.mainLightIndex != -1 && directionalLightCount != 0)
             {
                 directionalLightCount -= 1;
             }
 
-            visibleLights = renderingData.LightData.visibleLights.GetSubArray(lightOffset, lightCount);
+            visibleLights = renderingData.visibleLights.GetSubArray(lightOffset, lightCount);
             reflectionProbes = renderingData.CullingResults.visibleReflectionProbes;
             reflectionProbeCount = reflectionProbes.Length;
             itemsPerTile = visibleLights.Length + reflectionProbeCount;

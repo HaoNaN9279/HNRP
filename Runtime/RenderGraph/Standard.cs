@@ -11,6 +11,8 @@ namespace HN.HNRP
     {
         public override void Initialize()
         {
+            SetLightDataPass setLightDataPass = AddPass<SetLightDataPass>("Set Light Data");
+
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
             DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
 
@@ -53,7 +55,7 @@ namespace HN.HNRP
 
                 if (!pass.IsEnable)
                 {
-                    return;
+                    continue;
                 }
 
                 pass.Record(renderGraph, ref renderingData);
@@ -80,7 +82,7 @@ namespace HN.HNRP
 
                 if (!pass.IsEnable)
                 {
-                    return;
+                    continue;
                 }
 
                 pass.EndRecord();

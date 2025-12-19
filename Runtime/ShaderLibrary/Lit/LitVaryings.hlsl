@@ -1,7 +1,7 @@
 #ifndef HNRP_LIT_VARYINGS_INCLUDED
 #define HNRP_LIT_VARYINGS_INCLUDED
 
-#include "../PackageRegistry.hlsl"
+#include "../Core/PackageRegistry.hlsl"
 
 // positionWS
 #if defined(USE_POSITION_WS_VARYING)
@@ -126,7 +126,7 @@
     + VARYINGS_FLOAT_COUNT_VERTEX_SH \
     )
 
-#include "../PackedVaryings.hlsl"
+#include "../Core/PackedVaryings.hlsl"
 
 PackedVaryings ForwardBuildPackVaryings(Varyings varyings)
 {

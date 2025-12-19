@@ -21,9 +21,18 @@ namespace HN.HNRP
             set { shEvalMode = value; }
         }
 
+        public int MaxVisibleAdditionalLights
+        {
+            get { return maxVisibleAdditionalLights; }
+            set { maxVisibleAdditionalLights = value; }
+        }
+
 
         [SerializeField]
         protected SHEvalMode shEvalMode = SHEvalMode.PerPixel;
+
+        [SerializeField]
+        protected int maxVisibleAdditionalLights = 256;
 
 
         void OnEnable()

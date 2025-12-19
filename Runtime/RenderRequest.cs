@@ -85,8 +85,7 @@ namespace HN.HNRP
         {
             var visibleLights = cullingResults.visibleLights;
 
-            int mainLightIndex = GetMainLightIndex(visibleLights);
-            InitializeLightData(visibleLights, mainLightIndex, out renderingData.LightData);
+            renderingData.visibleLights = visibleLights;
         }
 
         private void UpdateGlobalTexture(CommandBuffer cmd)
@@ -116,6 +115,7 @@ namespace HN.HNRP
         {
             cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHVertex);
             cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHMixed);
+            cmd.DisableShaderKeyword(GlobalKeywords.forwardPlus);
         }
 
         private void SetupCameraProperties(ScriptableRenderContext context, Camera camera, CommandBuffer cmd)
@@ -130,6 +130,7 @@ namespace HN.HNRP
         {
             if (renderingData.Camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
             {
+                // TODO: SetupCullingParameters
                 renderingData.CullingResults = context.Cull(ref cullingParameters);
                 return true;
             }
@@ -207,7 +208,6 @@ namespace HN.HNRP
         private RenderingData renderingData;
 
         private GlobalConstantBuffer globalConstantBuffer = default;
-
 
     }
 }

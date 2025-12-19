@@ -1,6 +1,9 @@
 #ifndef HNRP_UNITY_INPUT_INCLUDED
 #define HNRP_UNITY_INPUT_INCLUDED
 
+#define MAX_LOCAL_LIGHT_ON_SCREEN (256)
+#define MAX_REFLECTION_PROBES (64)
+
 GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
     // Time (t = time since current level load) values from Unity
     float4 _Time; // (t/20, t, t*2, t*3)
@@ -52,8 +55,11 @@ GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
 
     float4 _FrustumPlanes[6]; // {(a, b, c) = N, d = -dot(N, P)} [L, R, T, B, N, F]
 
-	float4 _MainLightPosition;
-	float4 _MainLightColor;
+    // x = main light index
+    // y = light count
+    // z = unused
+    // w = unused
+	float4 _LightConstantData;
 
     float4 _GlossyEnvironmentColor;
     float4 _GlossyEnvironmentCubeMap_HDR;
@@ -124,6 +130,14 @@ CBUFFER_START(UnityPerDraw)
     //Z : Z bias value
     //W : Camera only
     float4 unity_MotionVectorsParams;
+CBUFFER_END
+
+CBUFFER_START(AdditionalLights)
+    float4 _AdditionalLightsPosition[MAX_LOCAL_LIGHT_ON_SCREEN];
+    float4 _AdditionalLightsColor[MAX_LOCAL_LIGHT_ON_SCREEN];
+    float4 _AdditionalLightsAttenuation[MAX_LOCAL_LIGHT_ON_SCREEN];
+    float4 _AdditionalLightsSpotDir[MAX_LOCAL_LIGHT_ON_SCREEN];
+    float4 _AdditionalLightsOcclusionProbes[MAX_LOCAL_LIGHT_ON_SCREEN];
 CBUFFER_END
 
 // Unity specific

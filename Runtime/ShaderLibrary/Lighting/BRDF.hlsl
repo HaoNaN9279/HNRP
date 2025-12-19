@@ -76,12 +76,12 @@ void InitializeBSDFCommonData(float3 normalWS, float3 viewDirectionWS, Light lig
 {
     ZERO_INITIALIZE(BSDFCommonData, bsdfCommonData);
 
-    float NdotL = dot(normalWS, light.direction);
+    float NdotL = dot(normalWS, light.directionWS);
     float saturateNdotL = saturate(NdotL);
-    float3 halfDir = SafeNormalize(light.direction + viewDirectionWS);
+    float3 halfDir = SafeNormalize(light.directionWS + viewDirectionWS);
     float NdotH = dot(normalWS, halfDir);
     float saturateNdotH = saturate(NdotH);
-    float LdotH = dot(light.direction, halfDir);
+    float LdotH = dot(light.directionWS, halfDir);
     float saturateLdotH = saturate(LdotH);
     float3 refViewDirectionWS = reflect(-viewDirectionWS, normalWS);
     float NdotV = dot(normalWS, viewDirectionWS);
@@ -112,7 +112,9 @@ float DirectBRDFSpecular(BRDFData brdfData, BSDFCommonData bsdfCommonData)
 float3 EnvironmentBRDFSpecular(BRDFData brdfData, BSDFCommonData bsdfCommonData)
 {
     float surfaceReduction = 1.0 / (brdfData.roughness2 + 1.0);
-    return float3(surfaceReduction * lerp(brdfData.specular, brdfData.grazingTerm, bsdfCommonData.fresnelTerm));
+    float3 specularTerm = float3(surfaceReduction * lerp(brdfData.specular, brdfData.grazingTerm, bsdfCommonData.fresnelTerm));
+
+    return specularTerm;
 }
 
 

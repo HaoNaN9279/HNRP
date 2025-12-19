@@ -14,9 +14,9 @@ Shader "Hidden/HNRP/SingleBlitShader"
             #pragma vertex vert
             #pragma fragment frag
 
-            #pragma enable_d3d11_debug_symbols
+            // #pragma enable_d3d11_debug_symbols
 
-            #include "../Common.hlsl"
+            #include "../Common/Common.hlsl"
 
             TEXTURE2D(_tex);
             SAMPLER(sampler_tex);

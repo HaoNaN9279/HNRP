@@ -1,6 +1,8 @@
 #ifndef HNRP_VARYINGS_INCLUDED
 #define HNRP_VARYINGS_INCLUDED
 
+#include "../Lighting/GI.hlsl"
+
 struct Varyings
 {
     float4 positionCS;

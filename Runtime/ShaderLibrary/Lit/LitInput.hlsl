@@ -24,7 +24,10 @@
     #define USE_VERTEX_SH_VARYING
 #endif
 
-#include "../UnityInput.hlsl"
+#include "../Common/Common.hlsl"
+#include "../Core/UnityInput.hlsl"
+#include "../Light/LightInput.hlsl"
+#include "../ClusterCulling/ForwardPlusInput.hlsl"
 
 #if defined(_BASEMAP)
 TEXTURE2D(_BaseMap);
@@ -177,15 +180,11 @@ void SetupDOTSLitMaterialPropertyCaches()
 
 #endif
 
-#include "../SurfaceData.hlsl"
-#include "../Light.hlsl"
-#include "../BRDF.hlsl"
-#include "../GI.hlsl"
-#include "../Shadow.hlsl"
-#include "../Lighting.hlsl"
+#include "../Common/CommonFunctions.hlsl"
 
-#include "../Attributes.hlsl"
-#include "../VertexInput.hlsl"
-#include "../Varyings.hlsl"
+#include "../Core/Attributes.hlsl"
+#include "../Core/VertexInput.hlsl"
+#include "../Core/Varyings.hlsl"
+#include "../Core/SurfaceData.hlsl"
 
 #endif

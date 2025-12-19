@@ -28,12 +28,11 @@ namespace HN.HNRP
 
         public fixed float _FrustumPlanes[6 * 4];
 
-        public Vector4 _MainLightPosition;
-        public Vector4 _MainLightColor;
+        public Vector4 _LightConstantData;
 
         public Vector4 _GlossyEnvironmentColor;
-        public Vector4 _SubtractiveShadowColor;
         public Vector4 _GlossyEnvironmentCubeMap_HDR;
+        public Vector4 _SubtractiveShadowColor;
         public Vector4 unity_AmbientSky;
         public Vector4 unity_AmbientEquator;
         public Vector4 unity_AmbientGround;
@@ -45,5 +44,6 @@ namespace HN.HNRP
 
         // public Vector4 unity_ShadowColor;
     }
+
 
 }

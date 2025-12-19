@@ -1,13 +1,8 @@
 #ifndef HNRP_FORWARD_PASS_INCLUDED
 #define HNRP_FORWARD_PASS_INCLUDED
 
-#include "../Common.hlsl"
-
-#ifndef HNRP_FORWARD_PASS
-    #define HNRP_FORWARD_PASS
-#endif
-
 #include "../Lit/LitInput.hlsl"
+#include "../Lit/LitSurfaceData.hlsl"
 #include "../Lit/LitVaryings.hlsl"
 #include "../Lit/LitLighting.hlsl"
 
@@ -40,17 +35,17 @@ float4 fragMain(PackedVaryings packedVaryings)
     ZERO_INITIALIZE(Varyings, varyings);
     varyings = ForwardBuildUnpackVaryings(packedVaryings);
 
-    SurfaceData surfaceData;
-    ZERO_INITIALIZE(SurfaceData, surfaceData);
-    surfaceData = BuildSurfaceData(varyings);
+    LitSurfaceData litSurfaceData;
+    ZERO_INITIALIZE(LitSurfaceData, litSurfaceData);
+    litSurfaceData = BuildLitSurfaceData(varyings);
 
     LightingInputData lightingInputData;
     ZERO_INITIALIZE(LightingInputData, lightingInputData);
-    lightingInputData = BuildLightingInputData(varyings, surfaceData);
+    lightingInputData = BuildLightingInputData(varyings, litSurfaceData);
 
     BRDFData brdfData;
     ZERO_INITIALIZE(BRDFData, brdfData);
-    brdfData = BuildBRDFData(surfaceData);
+    brdfData = BuildBRDFData(litSurfaceData);
 
     BSDFCommonData bsdfCommonData;
     ZERO_INITIALIZE(BSDFCommonData, bsdfCommonData);
@@ -62,15 +57,15 @@ float4 fragMain(PackedVaryings packedVaryings)
 
     LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
-    lightingOutputData = BuildLightingOutputData(surfaceData, lightingData);
+    lightingOutputData = BuildLightingOutputData(litSurfaceData, lightingData);
 
 // #if defined(USE_UV0_VARYING)
 //     float test = 1;
 // #else
 //     float test = 0;
 // #endif
-    // float test = VARYINGS_FLOAT_COUNT - 7;
-    float3 test3 = lightingData.indirectLight.specular; /* float3(test, test, test); */
+    // float test = GetAdditionalLightsCount() - 2;
+    float3 test3 = abs(_LightDatas[1].positionWS); /* float3(test, test, test) */;
     // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
     float4 outColor = float4(lightingOutputData.lightingColor.r, lightingOutputData.lightingColor.g, lightingOutputData.lightingColor.b, 1);

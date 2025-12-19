@@ -21,6 +21,12 @@ namespace HN.HNRP
     {
         public static readonly int ShaderVariablesGlobal = Shader.PropertyToID("ShaderVariablesGlobal");
         public static readonly int glossyEnvironmentCubeMap = Shader.PropertyToID("_GlossyEnvironmentCubeMap");
+
+        public static readonly int AdditionalLightsPosition = Shader.PropertyToID("_AdditionalLightsPosition");
+        public static readonly int AdditionalLightsColor = Shader.PropertyToID("_AdditionalLightsColor");
+        public static readonly int AdditionalLightsAttenuation = Shader.PropertyToID("_AdditionalLightsAttenuation");
+        public static readonly int AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
+        public static readonly int AdditionalLightsOcclusionProbes = Shader.PropertyToID("_AdditionalLightsOcclusionProbes");
     }
 
 
@@ -73,5 +79,6 @@ namespace HN.HNRP
     {
         public static readonly string evaluateSHMixed = "EVALUATE_SH_MIXED";
         public static readonly string evaluateSHVertex = "EVALUATE_SH_VERTEX";
+        public static readonly string forwardPlus = "FORWARD_PLUS";
     }
 }
