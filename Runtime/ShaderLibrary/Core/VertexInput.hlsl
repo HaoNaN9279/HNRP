@@ -15,9 +15,8 @@ struct VertexInput
     float2 dynamicLightmapUV;
 };
 
-VertexInput BuildVertexInput(Attributes attributes)
+void BuildVertexInput(Attributes attributes, out VertexInput vertexInput)
 {
-    VertexInput vertexInput;
     ZERO_INITIALIZE(VertexInput, vertexInput);
 
     vertexInput.positionOS = attributes.positionOS.xyz;
@@ -44,8 +43,6 @@ VertexInput BuildVertexInput(Attributes attributes)
 #if defined(ATTRIBUTES_NEED_COLOR)
     vertexInput.color = attributes.color;
 #endif
-
-    return vertexInput;
 }
 
 #endif

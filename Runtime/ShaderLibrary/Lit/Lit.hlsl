@@ -2,62 +2,67 @@
 #define HNRP_FORWARD_PASS_INCLUDED
 
 #include "../Lit/LitInput.hlsl"
-#include "../Lit/LitSurfaceData.hlsl"
+#include "../Lit/LitVaryingsDefine.hlsl"
 #include "../Lit/LitVaryings.hlsl"
+#include "../Lit/LitSurfaceData.hlsl"
 #include "../Lit/LitLighting.hlsl"
 
-PackedVaryings vertMain(Attributes attributes)
+PackedVaryings VertMain(Attributes attributes)
 {
     UNITY_SETUP_INSTANCE_ID(attributes);
 
     VertexInput vertexInput;
     ZERO_INITIALIZE(VertexInput, vertexInput);
-    vertexInput = BuildVertexInput(attributes);
+    BuildVertexInput(attributes, vertexInput);
 
-    Varyings varyings;
-    ZERO_INITIALIZE(Varyings, varyings);
-    varyings = BuildVaryings(vertexInput);
+    LitVaryings litVaryings;
+    ZERO_INITIALIZE(LitVaryings, litVaryings);
+    BuildLitVaryings(vertexInput, litVaryings);
     
     PackedVaryings packedVaryings;
     ZERO_INITIALIZE(PackedVaryings, packedVaryings);
-    packedVaryings = ForwardBuildPackVaryings(varyings);
+    BuildPackVaryings(litVaryings, packedVaryings);
 
     UNITY_TRANSFER_INSTANCE_ID(attributes, packedVaryings);
 
     return packedVaryings;
 }
 
-float4 fragMain(PackedVaryings packedVaryings)
+float4 FragMain(PackedVaryings packedVaryings)
 {
     UNITY_SETUP_INSTANCE_ID(packedVaryings);
 
-    Varyings varyings;
-    ZERO_INITIALIZE(Varyings, varyings);
-    varyings = ForwardBuildUnpackVaryings(packedVaryings);
+    LitVaryings litVaryings;
+    ZERO_INITIALIZE(LitVaryings, litVaryings);
+    BuildUnpackVaryings(packedVaryings, litVaryings);
 
     LitSurfaceData litSurfaceData;
     ZERO_INITIALIZE(LitSurfaceData, litSurfaceData);
-    litSurfaceData = BuildLitSurfaceData(varyings);
+    BuildLitSurfaceData(litVaryings, litSurfaceData);
 
-    LightingInputData lightingInputData;
-    ZERO_INITIALIZE(LightingInputData, lightingInputData);
-    lightingInputData = BuildLightingInputData(varyings, litSurfaceData);
+    PreBRDFData preBRDFData;
+    ZERO_INITIALIZE(PreBRDFData, preBRDFData);
+    BuildPreBRDFData(litVaryings, preBRDFData);
 
     BRDFData brdfData;
     ZERO_INITIALIZE(BRDFData, brdfData);
-    brdfData = BuildBRDFData(litSurfaceData);
+    BuildBRDFData(litSurfaceData, preBRDFData, brdfData);
+    
+    LightingInputData lightingInputData;
+    ZERO_INITIALIZE(LightingInputData, lightingInputData);
+    BuildLightingInputData(litVaryings, brdfData, lightingInputData);
 
-    BSDFCommonData bsdfCommonData;
-    ZERO_INITIALIZE(BSDFCommonData, bsdfCommonData);
-    bsdfCommonData = BuildBSDFCommonData(lightingInputData);
+    BRDFLightingData brdfLightingData;
+    ZERO_INITIALIZE(BRDFLightingData, brdfLightingData);
+    BuildBRDFLightingData(preBRDFData, brdfData, lightingInputData, brdfLightingData);
 
     LightingData lightingData;
     ZERO_INITIALIZE(LightingData, lightingData);
-    lightingData = BuildLightingData(lightingInputData, brdfData, bsdfCommonData);
+    BuildLightingData(brdfData, lightingInputData, brdfLightingData, lightingData);
 
     LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
-    lightingOutputData = BuildLightingOutputData(litSurfaceData, lightingData);
+    BuildLightingOutputData(litSurfaceData, lightingData, lightingOutputData);
 
 // #if defined(USE_UV0_VARYING)
 //     float test = 1;
@@ -78,12 +83,12 @@ void frag
     out float4 outColor : SV_Target
 )
 {
-    outColor = fragMain(packedVaryings);
+    outColor = FragMain(packedVaryings);
 }
 
-PackedVaryings vert (Attributes attributes)
+PackedVaryings vert(Attributes attributes)
 {
-    PackedVaryings packedVaryings = vertMain(attributes);
+    PackedVaryings packedVaryings = VertMain(attributes);
     return packedVaryings;
 }
 

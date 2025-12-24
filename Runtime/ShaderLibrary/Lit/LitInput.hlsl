@@ -184,7 +184,6 @@ void SetupDOTSLitMaterialPropertyCaches()
 
 #include "../Core/Attributes.hlsl"
 #include "../Core/VertexInput.hlsl"
-#include "../Core/Varyings.hlsl"
 #include "../Core/SurfaceData.hlsl"
 
 #endif

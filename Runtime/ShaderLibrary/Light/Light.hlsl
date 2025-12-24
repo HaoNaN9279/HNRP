@@ -43,6 +43,7 @@ Light GetMainLight()
 {
     uint mainLightIndex = _LightConstantData.x;
     Light light;
+    ZERO_INITIALIZE(Light, light);
     light.color = _LightDatas[mainLightIndex].color;
     light.directionWS = _LightDatas[mainLightIndex].directionWS;
     light.shadowAttenuation = 1.0;

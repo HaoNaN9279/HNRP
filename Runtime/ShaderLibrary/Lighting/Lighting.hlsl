@@ -1,6 +1,15 @@
 #ifndef HNRP_LIGHTING_INCLUDED
 #define HNRP_LIGHTING_INCLUDED
 
+struct LightingInputData
+{
+    float3 positionWS;
+    Light mainLight;
+    float2 mainUV;
+    float3 bakedGI;
+    float2 normalizedScreenSpaceUV;
+};
+
 struct DirectLightingData
 {
     float3 diffuse;
@@ -28,6 +37,24 @@ struct IndirectLightingData
         return result;
     }
 };
+
+void InitializeLightingInputData(float3 positionWS, float2 mainUV, float2 staticLightmapUV, float3 vertexSH, float3 normalWS, float4 positionCS, out LightingInputData lightingInputData)
+{
+    ZERO_INITIALIZE(LightingInputData, lightingInputData);
+
+    lightingInputData.positionWS = positionWS;
+
+    Light mainLight = GetMainLight();
+    lightingInputData.mainLight = mainLight;
+
+    lightingInputData.mainUV = mainUV;
+
+    float3 bakedGI = SAMPLE_GI(staticLightmapUV, vertexSH, normalWS);
+    lightingInputData.bakedGI = bakedGI;
+
+    float2 normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
+    lightingInputData.normalizedScreenSpaceUV = normalizedScreenSpaceUV;
+}
 
 float3 DirectLightingDiffuseRadiance(Light light, float NdotL)
 {

@@ -5,17 +5,6 @@
 #include "../Lighting/Lighting.hlsl"
 #include "../Lighting/BRDF.hlsl"
 
-struct LightingInputData
-{
-    float3 positionWS;
-    float3 viewDirectionWS;
-    Light mainLight;
-    float2 mainUV;
-    SurfaceData surfaceData;
-    float3 bakedGI;
-    float2 normalizedScreenSpaceUV;
-};
-
 struct LightingData
 {
     DirectLightingData mainDirectLight;
@@ -28,64 +17,32 @@ struct LightingOutputData
     float3 lightingColor;
 };
 
-LitSurfaceData BuildLitSurfaceData(Varyings varyings)
+void BuildPreBRDFData(LitVaryings litVaryings, out PreBRDFData preBRDFData)
 {
-    LitSurfaceData litSurfaceData;
-    InitializeLitSurfaceData(varyings.uv0, litSurfaceData);
-
-    return litSurfaceData;
+    InitializePreBRDFData(litVaryings.normalWS, litVaryings.tangentWS, litVaryings.positionWS, preBRDFData);
 }
 
-LightingInputData BuildLightingInputData(Varyings varyings, LitSurfaceData litSurfaceData)
+void BuildBRDFData(LitSurfaceData litSurfaceData, PreBRDFData preBRDFData, out BRDFData brdfData)
 {
-    LightingInputData lightingInputData;
-    ZERO_INITIALIZE(LightingInputData, lightingInputData);
-
-    lightingInputData.positionWS = varyings.positionWS;
-
-    float3 viewDirectionWS = GetViewDirectionWS(varyings.positionWS);
-    lightingInputData.viewDirectionWS = viewDirectionWS;
-
-    Light mainLight = GetMainLight();
-    lightingInputData.mainLight = mainLight;
-
-    lightingInputData.mainUV = varyings.uv0;
-
-    SurfaceData surfaceData = GetSurfaceData(varyings.normalWS, varyings.tangentWS, litSurfaceData.normalTS);
-    lightingInputData.surfaceData = surfaceData;
-
-    float3 bakedGI = SAMPLE_GI(varyings.staticLightmapUV, varyings.vertexSH, surfaceData.normalWS);
-    lightingInputData.bakedGI = bakedGI;
-
-    float2 normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(varyings.positionCS);
-    lightingInputData.normalizedScreenSpaceUV;
-
-    return lightingInputData;
+    InitializeBRDFData(litSurfaceData, preBRDFData, brdfData);
 }
 
-BRDFData BuildBRDFData(LitSurfaceData litSurfaceData)
+void BuildLightingInputData(LitVaryings litVaryings, BRDFData brdfData, out LightingInputData lightingInputData)
 {
-    BRDFData brdfData;
-    InitializeBRDFData(litSurfaceData.albedo, litSurfaceData.metallic, litSurfaceData.smoothness, litSurfaceData.alpha, brdfData);
-    
-    return brdfData;
+    InitializeLightingInputData(litVaryings.positionWS, litVaryings.uv0, litVaryings.staticLightmapUV, litVaryings.vertexSH, brdfData.normalWS, litVaryings.positionCS, lightingInputData);
 }
 
-BSDFCommonData BuildBSDFCommonData(LightingInputData lightingInputData)
+void BuildBRDFLightingData(PreBRDFData preBRDFData, BRDFData brdfData, LightingInputData lightingInputData, out BRDFLightingData brdfLightingData)
 {
-    BSDFCommonData bsdfCommonData;
-    InitializeBSDFCommonData(lightingInputData.surfaceData.normalWS, lightingInputData.viewDirectionWS, lightingInputData.mainLight, bsdfCommonData);
-
-    return bsdfCommonData;
+    InitializeBRDFLightingData(brdfData.normalWS, preBRDFData.viewDirectionWS, lightingInputData.mainLight, brdfLightingData);
 }
 
-LightingData BuildLightingData(LightingInputData lightingInputData, BRDFData brdfData, BSDFCommonData bsdfCommonData)
+void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, BRDFLightingData brdfLightingData, out LightingData lightingData)
 {
-    LightingData lightingData;
     ZERO_INITIALIZE(LightingData, lightingData);
 
-    float3 mainLightRadiance = DirectLightingDiffuseRadiance(lightingInputData.mainLight, bsdfCommonData.saturateNdotL);
-    float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, bsdfCommonData);
+    float3 mainLightRadiance = DirectLightingDiffuseRadiance(lightingInputData.mainLight, brdfLightingData.saturateNdotL);
+    float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
     lightingData.mainDirectLight = DirectLightingPBR(brdfData.diffuse, mainLightRadiance, brdfData.specular, mainLightSpecularTerm);
 
 #if FORWARD_PLUS
@@ -94,9 +51,9 @@ LightingData BuildLightingData(LightingInputData lightingInputData, BRDFData brd
         FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK
         
         Light light = GetAdditionalLight(lightIndex, lightingInputData.positionWS);
-        float saturateNdotL = saturate(dot(lightingInputData.surfaceData.normalWS, light.directionWS));
+        float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
         float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
-        float lightSpecularTerm = DirectBRDFSpecular(brdfData, bsdfCommonData);
+        float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
         float3 specularRadiance = DirectLightingSpecularRadiance(light, lightSpecularTerm);
         DirectLightingData additionalDirectLight = DirectLightingPBR(brdfData.diffuse, diffuseRadiance, brdfData.specular, specularRadiance);
         lightingData.additionalDirectLight.diffuse += additionalDirectLight.diffuse;
@@ -107,25 +64,22 @@ LightingData BuildLightingData(LightingInputData lightingInputData, BRDFData brd
     int lightCount = GetAdditionalLightsCount();
     LIGHT_LOOP_BEGIN(lightCount)
         Light light = GetAdditionalLight(lightIndex, lightingInputData.positionWS);
-        float saturateNdotL = saturate(dot(lightingInputData.surfaceData.normalWS, light.directionWS));
+        float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
         float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
-        float lightSpecularTerm = DirectBRDFSpecular(brdfData, bsdfCommonData);
+        float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
         float3 specularRadiance = DirectLightingSpecularRadiance(light, lightSpecularTerm);
         DirectLightingData additionalDirectLight = DirectLightingPBR(brdfData.diffuse, diffuseRadiance, brdfData.specular, specularRadiance);
         lightingData.additionalDirectLight.diffuse += additionalDirectLight.diffuse;
         lightingData.additionalDirectLight.specular += additionalDirectLight.specular;
     LIGHT_LOOP_END
 
-    float3 envSpecular = EnvironmentBRDFSpecular(brdfData, bsdfCommonData);
-    float3 envReflection = GlossyEnvironmentReflection(bsdfCommonData.refViewDirectionWS, lightingInputData.positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
+    float3 envSpecular = EnvironmentBRDFSpecular(brdfData, brdfLightingData);
+    float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, lightingInputData.positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
     lightingData.indirectLight = IndirectLightingPBR(brdfData.diffuse, lightingInputData.bakedGI, envSpecular, envReflection);
-
-    return lightingData;
 }
 
-LightingOutputData BuildLightingOutputData(LitSurfaceData litSurfaceData, LightingData lightingData)
+void BuildLightingOutputData(LitSurfaceData litSurfaceData, LightingData lightingData, out LightingOutputData lightingOutputData)
 {
-    LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
 
     lightingOutputData.lightingColor.rgb = 
@@ -137,8 +91,6 @@ LightingOutputData BuildLightingOutputData(LitSurfaceData litSurfaceData, Lighti
         lightingData.indirectLight.specular.rgb
         ;
     lightingOutputData.lightingColor.rgb += litSurfaceData.emission.rgb;
-
-    return lightingOutputData;
 }
 
 #endif

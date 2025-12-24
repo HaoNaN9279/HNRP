@@ -1,7 +1,7 @@
 #ifndef HNRP_SURFACE_DATA_INCLUDED
 #define HNRP_SURFACE_DATA_INCLUDED
 
-struct SurfaceData
+struct NormalData
 {
     float3 normalWS;
     float3 normalTS;
@@ -11,20 +11,52 @@ struct SurfaceData
     float3x3 tbn;
 };
 
-float3 GetNormalTS(float2 uv)
+float3 GetSfNormalWS(float3 rawNormalWS)
+{
+    return SafeNormalize(rawNormalWS);
+}
+
+float4 GetSfTangentWS(float4 rawTangentWS)
+{
+    return float4(SafeNormalize(rawTangentWS.xyz), rawTangentWS.w);
+}
+
+float3 GetSfBitangentWS(float3 sfNormalWS, float4 sfTangentWS)
+{
+    return sfTangentWS.w * cross(sfNormalWS.xyz, sfTangentWS.xyz);
+}
+
+float3 GetNormalSGN(float4 tangentWS)
 {
 #if defined(_NORMALMAP)
-    float4 n = float4(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, uv));
-    return UnpackNormalScale(n, _NormalScale);
+    return tangentWS.w;
 #else
-    return float3(0.0, 0.0, 1.0);
+    return 0.0;
 #endif
 }
 
-SurfaceData GetSurfaceData(float3 normalWS, float4 tangentWS, float3 normalTS)
+float3x3 GetNormalTBN(float3 sfNormalWS, float4 sfTangentWS, float3 sfBitangentWS)
 {
-    SurfaceData surfaceData;
-    ZERO_INITIALIZE(SurfaceData, surfaceData);
+#if defined(_NORMALMAP)
+    return float3x3(sfTangentWS.xyz, sfBitangentWS.xyz, sfNormalWS.xyz);
+#else
+    return k_identity3x3;
+#endif
+}
+
+float3 GetNormalWS(float3 sfNormalWS, float3 normalTS, float3x3 tbn)
+{
+#if defined(_NORMALMAP)
+    return TransformTangentToWorld(normalTS, tbn);
+#else
+    return sfNormalWS;
+#endif
+}
+
+NormalData GetNormalData(float3 normalWS, float4 tangentWS, float3 normalTS)
+{
+    NormalData normalData;
+    ZERO_INITIALIZE(NormalData, normalData);
 
     normalWS = SafeNormalize(normalWS);
     tangentWS.xyz = SafeNormalize(tangentWS.xyz);
@@ -32,21 +64,21 @@ SurfaceData GetSurfaceData(float3 normalWS, float4 tangentWS, float3 normalTS)
     float sgn = tangentWS.w;
     float3 bitangent = sgn * cross(normalWS.xyz, tangentWS.xyz);
     float3x3 tbn = float3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz);
-    surfaceData.normalWS = TransformTangentToWorld(normalTS, tbn);
-    surfaceData.sgn = sgn;
-    surfaceData.bitangentWS = bitangent;
-    surfaceData.tbn = tbn;
+    normalData.normalWS = TransformTangentToWorld(normalTS, tbn);
+    normalData.sgn = sgn;
+    normalData.bitangentWS = bitangent;
+    normalData.tbn = tbn;
 #else
-    surfaceData.normalWS = normalWS;
-    surfaceData.sgn = 0;
-    surfaceData.bitangentWS = float3(1.0, 0.0, 0.0);
-    surfaceData.tbn = k_identity3x3;
+    normalData.normalWS = normalWS;
+    normalData.sgn = 0;
+    normalData.bitangentWS = float3(1.0, 0.0, 0.0);
+    normalData.tbn = k_identity3x3;
 #endif
-    surfaceData.normalWS = NormalizeNormalPerPixel(surfaceData.normalWS);
-    surfaceData.normalTS = normalTS;
-    surfaceData.tangentWS = tangentWS;
+    normalData.normalWS = NormalizeNormalPerPixel(normalData.normalWS);
+    normalData.normalTS = normalTS;
+    normalData.tangentWS = tangentWS;
 
-    return surfaceData;
+    return normalData;
 }
 
 #endif

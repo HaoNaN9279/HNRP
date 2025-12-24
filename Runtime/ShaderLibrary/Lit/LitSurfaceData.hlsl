@@ -28,6 +28,16 @@ float4 GetAlbedoAlpha(float2 uv)
 #endif
 }
 
+float3 GetNormalTS(float2 uv)
+{
+#if defined(_NORMALMAP)
+    float4 n = float4(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, uv));
+    return UnpackNormalScale(n, _NormalScale);
+#else
+    return float3(0.0, 0.0, 1.0);
+#endif
+}
+
 float4 GetMasks(float2 uv)
 {
 #if defined(_MASKMAP)
@@ -67,5 +77,11 @@ void InitializeLitSurfaceData(float2 uv, out LitSurfaceData litSurfaceData)
     litSurfaceData.occlusion = masks.z;
     litSurfaceData.emission = emission;
 }
+
+void BuildLitSurfaceData(LitVaryings litVaryings, out LitSurfaceData litSurfaceData)
+{
+    InitializeLitSurfaceData(litVaryings.uv0, litSurfaceData);
+}
+
 
 #endif
