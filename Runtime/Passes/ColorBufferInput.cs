@@ -34,6 +34,11 @@ namespace HN.HNRP
             
         }
 
+        public override void Dispose()
+        {
+            
+        }
+
 
         [SerializeField]
         public Vector2 textureScale = Vector2.one;

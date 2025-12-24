@@ -16,6 +16,8 @@ namespace HN.HNRP
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
             DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
 
+            ForwardPlusLightCullingPass forwardPlusLightCullingPass = AddPass<ForwardPlusLightCullingPass>("Forward Plus Light Culling");
+
             ForwardOpaquePass forwardOpaquePass = AddPass<ForwardOpaquePass>("Opaque");
             Connect(colorBufferInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
@@ -86,6 +88,28 @@ namespace HN.HNRP
                 }
 
                 pass.EndRecord();
+            }
+        }
+
+        public override void Dispose()
+        {
+            Debug.Log("Standard RenderGraph Dispose Called.");
+
+            if (passes == null || passes.Count == 0)
+            {
+                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before disposing.");
+                return;
+            }
+
+            foreach (var pass in passes)
+            {
+                if (pass == null)
+                {
+                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
+                    continue;
+                }
+
+                pass.Dispose();
             }
         }
     }

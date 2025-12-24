@@ -132,14 +132,6 @@ CBUFFER_START(UnityPerDraw)
     float4 unity_MotionVectorsParams;
 CBUFFER_END
 
-CBUFFER_START(AdditionalLights)
-    float4 _AdditionalLightsPosition[MAX_LOCAL_LIGHT_ON_SCREEN];
-    float4 _AdditionalLightsColor[MAX_LOCAL_LIGHT_ON_SCREEN];
-    float4 _AdditionalLightsAttenuation[MAX_LOCAL_LIGHT_ON_SCREEN];
-    float4 _AdditionalLightsSpotDir[MAX_LOCAL_LIGHT_ON_SCREEN];
-    float4 _AdditionalLightsOcclusionProbes[MAX_LOCAL_LIGHT_ON_SCREEN];
-CBUFFER_END
-
 // Unity specific
 TEXTURECUBE(unity_SpecCube0);
 SAMPLER(samplerunity_SpecCube0);

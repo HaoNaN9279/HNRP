@@ -1,3 +1,8 @@
+在SetLightDataPass中增加设置reflection probe的数据
+拆分ForwardPlusCulling中的local light和reflection probe
+重写reflection probe的采样算法
+
+
 Lit材质支持Specular工作流
 材质清理功能
 自定义PBL光照面板

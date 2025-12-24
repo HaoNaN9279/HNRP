@@ -29,7 +29,7 @@ namespace HN.HNRP
 
                 passData.lightDataBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
-                        MAX_DIRECTIONAL_LIGHT_ON_SCREEN, 
+                        MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN, 
                         UnsafeUtility.SizeOf<LightData>()
                     ){ name = "Light Data Buffer" }
                 );
@@ -37,7 +37,7 @@ namespace HN.HNRP
                 
                 builder.WriteComputeBuffer(passData.lightDataBuffer);
 
-                int lightCount = math.min(renderingData.visibleLights.Length, MAX_DIRECTIONAL_LIGHT_ON_SCREEN);
+                int lightCount = math.min(renderingData.visibleLights.Length, MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN);
 
                 if (lightDatas.IsCreated)
                 {
@@ -72,6 +72,11 @@ namespace HN.HNRP
                 lightDatas.Dispose();
             }
             lightDatas = default;
+        }
+
+        public override void Dispose()
+        {
+            
         }
 
 

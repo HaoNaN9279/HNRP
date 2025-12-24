@@ -41,6 +41,11 @@ namespace HN.HNRP
             
         }
 
+        public override void Dispose()
+        {
+            
+        }
+
 
         [SerializeField]
         public uint renderingLayerMask = 0x00000001;

@@ -52,6 +52,9 @@ namespace HN.HNRP
 
                 forwardPlusLightCulling.PrepareLightData(ref renderingData);
 
+                builder.WriteComputeBuffer(passData.forwardPlusZBinsBuffer);
+                builder.WriteComputeBuffer(passData.forwardPlusTileMasksBuffer);
+
                 builder.SetRenderFunc(
                     (ForwardPlusLightCullingPassData data, RenderGraphContext ctx) =>
                     {
@@ -74,6 +77,10 @@ namespace HN.HNRP
         }
 
         public override void EndRecord()
+        {
+        }
+
+        public override void Dispose()
         {
             if(forwardPlusLightCulling != null)
             {

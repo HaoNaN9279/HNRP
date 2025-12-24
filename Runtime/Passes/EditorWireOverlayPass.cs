@@ -42,6 +42,11 @@ namespace HN.HNRP
             
         }
 
+        public override void Dispose()
+        {
+            
+        }
+
 
         [SerializeField]
         public int colorTargetIndex = -1;

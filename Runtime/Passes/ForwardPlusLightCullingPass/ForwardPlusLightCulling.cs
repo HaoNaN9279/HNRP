@@ -50,7 +50,7 @@ namespace HN.HNRP
                 lights = visibleLights,
                 minMaxZs = minMaxZs.GetSubArray(0, lightCount)
             };
-            var lightMinMaxZHandle = lightMinMaxZJob.ScheduleParallel(lightCount, 32, new JobHandle());
+            var lightMinMaxZHandle = lightMinMaxZJob.ScheduleParallel(lightCount, 32, cullingHandle);
 
             reflectionProbeMinMaxZJob = new ReflectionProbeMinMaxZJob
             {
@@ -138,7 +138,7 @@ namespace HN.HNRP
         }
 
 
-        public JobHandle cullingHandle;
+        public JobHandle cullingHandle = default;
         public float4 params0, params1, params2;
 
         private Camera camera;

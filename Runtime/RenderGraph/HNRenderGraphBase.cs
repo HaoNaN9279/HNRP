@@ -102,6 +102,7 @@ namespace HN.HNRP
         public abstract void Initialize();
         public abstract void RecordRenderGraph();
         public abstract void EndRecordRenderGraph();
+        public abstract void Dispose();
 
 
         [SerializeField]
