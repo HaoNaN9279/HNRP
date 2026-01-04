@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -29,7 +30,7 @@ namespace HN.HNRP
 
                 passData.lightDataBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
-                        MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN, 
+                        HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN, 
                         UnsafeUtility.SizeOf<LightData>()
                     ){ name = "Light Data Buffer" }
                 );
@@ -37,7 +38,7 @@ namespace HN.HNRP
                 
                 builder.WriteComputeBuffer(passData.lightDataBuffer);
 
-                int lightCount = math.min(renderingData.visibleLights.Length, MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN);
+                int lightCount = math.min(renderingData.visibleLights.Length, HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
 
                 if (lightDatas.IsCreated)
                 {
@@ -86,8 +87,6 @@ namespace HN.HNRP
         private CreateLightDataJob createLightDataJob;
         private NativeArray<LightData> lightDatas;
 
-        public const int MAX_DIRECTIONAL_LIGHT_ON_SCREEN = 16;
-        public const int MAX_LOCAL_LIGHT_ON_SCREEN = 512;
 
         public const string PassName = "Set Light Data";
 

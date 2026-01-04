@@ -57,5 +57,9 @@ namespace HN.HNRP
         internal HNRenderPipelineEditorResources editorResources => globalSettings.HNRenderPipelineEditorResources;
 #endif
 
+
+        public const int MAX_DIRECTIONAL_LIGHT_ON_SCREEN = 16;
+        public const int MAX_LOCAL_LIGHT_ON_SCREEN = 512;
+        public const int MAX_REFLECTION_PROBES_ON_SCREEN = 16;
     }
 }

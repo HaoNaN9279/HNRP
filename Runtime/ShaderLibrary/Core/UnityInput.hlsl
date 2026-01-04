@@ -1,8 +1,9 @@
 #ifndef HNRP_UNITY_INPUT_INCLUDED
 #define HNRP_UNITY_INPUT_INCLUDED
 
-#define MAX_LOCAL_LIGHT_ON_SCREEN (256)
-#define MAX_REFLECTION_PROBES (64)
+#define MAX_DIRECTIONAL_LIGHT_ON_SCREEN (16)
+#define MAX_LOCAL_LIGHT_ON_SCREEN (512)
+#define MAX_REFLECTION_PROBES_ON_SCREEN (64)
 
 GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
     // Time (t = time since current level load) values from Unity
