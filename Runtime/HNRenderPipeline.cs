@@ -80,25 +80,31 @@ namespace HN.HNRP
                 var cameraData = camera.GetHNRPAdditionalCameraData();
 
                 HNRenderGraphBase graphObject = null;
+                RenderGraphViewBlock block = null;
                 if(camera.cameraType == CameraType.Game)
                 {
-                    graphObject = Asset.runtimeRenderGraphViews.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
+                    block = Asset.gameViewRenderGraphViews;
+                    graphObject = block.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
                 }
                 else
                 {
-                    var renderGraphView = Asset.editorRenderGraphViews;
                     if(camera.cameraType == CameraType.SceneView)
                     {
-                        graphObject = renderGraphView.GetRenderGraphObject("SceneView");
+                        block = Asset.sceneViewRenderGraphViews;
                     }
                     else if(camera.cameraType == CameraType.Preview)
                     {
-                        graphObject = renderGraphView.GetRenderGraphObject("Preview");
+                        block = Asset.previewRenderGraphViews;
                     }
                     else if(camera.cameraType == CameraType.Reflection)
                     {
-                        graphObject = renderGraphView.GetRenderGraphObject("Reflection");
+                        block = Asset.reflectionRenderGraphViews;
                     }
+
+                    if(block == null)
+                        return;
+                    
+                    graphObject = block.GetRenderGraphObject();
                 }
                 
                 if(graphObject == null)

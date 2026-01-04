@@ -53,7 +53,7 @@ namespace HN.HNRP.Editor
             if (cameraData == null)
                 return;
 
-            var viewNames = asset.runtimeRenderGraphViews.RenderGraphViews.Keys.ToArray();
+            var viewNames = asset.gameViewRenderGraphViews.RenderGraphViews.Keys.ToArray();
             renderGraphViewSelectedIndex = EditorGUILayout.Popup("Render Graph View", renderGraphViewSelectedIndex, viewNames);
             if (renderGraphViewSelectedIndex != cameraData.RenderGraphViewIndex)
             {

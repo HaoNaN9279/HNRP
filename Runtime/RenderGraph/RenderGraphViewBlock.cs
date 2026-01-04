@@ -7,22 +7,8 @@ using UnityEngine;
 namespace HN.HNRP
 {
     [Serializable]
-    public class RenderGraphViewBlock
+    public abstract class RenderGraphViewBlock
     {
-        public RenderGraphViewBlock()
-        {
-            renderGraphViews = new RenderGraphView();
-        }
-
-        public RenderGraphViewBlock(string[] defaultViews)
-        {
-            renderGraphViews = new RenderGraphView();
-            for (int i = 0; i < defaultViews.Length; i++)
-            {
-                CreateView(defaultViews[i]);
-            }
-        }
-
         public bool ContainsView(string viewName)
         {
             return renderGraphViews.ContainsKey(viewName);
@@ -38,6 +24,8 @@ namespace HN.HNRP
 
             renderGraphViews.Add(viewName, null);
         }
+
+        public abstract HNRenderGraphBase GetRenderGraphObject();
 
         public HNRenderGraphBase GetRenderGraphObject(int index)
         {
@@ -58,8 +46,10 @@ namespace HN.HNRP
 
         public RenderGraphView RenderGraphViews => renderGraphViews;
 
+        public abstract RenderGraphViewType ViewType { get; }
+
         [SerializeField]
-        private RenderGraphView renderGraphViews;
+        protected RenderGraphView renderGraphViews;
 
 
 
