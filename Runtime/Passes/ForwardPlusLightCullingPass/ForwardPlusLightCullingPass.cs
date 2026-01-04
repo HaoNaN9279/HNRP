@@ -63,9 +63,7 @@ namespace HN.HNRP
                         ctx.cmd.EnableShaderKeyword(GlobalKeywords.forwardPlus);
 
                         ctx.cmd.SetBufferData(passData.forwardPlusZBinsBuffer, forwardPlusLightCulling.zBins);
-                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusZBinsBuffer, PropertyIDs.forwardPlusZBinsBuffer, 0, ClusterCulling.maxZBinWords * 4);
                         ctx.cmd.SetBufferData(passData.forwardPlusTileMasksBuffer, forwardPlusLightCulling.tileMasks);
-                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusTileMasksBuffer, PropertyIDs.forwardPlusTileMasksBuffer, 0, ClusterCulling.maxTileWords * 4);
 
                         globalConstantBuffer._ForwardPlusParams0 = forwardPlusLightCulling.params0;
                         globalConstantBuffer._ForwardPlusParams1 = forwardPlusLightCulling.params1;
@@ -112,8 +110,6 @@ namespace HN.HNRP
 
         public static class PropertyIDs
         {
-            public static readonly int forwardPlusZBinsBuffer = Shader.PropertyToID("_ForwardPlusZBinsBuffer");
-            public static readonly int forwardPlusTileMasksBuffer = Shader.PropertyToID("_ForwardPlusTileMasksBuffer");
             public static readonly int forwardPlusGlobalConstantBuffer = Shader.PropertyToID("ForwardPlusVariablesGlobal");
         }
 

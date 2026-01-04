@@ -25,7 +25,7 @@ ClusterIterator ClusterInit(float2 normalizedScreenSpaceUV, float3 positionWS, i
     zBinBaseIndex = zBinBaseIndex * (2 + FP_WORDS_PER_TILE);
     zBinBaseIndex = min(zBinBaseIndex, 4 * MAX_ZBIN_VEC4S - (2 + FP_WORDS_PER_TILE));
 
-    uint zBinHederIndex = zBinBaseIndex + headerIndex;
+    uint zBinHeaderIndex = zBinBaseIndex + headerIndex;
     state.zBinOffset = zBinBaseIndex + 2;
 
     uint header = Select4(asuint(_ForwardPlusZBinsBuffer[zBinHeaderIndex / 4]), zBinHeaderIndex % 4);

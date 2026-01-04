@@ -21,7 +21,7 @@ struct Light
 #if FORWARD_PLUS
     #define LIGHT_LOOP_BEGIN(lightCount) { \
     uint lightIndex; \
-    ClusterIterator _internal_clusterIterator = ClusterInit(inputData.normalizedScreenSpaceUV, inputData.positionWS, 0); \
+    ClusterIterator _internal_clusterIterator = ClusterInit(normalizedScreenSpaceUV, positionWS, 0); \
     [loop] while (ClusterNext(_internal_clusterIterator, lightIndex)) { \
         lightIndex += FP_DIRECTIONAL_LIGHTS_COUNT; \
         FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK

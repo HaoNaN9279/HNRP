@@ -21,6 +21,9 @@ namespace HN.HNRP
             ForwardOpaquePass forwardOpaquePass = AddPass<ForwardOpaquePass>("Opaque");
             Connect(colorBufferInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
+            Connect(forwardPlusLightCullingPass.forwardPlusZBinsBufferIndex, ref forwardOpaquePass.forwardPlusZBinsBufferIndex);
+            Connect(forwardPlusLightCullingPass.forwardPlusTileMasksBufferIndex, ref forwardOpaquePass.forwardPlusTileMasksBufferIndex);
+            Connect(setLightDataPass.lightDatasBufferIndex, ref forwardOpaquePass.lightDatasBufferIndex);
 
             BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
             Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);

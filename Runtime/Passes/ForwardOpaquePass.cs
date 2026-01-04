@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Palmmedia.ReportGenerator.Core.Parser.Analysis;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -17,11 +18,19 @@ namespace HN.HNRP
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>($"{name}({PassName})", out var passData))
             {
                 var textureHandles = renderingData.GraphData.textureHandles;
+                var computeBufferHandles = renderingData.GraphData.computeBufferHandles;
+
                 passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
                 if (textureHandles[depthTargetIndex].IsValid())
                 {
                     passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.ReadWrite);
                 }
+
+                passData.forwardPlusZBinsBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusZBinsBufferIndex]);
+                passData.forwardPlusTileMasksBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusTileMasksBufferIndex]);
+
+                passData.lightDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[lightDatasBufferIndex]);
+
                 RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetOpaqueRendererListDesc(ShaderPassNames.AllForwardNames, renderingData.CullingResults, renderingData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
                 builder.AllowRendererListCulling(false);
@@ -29,6 +38,11 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
+                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusZBinsBuffer, PropertyIDs.forwardPlusZBinsBuffer, 0, ClusterCulling.maxZBinWords * 4);
+                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusTileMasksBuffer, PropertyIDs.forwardPlusTileMasksBuffer, 0, ClusterCulling.maxTileWords * 4);
+                        
+                        ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDataBuffer, passData.lightDatasBuffer);
+                        
                         ctx.cmd.DrawRendererList(data.rendererList);
                     }
                 );
@@ -56,6 +70,15 @@ namespace HN.HNRP
         [SerializeField]
         public int depthTargetIndex = -1;
 
+        [SerializeField]
+        public int forwardPlusZBinsBufferIndex = -1;
+
+        [SerializeField]
+        public int forwardPlusTileMasksBufferIndex = -1;
+
+        [SerializeField]
+        public int lightDatasBufferIndex = -1;
+
         public const string PassName = "Forward Opaque Pass";
 
 
@@ -63,8 +86,19 @@ namespace HN.HNRP
         {
             public TextureHandle colorTarget;
             public TextureHandle depthTarget;
+            public ComputeBufferHandle forwardPlusZBinsBuffer;
+            public ComputeBufferHandle forwardPlusTileMasksBuffer;
+            public ComputeBufferHandle lightDatasBuffer;
             public RendererListHandle rendererList;
 
+        }
+
+
+        public static class PropertyIDs
+        {
+            public static readonly int forwardPlusZBinsBuffer = Shader.PropertyToID("_ForwardPlusZBinsBuffer");
+            public static readonly int forwardPlusTileMasksBuffer = Shader.PropertyToID("_ForwardPlusTileMasksBuffer");
+            public static readonly int lightDataBuffer = Shader.PropertyToID("_LightDatas");
         }
 
     }

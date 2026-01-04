@@ -19,7 +19,8 @@ namespace HN.HNRP
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
-            lightDataBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
+
+            lightDatasBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
@@ -60,7 +61,6 @@ namespace HN.HNRP
                         createLightDataHandle.Complete();
 
                         ctx.cmd.SetBufferData(passData.lightDataBuffer, lightDatas);
-                        ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDataBuffer, passData.lightDataBuffer);
                     }
                 );
             }
@@ -82,7 +82,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int lightDataBufferIndex = -1;
+        public int lightDatasBufferIndex = -1;
 
         private CreateLightDataJob createLightDataJob;
         private NativeArray<LightData> lightDatas;
@@ -97,9 +97,5 @@ namespace HN.HNRP
         }
 
 
-        public static class PropertyIDs
-        {
-            public static readonly int lightDataBuffer = Shader.PropertyToID("_LightDatas");
-        }
     }
 }

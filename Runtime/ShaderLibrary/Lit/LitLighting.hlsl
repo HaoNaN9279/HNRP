@@ -62,8 +62,10 @@ void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, B
 #endif
 
     int lightCount = GetAdditionalLightsCount();
+    float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
+    float3 positionWS = lightingInputData.positionWS;
     LIGHT_LOOP_BEGIN(lightCount)
-        Light light = GetAdditionalLight(lightIndex, lightingInputData.positionWS);
+        Light light = GetAdditionalLight(lightIndex, positionWS);
         float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
         float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
         float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
@@ -74,7 +76,7 @@ void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, B
     LIGHT_LOOP_END
 
     float3 envSpecular = EnvironmentBRDFSpecular(brdfData, brdfLightingData);
-    float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, lightingInputData.positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
+    float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
     lightingData.indirectLight = IndirectLightingPBR(brdfData.diffuse, lightingInputData.bakedGI, envSpecular, envReflection);
 }
 

@@ -20,6 +20,11 @@ float3 NormalizeNormalPerPixel(float3 normalWS)
 #endif
 }
 
+bool IsPerspectiveProjection()
+{
+    return (unity_OrthoParams.w == 0);
+}
+
 float3 GetViewForwardDir()
 {
     float4x4 viewMat = GetWorldToViewMatrix();
