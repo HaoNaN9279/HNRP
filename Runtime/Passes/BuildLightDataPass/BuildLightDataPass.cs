@@ -14,7 +14,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Serializable]
-    public class SetLightDataPass : PassBase
+    public class BuildLightDataPass : PassBase
     {
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
@@ -25,7 +25,7 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
-            using (var builder = renderGraph.AddRenderPass<SetLightDataPassData>($"{name}({PassName})", out var passData))
+            using (var builder = renderGraph.AddRenderPass<BuildLightDataPassData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
 
@@ -56,7 +56,7 @@ namespace HN.HNRP
                 var createLightDataHandle = createLightDataJob.ScheduleParallel(lightCount, 1, new JobHandle());
 
                 builder.SetRenderFunc(
-                    (SetLightDataPassData data, RenderGraphContext ctx) =>
+                    (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
                         createLightDataHandle.Complete();
 
@@ -91,7 +91,7 @@ namespace HN.HNRP
         public const string PassName = "Set Light Data";
 
 
-        public class SetLightDataPassData
+        public class BuildLightDataPassData
         {
             public ComputeBufferHandle lightDataBuffer;
         }

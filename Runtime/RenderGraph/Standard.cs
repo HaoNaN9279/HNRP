@@ -11,7 +11,7 @@ namespace HN.HNRP
     {
         public override void Initialize()
         {
-            SetLightDataPass setLightDataPass = AddPass<SetLightDataPass>("Set Light Data");
+            BuildLightDataPass buildLightDataPass = AddPass<BuildLightDataPass>("Build Light Data");
 
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
             DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
@@ -23,7 +23,7 @@ namespace HN.HNRP
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
             Connect(forwardPlusLightCullingPass.forwardPlusZBinsBufferIndex, ref forwardOpaquePass.forwardPlusZBinsBufferIndex);
             Connect(forwardPlusLightCullingPass.forwardPlusTileMasksBufferIndex, ref forwardOpaquePass.forwardPlusTileMasksBufferIndex);
-            Connect(setLightDataPass.lightDatasBufferIndex, ref forwardOpaquePass.lightDatasBufferIndex);
+            Connect(buildLightDataPass.lightDatasBufferIndex, ref forwardOpaquePass.lightDatasBufferIndex);
 
             BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
             Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);
