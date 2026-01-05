@@ -50,7 +50,7 @@ namespace HN.HNRP
                 return;
             }
 
-            foreach (var pass in passes)
+            foreach (var pass in passes.Values)
             {
                 if (pass == null)
                 {
@@ -77,7 +77,7 @@ namespace HN.HNRP
                 return;
             }
 
-            foreach (var pass in passes)
+            foreach (var pass in passes.Values)
             {
                 if (pass == null)
                 {
@@ -104,7 +104,7 @@ namespace HN.HNRP
                 return;
             }
 
-            foreach (var pass in passes)
+            foreach (var pass in passes.Values)
             {
                 if (pass == null)
                 {

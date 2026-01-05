@@ -37,15 +37,12 @@ namespace HN.HNRP
 
         void OnEnable()
         {
-            if (passes.Count > 0)
-                return;
-
             Initialize();
         }
 
         void OnDisable()
         {
-            foreach (var pass in passes)
+            foreach (var pass in passes.Values)
             {
                 if (pass != null)
                 {
@@ -61,13 +58,22 @@ namespace HN.HNRP
 
         public T AddPass<T>(string name) where T : PassBase
         {
-            var pass = ScriptableObject.CreateInstance<T>();
-            AssetDatabase.AddObjectToAsset(pass, this);
-            // pass.hideFlags = HideFlags.HideInHierarchy;
+            T pass;
+            if(!passes.ContainsKey(name))
+            {
+                pass = ScriptableObject.CreateInstance<T>();
+                AssetDatabase.AddObjectToAsset(pass, this);
+                // pass.hideFlags = HideFlags.HideInHierarchy;
+                passes.Add(name, pass);
+            }
+            else
+            {
+                pass = passes[name] as T;
+            }
             pass.Initialize(this, name);
-            passes.Add(pass);
             return pass;
         }
+
 
         protected void Connect(int upStream, ref int downStream)
         {
@@ -106,7 +112,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public List<PassBase> passes = new List<PassBase>();
+        public SerializableDictionary<string, PassBase> passes = new SerializableDictionary<string, PassBase>();
 
         protected int textureHandleMaxIndex = -1;
         protected int computeBufferHandleMaxIndex = -1;

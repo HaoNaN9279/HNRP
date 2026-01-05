@@ -51,6 +51,8 @@ namespace HN.HNRP.Editor
             {
                 SerializedProperty passProperty = passesProperty.GetArrayElementAtIndex(i);
                 PassBaseEditor passEditor = editors[i] as PassBaseEditor;
+                if(passEditor == null)
+                    continue;
 
                 var passObject = passProperty.objectReferenceValue;
                 if (passObject != null)
@@ -60,6 +62,8 @@ namespace HN.HNRP.Editor
                     string passName = passObject.name;
                     string title = $"{passName} ({passObject.GetType().Name})";
                     SerializedProperty isExpandedInInspectorProperty = passEditor.serializedObject.FindProperty("isExpandedInInspector");
+                    if(isExpandedInInspectorProperty == null)
+                        continue;
 
                     EditorGUI.BeginChangeCheck();
 
@@ -88,8 +92,9 @@ namespace HN.HNRP.Editor
 
         private void OnEnable()
         {
-            passesProperty = serializedObject.FindProperty(nameof(HNRenderGraphBase.passes));
-
+            var passesDictProeprty = serializedObject.FindProperty(nameof(HNRenderGraphBase.passes));
+            passesProperty = passesDictProeprty.FindPropertyRelative("values");
+            
             UpdateEditorList();
         }
 
@@ -98,7 +103,14 @@ namespace HN.HNRP.Editor
             ClearEditorList();
             for (int i = 0; i < passesProperty.arraySize; i++)
             {
-                editors.Add(CreateEditor(passesProperty.GetArrayElementAtIndex(i).objectReferenceValue));
+                var obj = passesProperty.GetArrayElementAtIndex(i).objectReferenceValue;
+                if(obj == null)
+                    continue;
+                var editor = CreateEditor(obj);
+                if(editor == null)
+                    continue;
+                
+                editors.Add(editor);
             }
         }
 
