@@ -31,10 +31,15 @@ namespace HN.HNRP
             var itemRanges = new NativeArray<InclusiveRange>(itemsPerTile, Allocator.Temp);
 
             // Compact the light ranges for the current row.
+            var rangesPerTile = rangesPerItem * itemsPerTile;
+            var tileBaseRangeIndex = jobIndex * rangesPerTile;
             for (var itemIndex = 0; itemIndex < itemsPerTile; itemIndex++)
             {
-                var range = tileRanges[rangesPerItem * itemsPerTile + itemIndex * rangesPerItem + 1 + rowIndex];
-                if (!range.isEmpty)
+                var idx = tileBaseRangeIndex + itemIndex * rangesPerItem + 1 + rowIndex;
+                if (idx < 0 || idx >= tileRanges.Length)
+                    continue;
+                var range = tileRanges[idx];
+                if (!range.isEmpty && compactCount < itemsPerTile)
                 {
                     itemIndices[compactCount] = (short)itemIndex;
                     itemRanges[compactCount] = range;
