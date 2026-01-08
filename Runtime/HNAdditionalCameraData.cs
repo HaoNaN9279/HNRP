@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
+    [AddComponentMenu("")]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
     [ExecuteAlways]
@@ -171,6 +172,7 @@ namespace HN.HNRP
         public Frustum frustum = default;
         public Vector4[] frustumPlaneEquations;
 
+        [SerializeField]
         private Camera builtinCamera;
 
         [SerializeField]

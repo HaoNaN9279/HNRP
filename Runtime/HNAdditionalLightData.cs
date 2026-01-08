@@ -5,6 +5,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
+    [AddComponentMenu("")]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Light))]
     [ExecuteAlways]
@@ -52,6 +53,7 @@ namespace HN.HNRP
         }
 
 
+        [SerializeField]
         private Light builtinLight;
 
         [SerializeField]
