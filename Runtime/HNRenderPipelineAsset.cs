@@ -12,11 +12,11 @@ namespace HN.HNRP
         public HNRenderPipelineAsset()
         {
 #if UNITY_EDITOR
-            sceneViewRenderGraphViews = new SceneViewRenderGraphViewBlock();
-            previewRenderGraphViews = new PreviewRenderGraphViewBlock();
+            sceneViewRenderGraphViewBlock = new SceneViewRenderGraphViewBlock();
+            previewRenderGraphViewBlock = new PreviewRenderGraphViewBlock();
 #endif
-            gameViewRenderGraphViews = new GameViewRenderGraphViewBlock();
-            reflectionRenderGraphViews = new ReflectionRenderGraphViewBlock();
+            gameViewRenderGraphViewBlock = new GameViewRenderGraphViewBlock();
+            reflectionRenderGraphViewBlock = new ReflectionRenderGraphViewBlock();
         }
 
         protected override RenderPipeline CreatePipeline()
@@ -27,17 +27,17 @@ namespace HN.HNRP
 
 #if UNITY_EDITOR
         [SerializeField]
-        public SceneViewRenderGraphViewBlock sceneViewRenderGraphViews;
+        public SceneViewRenderGraphViewBlock sceneViewRenderGraphViewBlock;
 
         [SerializeField]
-        public PreviewRenderGraphViewBlock previewRenderGraphViews;
+        public PreviewRenderGraphViewBlock previewRenderGraphViewBlock;
 #endif
 
         [SerializeField]
-        public GameViewRenderGraphViewBlock gameViewRenderGraphViews;
+        public GameViewRenderGraphViewBlock gameViewRenderGraphViewBlock;
 
         [SerializeField]
-        public ReflectionRenderGraphViewBlock reflectionRenderGraphViews;
+        public ReflectionRenderGraphViewBlock reflectionRenderGraphViewBlock;
 
 
         public override string[] renderingLayerMaskNames => globalSettings.RenderingLayerNames;

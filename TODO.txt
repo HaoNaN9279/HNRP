@@ -1,7 +1,7 @@
 reflection probe
 
 绘制Gizmos
-preview
+自定义preview https://gwb.tencent.com/community/detail/115720
 Lit材质支持Specular工作流
 材质清理功能
 自定义PBL光照面板

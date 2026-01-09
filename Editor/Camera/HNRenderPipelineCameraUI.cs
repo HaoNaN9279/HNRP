@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Rendering;
@@ -40,10 +41,12 @@ namespace HN.HNRP.Editor
 
         private static void DrawRenderGraphView(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
         {
-            if(owner is HNRenderPipelineCameraEditor cameraEditor)
-            {
-                cameraEditor.DrawRenderGraphView();
-            }
+            var asset = HNRenderPipeline.Asset;
+            if(asset == null)
+                return;
+            
+            var viewNames = asset.reflectionRenderGraphViewBlock.renderGraphViews.Keys.ToArray();
+            p.renderGraphViewIndex.intValue = EditorGUILayout.Popup("Render Graph View", p.renderGraphViewIndex.intValue, viewNames);
         }
 #endregion
 

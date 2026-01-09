@@ -6,8 +6,36 @@ using UnityEngine;
 namespace HN.HNRP
 {
     [Serializable]
-    public class RenderGraphView : HNDictionary<string, HNRenderGraphBase>
+    public class RenderGraphViews : HNDictionary<string, HNRenderGraphBase>
     {
 
+    }
+
+
+    [Serializable]
+    public class SceneViewRenderGraphViews : RenderGraphViews
+    {
+        
+    }
+
+
+    [Serializable]
+    public class PreviewRenderGraphViews : RenderGraphViews
+    {
+        
+    }
+
+
+    [Serializable]
+    public class GameViewRenderGraphViews : RenderGraphViews
+    {
+        
+    }
+
+
+    [Serializable]
+    public class ReflectionRenderGraphViews : RenderGraphViews
+    {
+        
     }
 }

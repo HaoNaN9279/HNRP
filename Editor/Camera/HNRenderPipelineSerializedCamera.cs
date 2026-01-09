@@ -37,6 +37,7 @@ namespace HN.HNRP.Editor
             clearDepth = serializedAdditionalDataObject.FindProperty("clearDepth");
 
             //HNRP specific properties
+            renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
         }
 
         public void Apply()
@@ -60,29 +61,22 @@ namespace HN.HNRP.Editor
         
 
         public SerializedObject serializedObject { get; }
-
         public SerializedObject serializedAdditionalDataObject { get; }
 
         public CameraEditor.Settings baseCameraSettings { get; }
-
 
         public SerializedProperty projectionMatrixMode { get; }
 
         // Common properties
         public SerializedProperty dithering { get; }
-
         public SerializedProperty stopNaNs { get; }
-
         public SerializedProperty allowDynamicResolution { get; }
-
         public SerializedProperty volumeLayerMask { get; }
-
         public SerializedProperty clearDepth { get; }
-
         public SerializedProperty antialiasing { get; }
 
         // HNRP specific properties
-
+        public SerializedProperty renderGraphViewIndex { get; }
 
     }
 }

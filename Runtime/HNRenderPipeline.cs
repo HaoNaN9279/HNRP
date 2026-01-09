@@ -79,37 +79,13 @@ namespace HN.HNRP
             {
                 var cameraData = camera.GetHNRPAdditionalCameraData();
 
-                HNRenderGraphBase graphObject = null;
-                RenderGraphViewBlock block = null;
-                if(camera.cameraType == CameraType.Game)
-                {
-                    block = Asset.gameViewRenderGraphViews;
-                    graphObject = block.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
-                }
-                else
-                {
-                    if(camera.cameraType == CameraType.SceneView)
-                    {
-                        block = Asset.sceneViewRenderGraphViews;
-                    }
-                    else if(camera.cameraType == CameraType.Preview)
-                    {
-                        block = Asset.previewRenderGraphViews;
-                    }
-                    else if(camera.cameraType == CameraType.Reflection)
-                    {
-                        block = Asset.reflectionRenderGraphViews;
-                    }
-
-                    if(block == null)
-                        return;
-                    
-                    graphObject = block.GetRenderGraphObject();
-                }
-                
+                HNRenderGraphBase graphObject = GetRenderGraphObject(camera, cameraData);
                 if(graphObject == null)
                     return;
-
+                if(camera.cameraType == CameraType.Reflection)
+                {
+                    Debug.Log($"Reflection RenderPipeline:{graphObject.name}");
+                }
                 CommandBuffer cmd = CommandBufferPool.Get($"RenderRequest_{camera.name}_cmd");
                 RenderTargetIdentifier targetId = camera.targetTexture ?? new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget);
                 // RenderTargetIdentifier targetId = camera.targetTexture != null ? new RenderTargetIdentifier(camera.targetTexture) : BuiltinRenderTextureType.CameraTarget;
@@ -154,6 +130,33 @@ namespace HN.HNRP
         {
             renderGraph.Cleanup();
             renderGraph = null;
+        }
+
+        private HNRenderGraphBase GetRenderGraphObject(Camera camera, HNAdditionalCameraData cameraData)
+        {
+            RenderGraphViewBlock block = null;
+            if(camera.cameraType == CameraType.Game)
+            {
+                block = Asset.gameViewRenderGraphViewBlock;
+            }
+            else if(camera.cameraType == CameraType.Reflection)
+            {
+                block = Asset.reflectionRenderGraphViewBlock;
+            }
+            else if(camera.cameraType == CameraType.SceneView)
+            {
+                block = Asset.sceneViewRenderGraphViewBlock;
+            }
+            else if(camera.cameraType == CameraType.Preview)
+            {
+                block = Asset.previewRenderGraphViewBlock;
+            }
+
+            if(block == null)
+            {
+                return null;
+            }
+            return block.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
         }
 
 

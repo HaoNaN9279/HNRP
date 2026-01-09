@@ -98,7 +98,6 @@ namespace HN.HNRP.Editor
         {
             ReflectionProbe reflectionProbe = (ReflectionProbe)owner.target;
 
-            EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(p.boxProjection, Styles.boxProjectionText);
             EditorGUILayout.PropertyField(p.blendDistance, Styles.blendDistanceText);
             EditorGUI.BeginChangeCheck();
@@ -114,7 +113,6 @@ namespace HN.HNRP.Editor
                     p.boxSize.vector3Value = size;
                 }
             }
-            EditorGUI.indentLevel--;
         }
 
 
@@ -130,7 +128,6 @@ namespace HN.HNRP.Editor
 
         private static void DrawCaptureSettings(HNRenderPipelineSerializedReflectionProbe p, UnityEditor.Editor owner)
         {
-            EditorGUI.indentLevel++;
             EditorGUILayout.IntPopup(p.clearFlag, Styles.clearFlagsOptionsText, Styles.clearFlagsValues, Styles.clearFlagsText);
             EditorGUILayout.PropertyField(p.backGroundColor, Styles.backgroundColorText);
             EditorGUILayout.PropertyField(p.occlusionCulling, Styles.occlusionCullingText);
@@ -140,9 +137,7 @@ namespace HN.HNRP.Editor
                 p.nearAndFarClipingPlanes,
                 Styles.clippingPlanesText
             );
-            EditorGUILayout.PropertyField(p.resolution, Styles.resolutionText);
-            EditorGUILayout.PropertyField(p.hdr, Styles.hdrText);
-            EditorGUI.indentLevel--;
+            EditorGUILayout.IntPopup(p.resolution, Styles.resolutionOptionsText, Styles.resolutionValues, Styles.resolutionText);
         }
 
 
@@ -158,7 +153,12 @@ namespace HN.HNRP.Editor
 
         private static void DrawRenderSettings(HNRenderPipelineSerializedReflectionProbe p, UnityEditor.Editor owner)
         {
-            EditorGUI.indentLevel++;
+            var asset = HNRenderPipeline.Asset;
+            if(asset == null)
+                return;
+
+            var viewNames = asset.reflectionRenderGraphViewBlock.renderGraphViews.Keys.ToArray();
+            p.renderGraphViewIndex.intValue = EditorGUILayout.Popup("Render Graph View", p.renderGraphViewIndex.intValue, viewNames);
             EditorGUILayout.PropertyField(p.importance, Styles.importanceText);
             EditorGUILayout.PropertyField(p.intensity, Styles.intensityText);
 
@@ -176,7 +176,6 @@ namespace HN.HNRP.Editor
             }
             DoBakeButton(p, owner);
 
-            EditorGUI.indentLevel--;
         }
 
 
@@ -274,19 +273,19 @@ namespace HN.HNRP.Editor
                     {
                         if((int)data == 0)
                         {
-                            RenderInCustomAsset(reflectionProbe, false);
+                            RenderWithCustomMode(reflectionProbe, false);
                             return;
                         }
                     })
                 )
                 {
-                    RenderInCustomAsset(reflectionProbe, true);
+                    RenderWithCustomMode(reflectionProbe, true);
                 }
             }
             else if(mode == ReflectionProbeMode.Baked)
             {
-                if (UnityEditor.Lightmapping.giWorkflowMode
-                    != UnityEditor.Lightmapping.GIWorkflowMode.OnDemand)
+                if (Lightmapping.giWorkflowMode
+                    != Lightmapping.GIWorkflowMode.OnDemand)
                 {
                     EditorGUILayout.HelpBox("Baking of this probe is automatic because this probe's type is 'Baked' and the Lighting window is using 'Auto Baking'. The texture created is stored in the GI cache.", MessageType.Info);
                     return;
@@ -300,14 +299,14 @@ namespace HN.HNRP.Editor
                     {
                         if((int)data == 0)
                         {
-                            var system = ScriptableBakedReflectionSystemSettings.system;
-                            system.BakeAllReflectionProbes();
+                            RenderWithBakedMode(reflectionProbe);
+                            return;
                         }
                     },
                     GUILayout.ExpandWidth(true)
                 ))
                 {
-                    GUIUtility.ExitGUI();
+                    RenderWithBakedMode(reflectionProbe);
                 }
                 GUI.enabled = true;
             }
@@ -324,7 +323,7 @@ namespace HN.HNRP.Editor
             return (bool)k_EditorGUI_ButtonWithDropdownList.Invoke(null, new object[] { content, buttonNames, callback, options });
         }
 
-        private static void RenderInCustomAsset(ReflectionProbe probe, bool usePreviousAssetPath)
+        private static void RenderWithCustomMode(ReflectionProbe probe, bool usePreviousAssetPath)
         {
             string text = "";
             if (usePreviousAssetPath)
@@ -332,7 +331,7 @@ namespace HN.HNRP.Editor
                 text = AssetDatabase.GetAssetPath(probe.customBakedTexture);
             }
 
-            string text2 = (probe.hdr ? "exr" : "png");
+            string text2 = "exr";
             if (string.IsNullOrEmpty(text) || Path.GetExtension(text) != "." + text2)
             {
                 string text3 = GetPathWithoutExtension(SceneManager.GetActiveScene().path);
@@ -345,7 +344,7 @@ namespace HN.HNRP.Editor
                     Directory.CreateDirectory(text3);
                 }
 
-                string path = probe.name + (probe.hdr ? "-reflectionHDR" : "-reflection") + "." + text2;
+                string path = probe.name + "-reflection" + "." + text2;
                 path = Path.GetFileNameWithoutExtension(AssetDatabase.GenerateUniqueAssetPath(Path.Combine(text3, path)));
                 text = EditorUtility.SaveFilePanelInProject("Save reflection probe's cubemap.", path, text2, "", text3);
                 if (string.IsNullOrEmpty(text) || (IsCollidingWithOtherProbes(text, probe, out var collidingProbe) && !EditorUtility.DisplayDialog("Cubemap is used by other reflection probe", $"'{text}' path is used by the game object '{collidingProbe.name}', do you really want to overwrite it?", "Yes", "No")))
@@ -361,6 +360,40 @@ namespace HN.HNRP.Editor
             }
 
             EditorUtility.ClearProgressBar();
+        }
+
+        private static void RenderWithBakedMode(ReflectionProbe probe)
+        {
+            var scene = probe.gameObject.scene;
+            // Debug.Log("probe.RenderProbe()");
+            // probe.RenderProbe();
+
+            var go = new GameObject();
+            var camera = go.AddComponent<Camera>();
+            camera.cameraType = CameraType.Reflection;
+            var cameraData = camera.GetHNRPAdditionalCameraData();
+            cameraData.RenderGraphViewIndex = 0;
+            GameObject.Instantiate(go, scene);
+            RenderTexture rt = new RenderTexture(new RenderTextureDescriptor(128, 128, UnityEngine.RenderTextureFormat.RGB111110Float, 32));
+            rt.dimension = TextureDimension.Cube;
+            camera.targetTexture = rt;
+            camera.Render();
+            rt.Release();
+            GameObject.DestroyImmediate(go);
+
+            // string cacheDirectoryName = Path.GetFileNameWithoutExtension(scene.path);
+            // string cacheDirectory = Path.Combine(Path.GetDirectoryName(scene.path), cacheDirectoryName);
+            // int index = 0;
+            // while(AssetDatabase.FindAssets($"ReflectionProbe-{index}.exr").Length > 0)
+            // {
+            //     index++;
+            // }
+            // string targetFile = Path.Combine(cacheDirectory, string.Format("{0}-{1}.exr", "ReflectionProbe", index));
+            
+            // if (!Lightmapping.BakeReflectionProbe(probe, targetFile))
+            // {
+            //     Debug.LogError("Failed to bake reflection probe to " + targetFile);
+            // }
         }
 
         private static bool IsCollidingWithOtherProbes(string targetPath, ReflectionProbe targetProbe, out ReflectionProbe collidingProbe)
@@ -466,7 +499,16 @@ namespace HN.HNRP.Editor
                 EditorGUIUtility.TrTextContent("Far")
             };
             public static GUIContent resolutionText = EditorGUIUtility.TrTextContent("Resolution", "The resolution of the cubemap.");
-            public static GUIContent hdrText = EditorGUIUtility.TrTextContent("HDR", "Enable High Dynamic Range rendering.");
+            public static int[] resolutionValues = new int[6] { 128, 256, 512, 1024, 2048, 4096 };
+            public static GUIContent[] resolutionOptionsText = new[]
+            {
+                EditorGUIUtility.TrTextContent("Resolution: 128"),
+                EditorGUIUtility.TrTextContent("Resolution: 256"),
+                EditorGUIUtility.TrTextContent("Resolution: 512"),
+                EditorGUIUtility.TrTextContent("Resolution: 1024"),
+                EditorGUIUtility.TrTextContent("Resolution: 2048"),
+                EditorGUIUtility.TrTextContent("Resolution: 4096"),
+            };
 
             public static GUIContent renderSettingsHeader = EditorGUIUtility.TrTextContent("Render Settings");
             public static GUIContent importanceText = EditorGUIUtility.TrTextContent("Importance", "When reflection probes overlap, Unity uses Importance to determine which probe should take priority.");

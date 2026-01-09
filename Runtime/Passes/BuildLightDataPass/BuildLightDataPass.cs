@@ -54,12 +54,11 @@ namespace HN.HNRP
                     lightDatas = lightDatas,
                 };
                 var createLightDataHandle = createLightDataJob.ScheduleParallel(lightCount, 1, new JobHandle());
-
+                createLightDataHandle.Complete();
+                
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        createLightDataHandle.Complete();
-
                         ctx.cmd.SetBufferData(passData.lightDataBuffer, lightDatas);
                     }
                 );

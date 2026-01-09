@@ -42,7 +42,7 @@ namespace HN.HNRP
 
         public override void RecordRenderGraph()
         {
-            Debug.Log("Standard RenderGraph Record Called.");
+            // Debug.Log("Standard RenderGraph Record Called.");
 
             if (passes == null || passes.Count == 0)
             {
@@ -69,7 +69,7 @@ namespace HN.HNRP
 
         public override void EndRecordRenderGraph()
         {
-            Debug.Log("Standard RenderGraph End Record Called.");
+            // Debug.Log("Standard RenderGraph End Record Called.");
 
             if (passes == null || passes.Count == 0)
             {

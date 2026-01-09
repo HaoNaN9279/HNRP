@@ -43,26 +43,6 @@ namespace HN.HNRP.Editor
             Undo.undoRedoPerformed -= ReconstructReferenceToAdditionalDataSO;
         }
 
-        public void DrawRenderGraphView()
-        {
-            var asset = HNRenderPipeline.Asset;
-            if (asset == null)
-                return;
-
-            var cameraData = camera.GetComponent<HNAdditionalCameraData>();
-            if (cameraData == null)
-                return;
-
-            var viewNames = asset.gameViewRenderGraphViews.RenderGraphViews.Keys.ToArray();
-            renderGraphViewSelectedIndex = EditorGUILayout.Popup("Render Graph View", renderGraphViewSelectedIndex, viewNames);
-            if (renderGraphViewSelectedIndex != cameraData.RenderGraphViewIndex)
-            {
-                cameraData.RenderGraphViewIndex = renderGraphViewSelectedIndex;
-                EditorUtility.SetDirty(camera);
-                serializedCamera.Apply();
-            }
-        }
-
 
         private void ReconstructReferenceToAdditionalDataSO()
         {
@@ -73,9 +53,6 @@ namespace HN.HNRP.Editor
 
         private Camera camera => target as Camera;
         private HNRenderPipelineSerializedCamera serializedCamera;
-
-
-        private int renderGraphViewSelectedIndex = 0;
         
 
     }

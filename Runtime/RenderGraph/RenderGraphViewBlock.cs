@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace HN.HNRP
 {
-    [Serializable]
     public abstract class RenderGraphViewBlock
     {
         public bool ContainsView(string viewName)
@@ -25,8 +24,6 @@ namespace HN.HNRP
             renderGraphViews.Add(viewName, null);
         }
 
-        public abstract HNRenderGraphBase GetRenderGraphObject();
-
         public HNRenderGraphBase GetRenderGraphObject(int index)
         {
             if (index >= renderGraphViews.Count)
@@ -44,12 +41,10 @@ namespace HN.HNRP
         }
 
 
-        public RenderGraphView RenderGraphViews => renderGraphViews;
-
         public abstract RenderGraphViewType ViewType { get; }
 
         [SerializeField]
-        protected RenderGraphView renderGraphViews;
+        public RenderGraphViews renderGraphViews;
 
 
 

@@ -37,6 +37,20 @@ namespace HN.HNRP
 
         [SerializeField]
         private ReflectionProbe builtinReflectionProbe;
+
+        [SerializeField]
+        private int renderGraphViewIndex = 0;
+    }
+
+
+    public enum ReflectionProbeResolution
+    {
+        Res128 = 128,
+        Res256 = 256,
+        Res512 = 512,
+        Res1024 = 1024,
+        Res2048 = 2048,
+        Res4096 = 4096,
     }
 
 

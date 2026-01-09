@@ -10,14 +10,8 @@ namespace HN.HNRP
     {
         public SceneViewRenderGraphViewBlock()
         {
-            renderGraphViews = new RenderGraphView();
+            renderGraphViews = new SceneViewRenderGraphViews();
             CreateView(defaultSceneViewName);
-        }
-
-        public override HNRenderGraphBase GetRenderGraphObject()
-        {
-            //TODO:不同渲染模式下切换不同的scene view graph
-            return renderGraphViews[defaultSceneViewName];
         }
 
 
@@ -32,14 +26,8 @@ namespace HN.HNRP
     {
         public PreviewRenderGraphViewBlock()
         {
-            renderGraphViews = new RenderGraphView();
+            renderGraphViews = new PreviewRenderGraphViews();
             CreateView(defaultPreviewViewName);
-        }
-
-        public override HNRenderGraphBase GetRenderGraphObject()
-        {
-            //TODO:切换不同的preview graph
-            return renderGraphViews[defaultPreviewViewName];
         }
 
 

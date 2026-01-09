@@ -10,14 +10,10 @@ namespace HN.HNRP
     {
         public GameViewRenderGraphViewBlock()
         {
-            renderGraphViews = new RenderGraphView();
+            renderGraphViews = new GameViewRenderGraphViews();
             CreateView(DefaultGameViewName);
         }
 
-        public override HNRenderGraphBase GetRenderGraphObject()
-        {
-            return renderGraphViews[DefaultGameViewName];
-        }
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.MainGameView;
 
@@ -30,14 +26,10 @@ namespace HN.HNRP
     {
         public ReflectionRenderGraphViewBlock()
         {
-            renderGraphViews = new RenderGraphView();
+            renderGraphViews = new ReflectionRenderGraphViews();
             CreateView(DefaultReflectionViewName);
         }
 
-        public override HNRenderGraphBase GetRenderGraphObject()
-        {
-            return renderGraphViews[DefaultReflectionViewName];
-        }
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.Reflection;
 
