@@ -14,7 +14,10 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             base.Cleanup();
-            reflectionProbes.Dispose(); 
+            if(reflectionProbes.IsCreated)
+            {
+                reflectionProbes.Dispose();
+            }
         }
 
         public void PrepareLightData(ref RenderingData renderingData)

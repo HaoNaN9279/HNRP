@@ -68,6 +68,7 @@ namespace HN.HNRP
             Graphics.SetRenderTarget(null);
 
             CleanupRenderGraph();
+            ConstantBuffer.ReleaseAll();
         }
 
 

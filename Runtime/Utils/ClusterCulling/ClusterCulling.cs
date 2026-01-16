@@ -11,14 +11,30 @@ namespace HN.HNRP
     {
         public virtual void Initialize()
         {
-            zBins = new NativeArray<uint>(maxZBinWords, Allocator.Persistent);
+            Cleanup();
+            
+            zBins = new NativeArray<uint>(maxZBinWords, Allocator.Persistent); 
             tileMasks = new NativeArray<uint>(maxTileWords, Allocator.Persistent); 
         }
 
         public virtual void Cleanup()
         {
-            zBins.Dispose();
-            tileMasks.Dispose();
+            if (zBins.IsCreated) 
+            {
+                zBins.Dispose();
+            }
+            if (tileMasks.IsCreated)
+            {
+                tileMasks.Dispose();
+            }
+            if (minMaxZs.IsCreated)
+            {
+                minMaxZs.Dispose();
+            }
+            if (tileRanges.IsCreated)
+            {
+                tileRanges.Dispose();
+            }
         }
 
         protected void PrepareData(Camera camera, int itemsPerTile, int itemsGroupCount)

@@ -46,6 +46,7 @@ namespace HN.HNRP
             {
                 if (pass != null)
                 {
+                    pass.Dispose();
                     DestroyImmediate(pass, true);
                 }
             }
