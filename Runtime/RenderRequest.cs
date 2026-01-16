@@ -65,6 +65,8 @@ namespace HN.HNRP
                 return;
             }
 
+            renderCount++;
+
             using (renderGraph.RecordAndExecute(new RenderGraphParameters
             {
                 executionName = "execution_" + renderingData.Camera.name,
@@ -83,9 +85,11 @@ namespace HN.HNRP
 
         private void InitializeRenderingData(CullingResults cullingResults)
         {
-            var visibleLights = cullingResults.visibleLights;
+            renderingData.visibleLights = cullingResults.visibleLights;
 
-            renderingData.visibleLights = visibleLights;
+            renderingData.visibleReflectionProbes = cullingResults.visibleReflectionProbes;
+            int reflectionProbeCount = renderingData.visibleReflectionProbes.Length;
+            HNRenderPipelineUtils.FilterReflectionProbe(ref renderingData.visibleReflectionProbes, reflectionProbeCount);
         }
 
         private void UpdateGlobalTexture(CommandBuffer cmd)
@@ -102,6 +106,7 @@ namespace HN.HNRP
             UpdateLightGlobalConstantBuffer(ref globalConstantBuffer);
 
             ConstantBuffer.PushGlobal(cmd, globalConstantBuffer, GlobalPropertyIDs.ShaderVariablesGlobal);
+            
         }
 
         private void UpdateGlobalKeywords(RenderingData renderingData)
@@ -206,6 +211,7 @@ namespace HN.HNRP
         private ScriptableRenderContext context;
         private RenderGraph renderGraph;
         private RenderingData renderingData;
+        private int renderCount = 0;
 
         private GlobalConstantBuffer globalConstantBuffer = default;
 

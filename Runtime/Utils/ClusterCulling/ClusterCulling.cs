@@ -12,7 +12,7 @@ namespace HN.HNRP
         public virtual void Initialize()
         {
             zBins = new NativeArray<uint>(maxZBinWords, Allocator.Persistent);
-            tileMasks = new NativeArray<uint>(maxTileWords, Allocator.Persistent);
+            tileMasks = new NativeArray<uint>(maxTileWords, Allocator.Persistent); 
         }
 
         public virtual void Cleanup()

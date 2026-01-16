@@ -23,7 +23,6 @@ namespace HN.HNRP
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
             Connect(forwardPlusLightCullingPass.forwardPlusZBinsBufferIndex, ref forwardOpaquePass.forwardPlusZBinsBufferIndex);
             Connect(forwardPlusLightCullingPass.forwardPlusTileMasksBufferIndex, ref forwardOpaquePass.forwardPlusTileMasksBufferIndex);
-            Connect(buildLightDataPass.lightDatasBufferIndex, ref forwardOpaquePass.lightDatasBufferIndex);
 
             BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
             Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);
@@ -37,7 +36,7 @@ namespace HN.HNRP
             Connect(transparencyPass.colorTargetIndex, ref editorWireOverlayPass.colorTargetIndex);
 
             RenderOutput renderOutput = AddPass<RenderOutput>("Final Blit");
-            Connect(editorWireOverlayPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
+            Connect(transparencyPass.colorTargetIndex, ref renderOutput.colorTargetIndex);
         }
 
         public override void RecordRenderGraph()

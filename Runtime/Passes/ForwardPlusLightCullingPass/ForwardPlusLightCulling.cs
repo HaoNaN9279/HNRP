@@ -14,7 +14,7 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             base.Cleanup();
-            
+            reflectionProbes.Dispose(); 
         }
 
         public void PrepareLightData(ref RenderingData renderingData)
@@ -35,10 +35,9 @@ namespace HN.HNRP
             }
 
             visibleLights = renderingData.visibleLights.GetSubArray(lightOffset, lightCount);
-            reflectionProbes = renderingData.CullingResults.visibleReflectionProbes;
+            reflectionProbes = new NativeArray<VisibleReflectionProbe>(renderingData.catchedReflectionProbeData.probe, Allocator.TempJob);
             reflectionProbeCount = reflectionProbes.Length;
             itemsPerTile = visibleLights.Length + reflectionProbeCount;
-            FilterReflectionProbe(ref reflectionProbes, reflectionProbeCount);
 
             itemsGroupCount = ITEMS_GROUP_COUNT;
 
@@ -107,7 +106,7 @@ namespace HN.HNRP
             };
             var tileRangeExpansionHandle = tileRangeExpansionJob.ScheduleParallel(tileResolution.y, 1, tilingHandle);
 
-            cullingHandle = JobHandle.CombineDependencies(minMaxZs.Dispose(zBinningHandle), tileRanges.Dispose(tileRangeExpansionHandle));
+            cullingHandle = JobHandle.CombineDependencies(minMaxZs.Dispose(zBinningHandle), tileRanges.Dispose(tileRangeExpansionHandle), reflectionProbes.Dispose(tilingHandle));
             JobHandle.ScheduleBatchedJobs();
 
             params0 = math.float4(zBinScale, zBinOffset, lightCount, directionalLightCount);
@@ -116,26 +115,6 @@ namespace HN.HNRP
         }
 
 
-        private bool IsProbeGreater(VisibleReflectionProbe probe, VisibleReflectionProbe otherProbe)
-        {
-            return probe.importance < otherProbe.importance ||
-                (probe.importance == otherProbe.importance && probe.bounds.extents.sqrMagnitude > otherProbe.bounds.extents.sqrMagnitude);
-        }
-
-        private void FilterReflectionProbe(ref NativeArray<VisibleReflectionProbe> reflectionProbes, int reflectionProbeCount)
-        {
-            for(int i = 1; i < reflectionProbeCount; i++)
-            {
-                var probe = reflectionProbes[i];
-                var j = i - 1;
-                while (j >= 0 && IsProbeGreater(reflectionProbes[j], probe))
-                {
-                    reflectionProbes[j + 1] = reflectionProbes[j];
-                    j--;
-                }
-                reflectionProbes[j + 1] = probe;
-            }
-        }
 
 
         public JobHandle cullingHandle = default;

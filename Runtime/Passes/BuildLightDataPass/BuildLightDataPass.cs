@@ -19,8 +19,6 @@ namespace HN.HNRP
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
-
-            lightDatasBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
@@ -29,15 +27,14 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                passData.lightDataBuffer = renderGraph.CreateComputeBuffer(
+                passData.lightDatasBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN, 
                         UnsafeUtility.SizeOf<LightData>()
                     ){ name = "Light Data Buffer" }
                 );
-                renderingData.GraphData.computeBufferHandles.Add(passData.lightDataBuffer);
                 
-                builder.WriteComputeBuffer(passData.lightDataBuffer);
+                builder.WriteComputeBuffer(passData.lightDatasBuffer);
 
                 int lightCount = math.min(renderingData.visibleLights.Length, HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
 
@@ -54,12 +51,13 @@ namespace HN.HNRP
                     lightDatas = lightDatas,
                 };
                 var createLightDataHandle = createLightDataJob.ScheduleParallel(lightCount, 1, new JobHandle());
-                createLightDataHandle.Complete();
                 
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        ctx.cmd.SetBufferData(passData.lightDataBuffer, lightDatas);
+                        createLightDataHandle.Complete();
+                        ctx.cmd.SetBufferData(passData.lightDatasBuffer, lightDatas);
+                        ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDatasBuffer, passData.lightDatasBuffer);
                     }
                 );
             }
@@ -80,9 +78,6 @@ namespace HN.HNRP
         }
 
 
-        [SerializeField]
-        public int lightDatasBufferIndex = -1;
-
         private CreateLightDataJob createLightDataJob;
         private NativeArray<LightData> lightDatas;
 
@@ -92,9 +87,13 @@ namespace HN.HNRP
 
         public class BuildLightDataPassData
         {
-            public ComputeBufferHandle lightDataBuffer;
+            public ComputeBufferHandle lightDatasBuffer;
         }
 
 
+        public static class PropertyIDs
+        {
+            public static readonly int lightDatasBuffer = Shader.PropertyToID("_LightDatas");
+        }
     }
 }

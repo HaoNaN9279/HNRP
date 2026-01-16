@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using PlasticPipe.PlasticProtocol.Messages;
 using Unity.VisualScripting;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Experimental.Rendering;
@@ -18,7 +20,10 @@ namespace HN.HNRP
             GraphicsSettings.lightsUseColorTemperature = true;
             GraphicsSettings.defaultRenderingLayerMask = defaultRenderingLayerMask;
             GraphicsSettings.useScriptableRenderPipelineBatching = true;
-            renderRequests = new List<RenderRequest>();
+            sceneViewRenderRequests = new List<RenderRequest>();
+            previewRenderRequests = new List<RenderRequest>();
+            reflectionRenderRequests = new List<RenderRequest>();
+            gameViewRenderRequests = new List<RenderRequest>();
 
             RTHandles.Initialize(Screen.width, Screen.height);
         }
@@ -44,7 +49,10 @@ namespace HN.HNRP
 
             PrepareRenderRequests(context, cameras);
 
-            ExecuteRenderRequests();
+            ExecuteRenderRequests(sceneViewRenderRequests);
+            ExecuteRenderRequests(previewRenderRequests);
+            ExecuteRenderRequests(reflectionRenderRequests);
+            ExecuteRenderRequests(gameViewRenderRequests);
 
             context.Submit();
 
@@ -73,7 +81,10 @@ namespace HN.HNRP
 
         private void PrepareRenderRequests(ScriptableRenderContext context, List<Camera> cameras)
         {
-            renderRequests.Clear();
+            sceneViewRenderRequests.Clear();
+            previewRenderRequests.Clear();
+            reflectionRenderRequests.Clear();
+            gameViewRenderRequests.Clear();
 
             foreach (Camera camera in cameras)
             {
@@ -100,11 +111,12 @@ namespace HN.HNRP
                 renderingData.TargetId = targetId;
                 renderingData.runtimeResources = Asset.runtimeResources;
                 renderingData.GraphObject = graphObject;
-                renderRequests.Add(new RenderRequest(context, renderGraph, ref renderingData));
+                renderingData.catchedReflectionProbeData = new CatchedReflectionProbeData(HNRenderPipelineAsset.MAX_REFLECTION_PROBES_ON_SCREEN);
+                AddRenderRequests(camera, context, renderGraph, ref renderingData);
             }
         }
 
-        private void ExecuteRenderRequests()
+        private void ExecuteRenderRequests(List<RenderRequest> renderRequests)
         {
             foreach (var request in renderRequests)
             {
@@ -159,6 +171,28 @@ namespace HN.HNRP
             return block.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
         }
 
+        private void AddRenderRequests(Camera camera, ScriptableRenderContext context, RenderGraph renderGraph, ref RenderingData renderingData)
+        {
+            var renderRequest = new RenderRequest(context, renderGraph, ref renderingData);
+            
+            if(camera.cameraType == CameraType.SceneView)
+            {
+                sceneViewRenderRequests.Add(renderRequest);
+            }
+            else if(camera.cameraType == CameraType.Preview)
+            {
+                previewRenderRequests.Add(renderRequest);
+            }
+            else if(camera.cameraType == CameraType.Reflection)
+            {
+                reflectionRenderRequests.Add(renderRequest);
+            }
+            else if(camera.cameraType == CameraType.Game)
+            {
+                gameViewRenderRequests.Add(renderRequest);
+            }
+        }
+
 
         public static HNRenderPipelineAsset Asset
         {
@@ -173,7 +207,10 @@ namespace HN.HNRP
         private HNRenderPipelineGlobalSettings globalSettings;
 
         //TODO: pool
-        private List<RenderRequest> renderRequests;
+        private List<RenderRequest> sceneViewRenderRequests;
+        private List<RenderRequest> previewRenderRequests;
+        private List<RenderRequest> reflectionRenderRequests;
+        private List<RenderRequest> gameViewRenderRequests;
 
         private RenderingData renderingData = default;
 

@@ -17,6 +17,8 @@ namespace HN.HNRP
         {
             using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>($"{name}({PassName})", out var passData))
             {
+                builder.AllowRendererListCulling(false);
+                
                 var textureHandles = renderingData.GraphData.textureHandles;
                 var computeBufferHandles = renderingData.GraphData.computeBufferHandles;
 
@@ -29,19 +31,14 @@ namespace HN.HNRP
                 passData.forwardPlusZBinsBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusZBinsBufferIndex]);
                 passData.forwardPlusTileMasksBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusTileMasksBufferIndex]);
 
-                passData.lightDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[lightDatasBufferIndex]);
-
                 RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetOpaqueRendererListDesc(ShaderPassNames.AllForwardNames, renderingData.CullingResults, renderingData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
-                builder.AllowRendererListCulling(false);
 
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
                         ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusZBinsBuffer, PropertyIDs.forwardPlusZBinsBuffer, 0, ClusterCulling.maxZBinWords * 4);
                         ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusTileMasksBuffer, PropertyIDs.forwardPlusTileMasksBuffer, 0, ClusterCulling.maxTileWords * 4);
-                        
-                        ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDataBuffer, passData.lightDatasBuffer);
                         
                         ctx.cmd.DrawRendererList(data.rendererList);
                     }
@@ -98,7 +95,6 @@ namespace HN.HNRP
         {
             public static readonly int forwardPlusZBinsBuffer = Shader.PropertyToID("_ForwardPlusZBinsBuffer");
             public static readonly int forwardPlusTileMasksBuffer = Shader.PropertyToID("_ForwardPlusTileMasksBuffer");
-            public static readonly int lightDataBuffer = Shader.PropertyToID("_LightDatas");
         }
 
     }

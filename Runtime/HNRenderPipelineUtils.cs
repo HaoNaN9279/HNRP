@@ -50,6 +50,27 @@ namespace HN.HNRP
             result = UnsafeUtility.ArrayElementAsRef<VisibleLight>(visibleLights.GetUnsafePtr(), index);
         }
 
+        public static bool IsProbeGreater(VisibleReflectionProbe probe, VisibleReflectionProbe otherProbe)
+        {
+            return probe.importance < otherProbe.importance ||
+                (probe.importance == otherProbe.importance && probe.bounds.extents.sqrMagnitude > otherProbe.bounds.extents.sqrMagnitude);
+        }
+
+        public static void FilterReflectionProbe(ref NativeArray<VisibleReflectionProbe> reflectionProbes, int reflectionProbeCount)
+        {
+            for(int i = 1; i < reflectionProbeCount; i++)
+            {
+                var probe = reflectionProbes[i];
+                var j = i - 1;
+                while (j >= 0 && IsProbeGreater(reflectionProbes[j], probe))
+                {
+                    reflectionProbes[j + 1] = reflectionProbes[j];
+                    j--;
+                }
+                reflectionProbes[j + 1] = probe;
+            }
+        }
+
         public static PerObjectData GetPerObjectLightFlags()
         {
             var configuration =
