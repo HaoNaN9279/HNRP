@@ -126,7 +126,6 @@ namespace HN.HNRP
                 EndCameraRendering(request.Context, renderingData.Camera);
                 request.Context.ExecuteCommandBuffer(renderingData.Cmd);
                 request.Context.Submit();
-                CommandBufferPool.Release(renderingData.Cmd);
 
                 request.EndRecord();
             }

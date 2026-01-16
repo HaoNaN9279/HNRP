@@ -23,15 +23,23 @@ namespace HN.HNRP
         {
             using (var builder = renderGraph.AddRenderPass<ReflectionProbeAtlasPassData>($"{name}({PassName})", out var passData))
             {
+                if(renderingData.Camera.cameraType == CameraType.Reflection)
+                {
+                    return;
+                }
+                
                 builder.AllowPassCulling(false);
 
                 ClearProbesRef();
 
                 var reflectionProbes = renderingData.visibleReflectionProbes;
                 int probeCount = 0;
-                while(probeCount <= reflectionProbes.Length)
+                for(int i = 0; i < reflectionProbes.Length; i++)
                 {
-                    var probe = reflectionProbes[probeCount];
+                    var probe = reflectionProbes[i];
+                    if(probe.texture == null)
+                        continue;
+                    
                     var probeData = probe.reflectionProbe.GetHNAdditionalReflectionProbeData();
                     UpdateProbeRef(probe, probeData);
                     probeCount++;
@@ -45,6 +53,7 @@ namespace HN.HNRP
                 {
                     colorFormat = REFLECTION_PROBE_ATLAS_FORMAT,
                     dimension = REFLECTION_PROBE_ATLAS_DIMENSION,
+                    slices = 18,  // Must be multiple of 6 for cube map arrays (3 * 6 for 16 probes)
                     filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
                     wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE,
                     useMipMap = true,
@@ -98,6 +107,9 @@ namespace HN.HNRP
 
         private void UpdateProbeRef(VisibleReflectionProbe probe, HNAdditionalReflectionProbeData probeData)
         {
+            if(probe.texture == null)
+                return;
+            
             int resolution = probe.texture.width;
             uint probeHash = GetProbeHash(probe, probeData, resolution);
             int index = (int)Math.Log(4096 / resolution, 2);
@@ -123,7 +135,7 @@ namespace HN.HNRP
                 int index = 0;
                 int maxCount = MAX_REFLECTION_PROBES_ON_SCREEN;
                 var hashes = refProbes[i].Keys.ToList();
-                while(refProbes[i].Count > 0 && index < maxCount && offsetMask < maxOffsetMask)
+                while(refProbes[i].Count > 0 && index < hashes.Count && index < maxCount && offsetMask < maxOffsetMask)
                 {
                     int width = 4096 / (i + 1);
                     GetOffset(offsetMask, out int offsetX, out int offsetY);

@@ -273,13 +273,13 @@ namespace HN.HNRP.Editor
                     {
                         if((int)data == 0)
                         {
-                            RenderWithCustomMode(reflectionProbe, false);
+                            RenderWithCustomMode(reflectionProbe);
                             return;
                         }
                     })
                 )
                 {
-                    RenderWithCustomMode(reflectionProbe, true);
+                    RenderWithCustomMode(reflectionProbe);
                 }
             }
             else if(mode == ReflectionProbeMode.Baked)
@@ -323,41 +323,68 @@ namespace HN.HNRP.Editor
             return (bool)k_EditorGUI_ButtonWithDropdownList.Invoke(null, new object[] { content, buttonNames, callback, options });
         }
 
-        private static void RenderWithCustomMode(ReflectionProbe probe, bool usePreviousAssetPath)
+        private static void GetReflectionProbeTexturePath(ReflectionProbe probe, out string textureName, out string extension, out string folderPath, out string fullPath)
         {
-            string text = "";
-            if (usePreviousAssetPath)
+            if(probe.customBakedTexture != null)
             {
-                text = AssetDatabase.GetAssetPath(probe.customBakedTexture);
+                fullPath = AssetDatabase.GetAssetPath(probe.customBakedTexture);
+                extension = Path.GetExtension(fullPath);
+                folderPath = Path.GetDirectoryName(fullPath);
+                textureName = Path.GetFileName(fullPath);
+                return;
             }
 
-            string text2 = "exr";
-            if (string.IsNullOrEmpty(text) || Path.GetExtension(text) != "." + text2)
+            extension = "exr";
+            folderPath = GetPathWithoutExtension(SceneManager.GetActiveScene().path);
+            if (string.IsNullOrEmpty(folderPath))
             {
-                string text3 = GetPathWithoutExtension(SceneManager.GetActiveScene().path);
-                if (string.IsNullOrEmpty(text3))
-                {
-                    text3 = "Assets";
-                }
-                else if (!Directory.Exists(text3))
-                {
-                    Directory.CreateDirectory(text3);
-                }
+                folderPath = "Assets";
+            }
+            else if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
 
-                string path = probe.name + "-reflection" + "." + text2;
-                path = Path.GetFileNameWithoutExtension(AssetDatabase.GenerateUniqueAssetPath(Path.Combine(text3, path)));
-                text = EditorUtility.SaveFilePanelInProject("Save reflection probe's cubemap.", path, text2, "", text3);
-                if (string.IsNullOrEmpty(text) || (IsCollidingWithOtherProbes(text, probe, out var collidingProbe) && !EditorUtility.DisplayDialog("Cubemap is used by other reflection probe", $"'{text}' path is used by the game object '{collidingProbe.name}', do you really want to overwrite it?", "Yes", "No")))
+            textureName = probe.name + "-reflection" + "." + extension;
+            fullPath = folderPath + "/" + textureName;
+        }
+
+        private static void RenderWithCustomMode(ReflectionProbe probe)
+        {
+            if(probe == null)
+                return;
+            
+            // 获取场景同名文件夹路径
+            var scene = probe.gameObject.scene;
+            string folderPath = GetPathWithoutExtension(scene.path);
+            if (string.IsNullOrEmpty(folderPath))
+            {
+                folderPath = "Assets";
+            }
+            else
+            {
+                // 确保文件夹存在
+                if (!Directory.Exists(folderPath))
+                {
+                    Directory.CreateDirectory(folderPath);
+                }
+            }
+
+            string textureName = probe.name + "-reflection.exr";
+            string fullPath = folderPath + "/" + textureName;
+            
+            // 检查文件是否已存在
+            if (File.Exists(fullPath))
+            {
+                if (!EditorUtility.DisplayDialog("File Already Exists", $"The file {textureName} already exists. Do you want to overwrite it?", "Yes", "No"))
                 {
                     return;
                 }
             }
 
-            EditorUtility.DisplayProgressBar("Reflection Probes", "Baking " + text, 0.5f);
-            if (!Lightmapping.BakeReflectionProbe(probe, text))
-            {
-                Debug.LogError("Failed to bake reflection probe to " + text);
-            }
+            EditorUtility.DisplayProgressBar("Reflection Probes", "Baking " + fullPath, 0.5f);
+            RenderTexture rt = BakeReflectionProbe(probe);
+            SaveCubemapToEXR(probe, rt, fullPath);
 
             EditorUtility.ClearProgressBar();
         }
@@ -365,56 +392,17 @@ namespace HN.HNRP.Editor
         private static void RenderWithBakedMode(ReflectionProbe probe)
         {
             var scene = probe.gameObject.scene;
-            // Debug.Log("probe.RenderProbe()");
-            // probe.RenderProbe();
-
-            var go = new GameObject();
-            var camera = go.AddComponent<Camera>();
-            camera.cameraType = CameraType.Reflection;
-            var cameraData = camera.GetHNRPAdditionalCameraData();
-            cameraData.RenderGraphViewIndex = 0;
-            GameObject.Instantiate(go, scene);
-            RenderTexture rt = new RenderTexture(new RenderTextureDescriptor(128, 128, UnityEngine.RenderTextureFormat.RGB111110Float, 32));
-            rt.dimension = TextureDimension.Cube;
-            camera.targetTexture = rt;
-            camera.Render();
-            rt.Release();
-            GameObject.DestroyImmediate(go);
-
-            // string cacheDirectoryName = Path.GetFileNameWithoutExtension(scene.path);
-            // string cacheDirectory = Path.Combine(Path.GetDirectoryName(scene.path), cacheDirectoryName);
-            // int index = 0;
-            // while(AssetDatabase.FindAssets($"ReflectionProbe-{index}.exr").Length > 0)
-            // {
-            //     index++;
-            // }
-            // string targetFile = Path.Combine(cacheDirectory, string.Format("{0}-{1}.exr", "ReflectionProbe", index));
-            
-            // if (!Lightmapping.BakeReflectionProbe(probe, targetFile))
-            // {
-            //     Debug.LogError("Failed to bake reflection probe to " + targetFile);
-            // }
-        }
-
-        private static bool IsCollidingWithOtherProbes(string targetPath, ReflectionProbe targetProbe, out ReflectionProbe collidingProbe)
-        {
-            ReflectionProbe[] array = UnityEngine.Object.FindObjectsOfType<ReflectionProbe>().ToArray();
-            collidingProbe = null;
-            ReflectionProbe[] array2 = array;
-            foreach (ReflectionProbe reflectionProbe in array2)
+            string cacheDirectoryName = Path.GetFileNameWithoutExtension(scene.path);
+            string cacheDirectory = Path.Combine(Path.GetDirectoryName(scene.path), cacheDirectoryName);
+            int index = 0;
+            while(AssetDatabase.FindAssets($"ReflectionProbe-{index}.exr").Length > 0)
             {
-                if (!(reflectionProbe == targetProbe) && !(reflectionProbe.customBakedTexture == null))
-                {
-                    string assetPath = AssetDatabase.GetAssetPath(reflectionProbe.customBakedTexture);
-                    if (assetPath == targetPath)
-                    {
-                        collidingProbe = reflectionProbe;
-                        return true;
-                    }
-                }
+                index++;
             }
-
-            return false;
+            string targetFile = Path.Combine(cacheDirectory, string.Format("{0}-{1}.exr", "ReflectionProbe", index));
+            
+            RenderTexture rt = BakeReflectionProbe(probe);
+            SaveCubemapToEXR(probe, rt, targetFile);
         }
 
         private static string GetPathWithoutExtension(string filePath)
@@ -433,7 +421,149 @@ namespace HN.HNRP.Editor
             if (string.IsNullOrEmpty(directory))
                 return fileNameWithoutExtension;
             
-            return Path.Combine(directory, fileNameWithoutExtension);
+            return directory + "/" + fileNameWithoutExtension;
+        }
+
+        private static RenderTexture BakeReflectionProbe(ReflectionProbe probe)
+        {
+            if(probe == null)
+                return null;
+            
+            var scene = probe.gameObject.scene;
+            var go = new GameObject("__RenderReflectionProbe__");
+            var camera = go.AddComponent<Camera>();
+            camera.cameraType = CameraType.Reflection;
+            var cameraData = camera.GetHNRPAdditionalCameraData();
+            int resolution = probe.resolution;
+            
+            // 设置相机位置到探针位置
+            go.transform.position = probe.transform.position;
+            
+            RenderTexture rt = new RenderTexture(new RenderTextureDescriptor(resolution, resolution, UnityEngine.RenderTextureFormat.RGB111110Float, 32));
+            rt.dimension = TextureDimension.Cube;
+            rt.useMipMap = true;
+            camera.targetTexture = rt;
+            
+            // 渲染到立方体贴图
+            bool renderResult = camera.RenderToCubemap(rt);
+            
+            if (!renderResult)
+            {
+                Debug.LogError("Failed to render to cubemap");
+                rt.Release();
+                CoreUtils.Destroy(go);
+                return null;
+            }
+            CoreUtils.Destroy(go);
+            return rt;
+        }
+
+        private static void SaveCubemapToEXR(ReflectionProbe probe, RenderTexture rt, string path)
+        {
+            if(probe == null || string.IsNullOrEmpty(path))
+                return;
+            
+            int resolution = probe.resolution;
+            // 确保扩展名为 .exr
+            string filePath = path;
+            if (!filePath.EndsWith(".exr"))
+            {
+                filePath = Path.ChangeExtension(filePath, ".exr");
+            }
+            
+            string directory = Path.GetDirectoryName(filePath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            // 为每个面创建单独的Texture2D并读取像素
+            Texture2D[] facesTextures = new Texture2D[6];
+            for (int face = 0; face < 6; face++)
+            {
+                facesTextures[face] = new Texture2D(resolution, resolution, TextureFormat.RGBAHalf, false);
+                Graphics.SetRenderTarget(rt, 0, (CubemapFace)face);
+                facesTextures[face].ReadPixels(new Rect(0, 0, resolution, resolution), 0, 0, false);
+                facesTextures[face].Apply();
+            }
+            
+            RenderTexture.active = null;
+            
+            // 创建展开的纹理 - Unity支持的横向排列格式 (6x1)
+            // 格式: [+X][-X][+Y][-Y][+Z][-Z]
+            Texture2D cubemapUnwrapped = new Texture2D(resolution * 6, resolution, TextureFormat.RGBAHalf, false);
+            
+            // 获取各个面的像素数据
+            Color[] posX = facesTextures[0].GetPixels(); // +X
+            Color[] negX = facesTextures[1].GetPixels(); // -X
+            Color[] posY = facesTextures[2].GetPixels(); // +Y
+            Color[] negY = facesTextures[3].GetPixels(); // -Y
+            Color[] posZ = facesTextures[4].GetPixels(); // +Z
+            Color[] negZ = facesTextures[5].GetPixels(); // -Z
+            
+            // 创建展开纹理的像素数组 (6个面水平排列)
+            Color[] unwrappedPixels = new Color[resolution * 6 * resolution];
+            
+            // 填充展开纹理 - 水平排列6个面
+            // [+X][−X][+Y][−Y][+Z][−Z]
+            System.Array.Copy(posX, 0, unwrappedPixels, resolution * 0, resolution * resolution);
+            System.Array.Copy(negX, 0, unwrappedPixels, resolution * 1, resolution * resolution);
+            System.Array.Copy(posY, 0, unwrappedPixels, resolution * 2, resolution * resolution);
+            System.Array.Copy(negY, 0, unwrappedPixels, resolution * 3, resolution * resolution);
+            System.Array.Copy(posZ, 0, unwrappedPixels, resolution * 4, resolution * resolution);
+            System.Array.Copy(negZ, 0, unwrappedPixels, resolution * 5, resolution * resolution);
+            
+            cubemapUnwrapped.SetPixels(unwrappedPixels);
+            cubemapUnwrapped.Apply();
+            
+            // 保存为 EXR 格式
+            byte[] exrBytes = cubemapUnwrapped.EncodeToEXR();
+            System.IO.File.WriteAllBytes(filePath, exrBytes);
+            
+            // 清理单个面的纹理
+            foreach (var faceTex in facesTextures)
+            {
+                CoreUtils.Destroy(faceTex);
+            }
+            CoreUtils.Destroy(cubemapUnwrapped);
+            
+            // 刷新资源数据库，使EXR文件被导入
+            AssetDatabase.Refresh();
+            AssetDatabase.SaveAssets();
+            
+            // 配置TextureImporter使其为Cubemap格式
+            string relativePath = filePath;
+            if (!relativePath.StartsWith("Assets/"))
+            {
+                // 转换绝对路径为相对路径
+                string projectPath = System.IO.Path.GetFullPath("Assets/..");
+                if (filePath.StartsWith(projectPath, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    relativePath = filePath.Substring(projectPath.Length + 1).Replace("\\", "/");
+                }
+            }
+            
+            TextureImporter textureImporter = AssetImporter.GetAtPath(relativePath) as TextureImporter;
+            if (textureImporter != null)
+            {
+                textureImporter.textureType = TextureImporterType.Default;
+                textureImporter.textureShape = TextureImporterShape.TextureCube;
+                textureImporter.sRGBTexture = false;
+                textureImporter.mipmapEnabled = true;
+                textureImporter.filterMode = FilterMode.Trilinear;
+                textureImporter.SaveAndReimport();
+            }
+            
+            // 加载生成的Cubemap并指定到ReflectionProbe
+            Cubemap cubemap = AssetDatabase.LoadAssetAtPath<Cubemap>(relativePath);
+            if (cubemap != null)
+            {
+                probe.customBakedTexture = cubemap;
+                EditorUtility.SetDirty(probe);
+            }
+            
+            // 清理资源
+            rt.Release();
         }
 
 

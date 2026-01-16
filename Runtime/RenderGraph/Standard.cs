@@ -1,16 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
     [CreateAssetMenu(menuName = "Rendering/HN Rendering Pipeline/Standard")]
     public class Standard : HNRenderGraphBase
     {
-        public override void Initialize()
+        public override void Build()
         {
+            ReflectionProbeAtlasPass reflectionProbeAtlasPass = AddPass<ReflectionProbeAtlasPass>("Reflection Probe Atlas");
+
             BuildLightDataPass buildLightDataPass = AddPass<BuildLightDataPass>("Build Light Data");
 
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
@@ -42,77 +42,19 @@ namespace HN.HNRP
         public override void RecordRenderGraph()
         {
             // Debug.Log("Standard RenderGraph Record Called.");
-
-            if (passes == null || passes.Count == 0)
-            {
-                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
-                return;
-            }
-
-            foreach (var pass in passes.Values)
-            {
-                if (pass == null)
-                {
-                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
-                    continue;
-                }
-
-                if (!pass.IsEnable)
-                {
-                    continue;
-                }
-
-                pass.Record(renderGraph, ref renderingData);
-            }
+            base.RecordRenderGraph();
         }
 
         public override void EndRecordRenderGraph()
         {
             // Debug.Log("Standard RenderGraph End Record Called.");
-
-            if (passes == null || passes.Count == 0)
-            {
-                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
-                return;
-            }
-
-            foreach (var pass in passes.Values)
-            {
-                if (pass == null)
-                {
-                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
-                    continue;
-                }
-
-                if (!pass.IsEnable)
-                {
-                    continue;
-                }
-
-                pass.EndRecord();
-            }
+            base.EndRecordRenderGraph();
         }
 
         public override void Dispose()
         {
-            Debug.Log("Standard RenderGraph Dispose Called.");
-
-            if (passes == null || passes.Count == 0)
-            {
-                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before disposing.");
-                return;
-            }
-
-            foreach (var pass in passes.Values)
-            {
-                if (pass == null)
-                {
-                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
-                    continue;
-                }
-
-                pass.Dispose();
-            }
+            // Debug.Log("Standard RenderGraph Dispose Called.");
+            base.Dispose();
         }
     }
 }
