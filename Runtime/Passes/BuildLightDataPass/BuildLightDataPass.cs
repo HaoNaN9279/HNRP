@@ -45,17 +45,17 @@ namespace HN.HNRP
 
                 lightDatas = new NativeArray<LightData>(lightCount, Allocator.TempJob);
 
-                createLightDataJob = new CreateLightDataJob
+                buildLightDataJob = new BuildLightDataJob
                 {
                     visibleLights = renderingData.visibleLights,
                     lightDatas = lightDatas,
                 };
-                var createLightDataHandle = createLightDataJob.ScheduleParallel(lightCount, 1, new JobHandle());
+                var buildLightDataHandle = buildLightDataJob.ScheduleParallel(lightCount, 1, new JobHandle());
                 
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        createLightDataHandle.Complete();
+                        buildLightDataHandle.Complete();
                         ctx.cmd.SetBufferData(passData.lightDatasBuffer, lightDatas);
                         ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDatasBuffer, passData.lightDatasBuffer);
                     }
@@ -78,11 +78,11 @@ namespace HN.HNRP
         }
 
 
-        private CreateLightDataJob createLightDataJob;
+        private BuildLightDataJob buildLightDataJob;
         private NativeArray<LightData> lightDatas;
 
 
-        public const string PassName = "Set Light Data";
+        public const string PassName = "Build Light Data";
 
 
         public class BuildLightDataPassData

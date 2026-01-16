@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    public struct CreateLightDataJob : IJobFor
+    public struct BuildLightDataJob : IJobFor
     {
         [ReadOnly]
         public NativeArray<VisibleLight> visibleLights;
