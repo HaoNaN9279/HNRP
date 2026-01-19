@@ -127,6 +127,10 @@ namespace HN.HNRP
                     AssetDatabase.Refresh();
                 }
             }
+            if(tempResources != null)
+            {
+                ResourceReloader.ReloadAllNullIn(tempResources, HNRenderPipelinePath);
+            }
             resources = tempResources;
         }
 #endif

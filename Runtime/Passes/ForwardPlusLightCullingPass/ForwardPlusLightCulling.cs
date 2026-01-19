@@ -38,7 +38,7 @@ namespace HN.HNRP
             }
 
             visibleLights = renderingData.visibleLights.GetSubArray(lightOffset, lightCount);
-            reflectionProbes = new NativeArray<VisibleReflectionProbe>(renderingData.catchedReflectionProbeData.probe, Allocator.TempJob);
+            reflectionProbes = new NativeArray<VisibleReflectionProbe>(renderingData.catchedReflectionProbes, Allocator.TempJob);
             reflectionProbeCount = reflectionProbes.Length;
             itemsPerTile = visibleLights.Length + reflectionProbeCount;
 

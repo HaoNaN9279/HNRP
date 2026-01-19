@@ -51,9 +51,9 @@ namespace HN.HNRP
             RecordPasses();
         }
 
-        public void EndRecord()
+        public void Cleanup()
         {
-            EndRecordPasses();
+            renderingData.GraphObject.Dispose();
         }
 
 
@@ -197,11 +197,6 @@ namespace HN.HNRP
             {
                 renderingData.GraphData.rendererListHandles.Clear();
             }
-        }
-
-        private void EndRecordPasses()
-        {
-            renderingData.GraphObject.EndRecordRenderGraph();
         }
 
 

@@ -41,10 +41,10 @@ namespace HN.HNRP
         public NativeArray<VisibleReflectionProbe> visibleReflectionProbes;
 
         /// <summary>
-        /// 缓存的当前帧需要渲染的反射探针数据列表
+        /// 缓存的当前帧需要渲染的反射探针列表
         /// 需要管理生命周期，在RenderRequest结束时释放
         /// </summary>
-        public CatchedReflectionProbeData catchedReflectionProbeData;
+        public VisibleReflectionProbe[] catchedReflectionProbes;
     }
 
 
@@ -56,19 +56,19 @@ namespace HN.HNRP
     }
 
 
-    public struct CatchedReflectionProbeData
-    {
-        public uint[] probeHash;
-        public VisibleReflectionProbe[] probe;
-        public int4[] scaleOffset;
-        public bool[] needUpdate;
+    // public struct CatchedReflectionProbeData
+    // {
+    //     public uint[] probeHash;
+    //     public VisibleReflectionProbe[] probe;
+    //     public int4[] scaleOffset;
+    //     public bool[] needUpdate;
 
-        public CatchedReflectionProbeData(int count)
-        {
-            probeHash = new uint[count];
-            probe = new VisibleReflectionProbe[count];
-            scaleOffset = new int4[count];
-            needUpdate = new bool[count];
-        }
-    }
+    //     public CatchedReflectionProbeData(int count)
+    //     {
+    //         probeHash = new uint[count];
+    //         probe = new VisibleReflectionProbe[count];
+    //         scaleOffset = new int4[count];
+    //         needUpdate = new bool[count];
+    //     }
+    // }
 }

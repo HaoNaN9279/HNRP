@@ -37,12 +37,7 @@ namespace HN.HNRP
 #endif
         }
 
-        public override void EndRecord()
-        {
-            
-        }
-
-        public override void Dispose()
+        public override void Cleanup()
         {
             
         }

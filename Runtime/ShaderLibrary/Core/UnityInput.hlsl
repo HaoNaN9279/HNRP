@@ -141,6 +141,10 @@ SAMPLER(samplerunity_SpecCube1);
 TEXTURECUBE(_GlossyEnvironmentCubeMap);
 SAMPLER(sampler_GlossyEnvironmentCubeMap);
 
+// Reflection Probes Atlas
+TEXTURE2D(unity_ReflectionProbeAtlas);
+SAMPLER(samplerunity_ReflectionProbeAtlas);
+
 // Main lightmap
 TEXTURE2D(unity_Lightmap);
 SAMPLER(samplerunity_Lightmap);

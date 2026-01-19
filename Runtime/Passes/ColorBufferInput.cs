@@ -29,12 +29,7 @@ namespace HN.HNRP
             renderingData.GraphData.textureHandles.Add(outputColorTarget);
         }
 
-        public override void EndRecord()
-        {
-            
-        }
-
-        public override void Dispose()
+        public override void Cleanup()
         {
             
         }

@@ -45,12 +45,6 @@ namespace HN.HNRP
             base.RecordRenderGraph();
         }
 
-        public override void EndRecordRenderGraph()
-        {
-            // Debug.Log("Standard RenderGraph End Record Called.");
-            base.EndRecordRenderGraph();
-        }
-
         public override void Dispose()
         {
             // Debug.Log("Standard RenderGraph Dispose Called.");

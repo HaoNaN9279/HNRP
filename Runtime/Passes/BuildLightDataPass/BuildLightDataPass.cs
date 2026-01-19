@@ -38,11 +38,6 @@ namespace HN.HNRP
 
                 int lightCount = math.min(renderingData.visibleLights.Length, HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
 
-                if (lightDatas.IsCreated)
-                {
-                    lightDatas.Dispose();
-                }
-
                 lightDatas = new NativeArray<LightData>(lightCount, Allocator.TempJob);
 
                 buildLightDataJob = new BuildLightDataJob
@@ -58,21 +53,14 @@ namespace HN.HNRP
                         buildLightDataHandle.Complete();
                         ctx.cmd.SetBufferData(passData.lightDatasBuffer, lightDatas);
                         ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDatasBuffer, passData.lightDatasBuffer);
+
+                        lightDatas.Dispose();
                     }
                 );
             }
         }
 
-        public override void EndRecord()
-        {
-            if (lightDatas.IsCreated)
-            {
-                lightDatas.Dispose();
-            }
-            lightDatas = default;
-        }
-
-        public override void Dispose()
+        public override void Cleanup()
         {
             
         }

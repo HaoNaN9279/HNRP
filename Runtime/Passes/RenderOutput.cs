@@ -14,7 +14,7 @@ namespace HN.HNRP
     {
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
-            Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.singleBlit);
+            Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.Blit);
 
             using (var builder = renderGraph.AddRenderPass<RenderOutputData>($"{name}({PassName})", out var passData))
             {
@@ -29,28 +29,23 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (RenderOutputData data, RenderGraphContext ctx) =>
                     {
-                        CoreUtils.SetRenderTarget(ctx.cmd, data.renderTarget);
-
                         var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-
-                        propertyBlock.SetTexture("_tex", data.inputTexture);
-                        propertyBlock.SetFloat("_flip", data.flip ? 1.0f : 0.0f);
                         RTHandle inputTexture = data.inputTexture;
+                        RTHandle renderTarget = data.renderTarget;
+                        CoreUtils.SetRenderTarget(ctx.cmd, renderTarget);
                         var scaleBias = new Vector4((float)data.viewport.width / inputTexture.rt.width, (float)data.viewport.height / inputTexture.rt.height, 0.0f, 0.0f);
-                        propertyBlock.SetVector("_BlitScaleBias", scaleBias);
-
-                        CoreUtils.DrawFullScreen(ctx.cmd, data.blitMaterial, propertyBlock);
+                        if(passData.flip)
+                        {
+                            scaleBias.w = scaleBias.y;
+                            scaleBias.y *= -1.0f;
+                        }
+                        Blitter.BlitTexture(ctx.cmd, propertyBlock, inputTexture, scaleBias, 0, true);
                     }
                 );
             }
         }
 
-        public override void EndRecord()
-        {
-            
-        }
-
-        public override void Dispose()
+        public override void Cleanup()
         {
             
         }
@@ -58,6 +53,8 @@ namespace HN.HNRP
 
         [SerializeField]
         public int colorTargetIndex = -1;
+
+        private RTHandle backBufferHandle;
 
         public const string PassName = "Render Output";
 

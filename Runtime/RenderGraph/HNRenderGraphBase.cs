@@ -37,7 +37,7 @@ namespace HN.HNRP
             {
                 if (pass != null)
                 {
-                    pass.Dispose();
+                    pass.Cleanup();
                     DestroyImmediate(pass, true);
                 }
             }
@@ -123,35 +123,11 @@ namespace HN.HNRP
                 pass.Record(renderGraph, ref renderingData);
             }
         }
-        public virtual void EndRecordRenderGraph()
-        {
-            if (passes == null || passes.Count == 0)
-            {
-                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
-                return;
-            }
 
-            foreach (var pass in passes.Values)
-            {
-                if (pass == null)
-                {
-                    Debug.LogWarning("Found a null pass in the RenderGraph. Skipping this pass.");
-                    continue;
-                }
-
-                if (!pass.IsEnable)
-                {
-                    continue;
-                }
-
-                pass.EndRecord();
-            }
-        }
         public virtual void Dispose()
         {
             if (passes == null || passes.Count == 0)
             {
-                Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before disposing.");
                 return;
             }
 
@@ -163,7 +139,7 @@ namespace HN.HNRP
                     continue;
                 }
 
-                pass.Dispose();
+                pass.Cleanup();
             }
         }
 

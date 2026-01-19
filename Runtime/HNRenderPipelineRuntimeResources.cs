@@ -17,7 +17,13 @@ namespace HN.HNRP
         public class ShaderResources
         {
             [Reload("Runtime/ShaderLibrary/Shaders/Lit.shader")]
-            public Shader singleBlit;
+            public Shader Lit;
+
+            [Reload("Runtime/ShaderLibrary/Shaders/Blit.shader")]
+            public Shader Blit;
+
+            [Reload("Runtime/ShaderLibrary/Shaders/BlitColorAndDepth.shader")]
+            public Shader BlitColorAndDepth;
         }
     }
 }

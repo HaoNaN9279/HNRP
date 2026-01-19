@@ -9,13 +9,9 @@ namespace HN.HNRP.Editor
     [CustomEditor(typeof(HNRenderPipelineRuntimeResources))]
     public class HNRenderPipelineRuntimeResourcesEditor : UnityEditor.Editor
     {
-        void OnEnable()
-        {
-            shaderResourcesProperty = serializedObject.FindProperty("shaderResources");
-        }
-
         public override void OnInspectorGUI()
         {
+            shaderResourcesProperty = serializedObject.FindProperty("shaderResources");
             EditorGUILayout.PropertyField(shaderResourcesProperty);
         }
 

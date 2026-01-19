@@ -25,6 +25,8 @@ namespace HN.HNRP
             reflectionRenderRequests = new List<RenderRequest>();
             gameViewRenderRequests = new List<RenderRequest>();
 
+            Blitter.Initialize(Asset.runtimeResources.shaderResources.Blit, Asset.runtimeResources.shaderResources.BlitColorAndDepth);
+
             RTHandles.Initialize(Screen.width, Screen.height);
         }
 
@@ -64,6 +66,8 @@ namespace HN.HNRP
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+
+            Blitter.Cleanup();
 
             Graphics.SetRenderTarget(null);
 
@@ -112,7 +116,6 @@ namespace HN.HNRP
                 renderingData.TargetId = targetId;
                 renderingData.runtimeResources = Asset.runtimeResources;
                 renderingData.GraphObject = graphObject;
-                renderingData.catchedReflectionProbeData = new CatchedReflectionProbeData(HNRenderPipelineAsset.MAX_REFLECTION_PROBES_ON_SCREEN);
                 AddRenderRequests(camera, context, renderGraph, ref renderingData);
             }
         }
@@ -126,8 +129,6 @@ namespace HN.HNRP
                 EndCameraRendering(request.Context, renderingData.Camera);
                 request.Context.ExecuteCommandBuffer(renderingData.Cmd);
                 request.Context.Submit();
-
-                request.EndRecord();
             }
 
         }
@@ -140,6 +141,23 @@ namespace HN.HNRP
 
         private void CleanupRenderGraph()
         {
+            foreach(var request in sceneViewRenderRequests)
+            {
+                request.Cleanup();
+            }
+            foreach(var request in previewRenderRequests)
+            {
+                request.Cleanup();
+            }
+            foreach(var request in reflectionRenderRequests)
+            {
+                request.Cleanup();
+            }
+            foreach(var request in gameViewRenderRequests)
+            {
+                request.Cleanup();
+            }
+
             renderGraph.Cleanup();
             renderGraph = null;
         }

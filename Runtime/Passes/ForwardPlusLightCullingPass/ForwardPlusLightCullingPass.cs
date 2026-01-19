@@ -74,11 +74,7 @@ namespace HN.HNRP
             }
         }
 
-        public override void EndRecord()
-        {
-        }
-
-        public override void Dispose()
+        public override void Cleanup()
         {
             if(forwardPlusLightCulling != null)
             {

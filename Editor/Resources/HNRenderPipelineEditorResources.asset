@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: HNRenderPipelineEditorResources
   m_EditorClassIdentifier: 
   shaderResources:
-    defaultShader: {fileID: 0}
+    defaultShader: {fileID: 4800000, guid: 66525e87fc30c424384af0ef8ddf7061, type: 3}
   materialResources:
-    defaultMaterial: {fileID: 0}
+    defaultMaterial: {fileID: 2100000, guid: 92983d809e8eb8049bfbe89f69768397, type: 2}

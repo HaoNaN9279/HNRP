@@ -17,19 +17,35 @@ namespace HN.HNRP
         public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.Initialize(hnRenderGraph, passName);
+
+            if(reflectionProbeAtlasRT == null)
+            {
+                reflectionProbeAtlasRT = new RenderTexture(new RenderTextureDescriptor(REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_FORMAT))
+                {
+                    name = REFLECTION_PROBE_ATLAS_NAME,
+                    dimension = REFLECTION_PROBE_ATLAS_DIMENSION,
+                    volumeDepth = 1,
+                    enableRandomWrite = false,
+                    useMipMap = true,
+                    autoGenerateMips = false,
+                    filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
+                    wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE
+                };
+            }
+            reflectionProbeAtlasHandle = RTHandles.Alloc(reflectionProbeAtlasRT);
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             using (var builder = renderGraph.AddRenderPass<ReflectionProbeAtlasPassData>($"{name}({PassName})", out var passData))
             {
+                builder.AllowPassCulling(false);
+
                 if(renderingData.Camera.cameraType == CameraType.Reflection)
                 {
                     return;
                 }
                 
-                builder.AllowPassCulling(false);
-
                 ClearProbesRef();
 
                 var reflectionProbes = renderingData.visibleReflectionProbes;
@@ -45,55 +61,49 @@ namespace HN.HNRP
                     probeCount++;
                 }
 
-                passData.catchedReflectionProbeData = renderingData.catchedReflectionProbeData;
-                CatcheProbes(ref passData.catchedReflectionProbeData);
-                renderingData.catchedReflectionProbeData = passData.catchedReflectionProbeData;
+                CatcheProbes(passData, ref renderingData.catchedReflectionProbes);
+                ImportProbeTextures(renderGraph, passData);
 
-                passData.reflectionProbeAtlas = renderGraph.CreateTexture(new TextureDesc(4096, 4096)
-                {
-                    colorFormat = REFLECTION_PROBE_ATLAS_FORMAT,
-                    dimension = REFLECTION_PROBE_ATLAS_DIMENSION,
-                    slices = 18,  // Must be multiple of 6 for cube map arrays (3 * 6 for 16 probes)
-                    filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
-                    wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE,
-                    useMipMap = true,
-                    autoGenerateMips = false,
-                    name = REFLECTION_PROBE_ATLAS_NAME
-                });
-                builder.WriteTexture(passData.reflectionProbeAtlas);
+                passData.reflectionProbeAtlas = renderGraph.ImportTexture(reflectionProbeAtlasHandle);
 
                 builder.SetRenderFunc(
                     (ReflectionProbeAtlasPassData data, RenderGraphContext ctx) =>
                     {
                         for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
                         {
-                            if(passData.catchedReflectionProbeData.needUpdate[i])
+                            if(data.needUpdate[i])
                             {
-                                var texture = passData.catchedReflectionProbeData.probe[i].texture;
-                                Vector4 scaleOffset = GetTextureScaleOffsetInAtlas(passData.catchedReflectionProbeData.scaleOffset[i]);
+                                Debug.Log($"Update Reflection Probe {i}, Hash:{data.probeHash[i]}.");
+                                Vector4 scaleOffset = GetTextureScaleOffsetInAtlas(data.scaleOffset[i]);
                                 Vector2 textureSizeWithoutPadding = GetTextureSizeWithoutpadding(scaleOffset, REFLECTION_PROBE_ATLAS_TEXEL_PADDING);
-                                bool isBilinear = texture.filterMode == FilterMode.Bilinear || texture.filterMode == FilterMode.Trilinear;
+                                
                                 for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
                                 {
-                                    ctx.cmd.SetRenderTarget(passData.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
-                                    Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, texture, textureSizeWithoutPadding, scaleOffset, mipLevel, isBilinear, REFLECTION_PROBE_ATLAS_TEXEL_PADDING);
+                                    ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
+                                    var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
+                                    Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], REFLECTION_PROBE_ATLAS_TEXEL_PADDING);
                                 }
                             }
                         }
-                        ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, passData.reflectionProbeAtlas);
+                        Debug.Log("Execute ReflectionProbeAtlasPass.");
+                        ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
                     }
                 );
             }
         }
 
-        public override void EndRecord()
+        public override void Cleanup()
         {
+            for(int i = 0; i < textureRTHandles.Length; i++)
+            {
+                if(textureRTHandles[i] != null)
+                {
+                    RTHandles.Release(textureRTHandles[i]);
+                    textureRTHandles[i] = null;
+                }
+            }
 
-        }
-
-        public override void Dispose()
-        {
-            
+            RTHandles.Release(reflectionProbeAtlasHandle);
         }
 
 
@@ -125,7 +135,7 @@ namespace HN.HNRP
             return (kPrime + (uint)resolution) * textureID + probeCount;
         }
 
-        private void CatcheProbes(ref CatchedReflectionProbeData catchedreflectionProbeData)
+        private void CatcheProbes(ReflectionProbeAtlasPassData passData, ref VisibleReflectionProbe[] catchedReflectionProbes)
         {
             int catchedProbeCount = 0;
             uint offsetMask = 0;
@@ -140,28 +150,46 @@ namespace HN.HNRP
                     int width = 4096 / (i + 1);
                     GetOffset(offsetMask, out int offsetX, out int offsetY);
                     int4 scaleOffset = new int4(width, width, offsetX, offsetY);
-                    if(catchedreflectionProbeData.probeHash[catchedProbeCount] == hashes[index])
+                    if(passData.probeHash[catchedProbeCount] != hashes[index])
                     {
-                        catchedreflectionProbeData.probeHash[catchedProbeCount] = hashes[index];
-                        catchedreflectionProbeData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
-                        catchedreflectionProbeData.scaleOffset[catchedProbeCount] = scaleOffset;
-                        catchedreflectionProbeData.needUpdate[catchedProbeCount] = true;
+                        passData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
+                        passData.scaleOffset[catchedProbeCount] = scaleOffset;
+                        passData.needUpdate[catchedProbeCount] = true;
                     }
                     else
                     {
-                        if(Int4Equal(catchedreflectionProbeData.scaleOffset[catchedProbeCount], scaleOffset))
+                        if(!Int4Equal(passData.scaleOffset[catchedProbeCount], scaleOffset))
                         {
-                            catchedreflectionProbeData.scaleOffset[catchedProbeCount] = scaleOffset;
-                            catchedreflectionProbeData.needUpdate[catchedProbeCount] = true;
+                            passData.scaleOffset[catchedProbeCount] = scaleOffset;
+                            passData.needUpdate[catchedProbeCount] = true;
                         }
                         else
                         {
-                            catchedreflectionProbeData.needUpdate[catchedProbeCount] = false;
+                            passData.needUpdate[catchedProbeCount] = false;
                         }
                     }
+                    passData.probeHash[catchedProbeCount] = hashes[index];
                     index++;
                     catchedProbeCount++;
                     offsetMask += (uint)1 << (3 + i);
+                }
+            }
+            catchedReflectionProbes = passData.probe;
+        }
+
+        private void ImportProbeTextures(RenderGraph renderGraph, ReflectionProbeAtlasPassData passData)
+        {
+            for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
+            {
+                if(passData.needUpdate[i])
+                {
+                    var reflectionProbe = passData.probe[i].reflectionProbe;
+                    var texture = reflectionProbe?.texture;
+                    if(texture == null)
+                        continue;
+                    textureRTHandles[i] = RTHandles.Alloc(texture);
+                    passData.isBilinear[i] = texture.filterMode == FilterMode.Bilinear || texture.filterMode == FilterMode.Trilinear;
+                    passData.textures[i] = renderGraph.ImportTexture(textureRTHandles[i]);
                 }
             }
         }
@@ -216,6 +244,7 @@ namespace HN.HNRP
         }
 
 
+        // 当前帧从剔除结果获取的reflection probe列表
         private Dictionary<uint, VisibleReflectionProbe>[] refProbes = new Dictionary<uint, VisibleReflectionProbe>[5]
         {
             new Dictionary<uint, VisibleReflectionProbe>(),
@@ -224,14 +253,18 @@ namespace HN.HNRP
             new Dictionary<uint, VisibleReflectionProbe>(),
             new Dictionary<uint, VisibleReflectionProbe>()
         };
+
+        private RTHandle[] textureRTHandles = new RTHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
+        private RenderTexture reflectionProbeAtlasRT;
+        private RTHandle reflectionProbeAtlasHandle;
         
 
         public const string PassName = "Reflection Probe Atlas Pass";
 
         private const int MAX_REFLECTION_PROBES_ON_SCREEN = HNRenderPipelineAsset.MAX_REFLECTION_PROBES_ON_SCREEN;
         private const int REFLECTION_PROBE_ATLAS_SIZE = 4096;
-        private const GraphicsFormat REFLECTION_PROBE_ATLAS_FORMAT = GraphicsFormat.B10G11R11_UFloatPack32;
-        private const TextureDimension REFLECTION_PROBE_ATLAS_DIMENSION = TextureDimension.CubeArray;
+        private const RenderTextureFormat REFLECTION_PROBE_ATLAS_FORMAT = RenderTextureFormat.RGB111110Float;
+        private const TextureDimension REFLECTION_PROBE_ATLAS_DIMENSION = TextureDimension.Tex2D;
         private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Bilinear;
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
         private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 8;
@@ -242,7 +275,12 @@ namespace HN.HNRP
         public class ReflectionProbeAtlasPassData
         {
             public TextureHandle reflectionProbeAtlas;
-            public CatchedReflectionProbeData catchedReflectionProbeData;
+            public uint[] probeHash = new uint[MAX_REFLECTION_PROBES_ON_SCREEN];
+            public int4[] scaleOffset = new int4[MAX_REFLECTION_PROBES_ON_SCREEN];
+            public bool[] needUpdate = new bool[MAX_REFLECTION_PROBES_ON_SCREEN];
+            public VisibleReflectionProbe[] probe = new VisibleReflectionProbe[MAX_REFLECTION_PROBES_ON_SCREEN];
+            public bool[] isBilinear = new bool[MAX_REFLECTION_PROBES_ON_SCREEN];
+            public TextureHandle[] textures = new TextureHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
         }
 
 

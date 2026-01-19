@@ -16,8 +16,7 @@ namespace HN.HNRP
         }
 
         public abstract void Record(RenderGraph renderGraph, ref RenderingData renderingData);
-        public abstract void EndRecord();
-        public abstract void Dispose();
+        public abstract void Cleanup();
 
 
         public bool IsEnable
