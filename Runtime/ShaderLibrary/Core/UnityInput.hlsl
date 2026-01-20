@@ -70,18 +70,18 @@ GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
     float4 unity_AmbientEquator;
     float4 unity_AmbientGround;
 
-    // float4 glstate_lightmodel_ambient;
-    // float4 unity_IndirectSpecColor;
-    // float4 unity_FogParams;
-    // float4 unity_FogColor;
+    float4 glstate_lightmodel_ambient;
+    float4 unity_IndirectSpecColor;
+    float4 unity_FogParams;
+    float4 unity_FogColor;
 
-    // float4 unity_ShadowColor;
+    float4 unity_ShadowColor;
 CBUFFER_END
 
 CBUFFER_START(UnityPerDraw)
     float4x4 unity_ObjectToWorld;
     float4x4 unity_WorldToObject;
-    // float4 unity_LODFade; // x is the fade value ranging within [0,1]. y is x quantized into 16 levels
+    float4 unity_LODFade; // x is the fade value ranging within [0,1]. y is x quantized into 16 levels
     float4 unity_WorldTransformParams; // w is usually 1.0, or -1.0 for odd-negative scale transforms
 
     // Render Layer block feature
@@ -142,10 +142,6 @@ SAMPLER(samplerunity_SpecCube1);
 TEXTURECUBE(_GlossyEnvironmentCubeMap);
 SAMPLER(sampler_GlossyEnvironmentCubeMap);
 
-// Reflection Probes Atlas
-TEXTURE2D(_ReflectionProbeAtlas);
-SAMPLER(sampler_ReflectionProbeAtlas);
-
 // Main lightmap
 TEXTURE2D(unity_Lightmap);
 SAMPLER(samplerunity_Lightmap);
@@ -153,14 +149,13 @@ TEXTURE2D_ARRAY(unity_Lightmaps);
 SAMPLER(samplerunity_Lightmaps);
 
 // Dynamic lightmap
-// TEXTURE2D(unity_DynamicLightmap);
-// SAMPLER(samplerunity_DynamicLightmap);
+TEXTURE2D(unity_DynamicLightmap);
+SAMPLER(samplerunity_DynamicLightmap);
 
 // Dual or directional lightmap (always used with unity_Lightmap, so can share sampler)
 TEXTURE2D(unity_LightmapInd);
 TEXTURE2D_ARRAY(unity_LightmapsInd);
 TEXTURE2D(unity_DynamicDirectionality);
-// TEXTURE2D_ARRAY(unity_DynamicDirectionality);
 
 TEXTURE2D(unity_ShadowMask);
 SAMPLER(samplerunity_ShadowMask);
