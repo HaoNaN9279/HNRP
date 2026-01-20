@@ -4,6 +4,7 @@
 #define MAX_DIRECTIONAL_LIGHT_ON_SCREEN (16)
 #define MAX_LOCAL_LIGHT_ON_SCREEN (512)
 #define MAX_REFLECTION_PROBES_ON_SCREEN (64)
+#define REFLECTION_PROBE_ATLAS_MIP_COUNT (8)
 
 GLOBAL_CBUFFER_START(ShaderVariablesGlobal, b0) // Per Frame
     // Time (t = time since current level load) values from Unity
@@ -142,8 +143,8 @@ TEXTURECUBE(_GlossyEnvironmentCubeMap);
 SAMPLER(sampler_GlossyEnvironmentCubeMap);
 
 // Reflection Probes Atlas
-TEXTURE2D(unity_ReflectionProbeAtlas);
-SAMPLER(samplerunity_ReflectionProbeAtlas);
+TEXTURE2D(_ReflectionProbeAtlas);
+SAMPLER(sampler_ReflectionProbeAtlas);
 
 // Main lightmap
 TEXTURE2D(unity_Lightmap);

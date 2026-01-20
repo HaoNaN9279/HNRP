@@ -81,9 +81,9 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
     return light;
 }
 
-int GetAdditionalLightsCount()
+uint GetAdditionalLightsCount()
 {
-    return _LightConstantData.y;
+    return asuint(_LightConstantData.y);
 }
 
 #endif

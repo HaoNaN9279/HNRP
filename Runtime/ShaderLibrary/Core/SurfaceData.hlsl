@@ -26,7 +26,7 @@ float3 GetSfBitangentWS(float3 sfNormalWS, float4 sfTangentWS)
     return sfTangentWS.w * cross(sfNormalWS.xyz, sfTangentWS.xyz);
 }
 
-float3 GetNormalSGN(float4 tangentWS)
+float GetNormalSGN(float4 tangentWS)
 {
 #if defined(_NORMALMAP)
     return tangentWS.w;

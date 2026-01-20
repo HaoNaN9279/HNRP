@@ -27,14 +27,6 @@ namespace HN.HNRP
             {
                 tileMasks.Dispose();
             }
-            if (minMaxZs.IsCreated)
-            {
-                minMaxZs.Dispose();
-            }
-            if (tileRanges.IsCreated)
-            {
-                tileRanges.Dispose();
-            }
         }
 
         protected void PrepareData(Camera camera, int itemsPerTile, int itemsGroupCount)
@@ -92,7 +84,9 @@ namespace HN.HNRP
         }
 
 
+        // Persistent Cleanup时释放
         public NativeArray<uint> zBins;
+        // Persistent Cleanup时释放
         public NativeArray<uint> tileMasks;
 
         protected int2 screenResolution = default;
@@ -110,7 +104,9 @@ namespace HN.HNRP
         protected int binCount;
         protected int zBinningBatchCount;
         protected int rangesPerItem;
+        // TempJob job Complete后释放
         protected NativeArray<float2> minMaxZs;
+        // TempJob job Complete后释放
         protected NativeArray<InclusiveRange> tileRanges;
 
         public static int maxZBinWords = 1024 * 4;

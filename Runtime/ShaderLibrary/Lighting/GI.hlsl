@@ -1,6 +1,8 @@
 #ifndef HNRP_GI_INCLUDED
 #define HNRP_GI_INCLUDED
 
+#include "../ClusterCulling/ForwardPlusCluster.hlsl"
+
 #if !defined(_MIXED_LIGHTING_SUBTRACTIVE) && defined(LIGHTMAP_SHADOW_MIXING) && !defined(SHADOWS_SHADOWMASK)
     #define _MIXED_LIGHTING_SUBTRACTIVE
 #endif
@@ -86,25 +88,17 @@ float3 SampleLightmap(float2 staticLightmapUV, float3 normalWS)
 #define SAMPLE_GI(staticLmName, shName, normalWSName) SampleSHPixel(shName, normalWSName)
 #endif
 
-half3 BoxProjectedCubemapDirection(half3 reflectionWS, float3 positionWS, float4 cubemapPositionWS, float4 boxMin, float4 boxMax)
+half3 BoxProjectedCubemapDirection(half3 reflectionWS, float3 positionWS, float3 cubemapPositionWS, float3 boxMin, float3 boxMax)
 {
-    // Is this probe using box projection?
-    if (cubemapPositionWS.w > 0.0f)
-    {
-        float3 boxMinMax = (reflectionWS > 0.0f) ? boxMax.xyz : boxMin.xyz;
-        half3 rbMinMax = half3(boxMinMax - positionWS) / reflectionWS;
+    float3 boxMinMax = (reflectionWS > 0.0f) ? boxMax.xyz : boxMin.xyz;
+    half3 rbMinMax = half3(boxMinMax - positionWS) / reflectionWS;
 
-        half fa = half(min(min(rbMinMax.x, rbMinMax.y), rbMinMax.z));
+    half fa = half(min(min(rbMinMax.x, rbMinMax.y), rbMinMax.z));
 
-        half3 worldPos = half3(positionWS - cubemapPositionWS.xyz);
+    half3 worldPos = half3(positionWS - cubemapPositionWS.xyz);
 
-        half3 result = worldPos + reflectionWS * fa;
-        return result;
-    }
-    else
-    {
-        return reflectionWS;
-    }
+    half3 result = worldPos + reflectionWS * fa;
+    return result;
 }
 
 float CalculateProbeWeight(float3 positionWS, float4 probeBoxMin, float4 probeBoxMax)
@@ -112,6 +106,13 @@ float CalculateProbeWeight(float3 positionWS, float4 probeBoxMin, float4 probeBo
     float blendDistance = probeBoxMax.w;
     float3 weightDir = min(positionWS - probeBoxMin.xyz, probeBoxMax.xyz - positionWS) / blendDistance;
     return saturate(min(weightDir.x, min(weightDir.y, weightDir.z)));
+}
+
+float CalculateProbeBoxWeight(float3 positionWS, float3 probeBoxMin, float3 probeBoxMax, float blendDisntance)
+{
+    float3 boxCenter = (probeBoxMin + probeBoxMax) * 0.5;
+    float3 weightDir = abs(positionWS - boxCenter);
+    return saturate((weightDir.x + weightDir.y + weightDir.z) / blendDisntance);
 }
 
 half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
@@ -123,7 +124,36 @@ half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
 half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positionWS, half perceptualRoughness, float2 normalizedScreenSpaceUV)
 {
     half3 irradiance = half3(0.0h, 0.0h, 0.0h);
-    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness);
+    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT);
+#if FORWARD_PLUS
+    float totalWeight = 0.0f;
+    uint probeIndex;
+    ClusterIterator it = ClusterInit(normalizedScreenSpaceUV, positionWS, FP_PROBES_BEGIN);
+    [loop] while (ClusterNext(it, probeIndex))
+    {
+        float3 probeBoxMax = _ReflectionProbeData0[probeIndex].xyz;
+        float3 probeBoxMin = _ReflectionProbeData1[probeIndex].xyz;
+        float3 probePositionWS = _ReflectionProbeData2[probeIndex].xyz;
+        float4 scaleOffset = _ReflectionProbeData3[probeIndex];
+        float blendDistance = _ReflectionProbeData0[probeIndex].w;
+        float importance = _ReflectionProbeData1[probeIndex].w;
+        float intensity = _ReflectionProbeData2[probeIndex].w;
+
+        half probeWeight = half(CalculateProbeBoxWeight(positionWS, probeBoxMin, probeBoxMax, blendDistance));
+        if (probeWeight > 0.01h)
+        {
+            probeWeight *= importance;
+            half3 reflectVectorProbe = reflectVector;
+            reflectVectorProbe = BoxProjectedCubemapDirection(reflectVector, positionWS, probePositionWS, probeBoxMin, probeBoxMax);
+            float2 uv = saturate(PackNormalOctQuadEncode(reflectVectorProbe) * 0.5 + 0.5);
+            half4 irradiance = half4(SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_ReflectionProbeAtlas, uv * scaleOffset.xy + scaleOffset.zw, mip));
+            irradiance += probeWeight * intensity;
+            totalWeight += probeWeight;
+        }
+    }
+    irradiance /= totalWeight > 0.0f ? half(totalWeight) : half(1.0h);
+    return irradiance;
+#else
     half probe0Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
     half probe1Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
 
@@ -153,7 +183,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
     if (weightProbe0 > 0.01f)
     {
         half3 reflectVector0 = reflectVector;
-        reflectVector0 = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+        reflectVector0 = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube0_ProbePosition.xyz, unity_SpecCube0_BoxMin.xyz, unity_SpecCube0_BoxMax.xyz);
 
         half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, reflectVector0, mip));
 
@@ -164,7 +194,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
     if (weightProbe1 > 0.01f)
     {
         half3 reflectVector1 = reflectVector;
-        reflectVector1 = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube1_ProbePosition, unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
+        reflectVector1 = BoxProjectedCubemapDirection(reflectVector, positionWS, unity_SpecCube1_ProbePosition.xyz, unity_SpecCube1_BoxMin.xyz, unity_SpecCube1_BoxMax.xyz);
         half4 encodedIrradiance = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube1, samplerunity_SpecCube1, reflectVector1, mip));
 
         irradiance += weightProbe1 * DecodeHDREnvironment(encodedIrradiance, unity_SpecCube1_HDR);
@@ -179,6 +209,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
     }
 
     return irradiance;
+#endif
 }
 
 half3 GlossyEnvironmentReflection(half3 reflectVector, float3 positionWS, half perceptualRoughness, half occlusion, float2 normalizedScreenSpaceUV)

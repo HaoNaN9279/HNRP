@@ -69,32 +69,32 @@ void InitializePreBRDFData(float3 rawNormalWS, float4 rawTangentWS, float3 posit
     preBRDFData.tbn = GetNormalTBN(preBRDFData.sfNormalWS, preBRDFData.sfTangentWS, preBRDFData.sfBitangentWS);
 }
 
-void InitializeBRDFData(LitSurfaceData litSurfaceData, PreBRDFData preBRDFData, out BRDFData brdfData)
+void InitializeBRDFData(float3 albedo, float3 normalTS, float smoothness, float metallic, PreBRDFData preBRDFData, out BRDFData brdfData)
 {
     ZERO_INITIALIZE(BRDFData, brdfData);
     
-    brdfData.normalTS = litSurfaceData.normalTS;
+    brdfData.normalTS = normalTS;
     brdfData.normalWS = GetNormalWS(preBRDFData.sfNormalWS, brdfData.normalTS, preBRDFData.tbn);
 
-    float oneMinusReflectivity = OnMinusReflectivityMetallic(litSurfaceData.metallic, preBRDFData.kDielectricSpec);
+    float oneMinusReflectivity = OnMinusReflectivityMetallic(metallic, preBRDFData.kDielectricSpec);
     brdfData.oneMinusReflectivity = oneMinusReflectivity;
 
     float reflectivity = 1.0 - oneMinusReflectivity;
     brdfData.reflectivity = reflectivity;
 
-    float3 diffuse = litSurfaceData.albedo * oneMinusReflectivity;
+    float3 diffuse = albedo * oneMinusReflectivity;
     brdfData.diffuse = diffuse;
 
-    float3 specular = lerp(preBRDFData.kDielectricSpec.rgb, litSurfaceData.albedo, litSurfaceData.metallic);
+    float3 specular = lerp(preBRDFData.kDielectricSpec.rgb, albedo, metallic);
     brdfData.specular = specular;
 
-    brdfData.perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(litSurfaceData.smoothness);
+    brdfData.perceptualRoughness = PerceptualSmoothnessToPerceptualRoughness(smoothness);
 
     brdfData.roughness = max(PerceptualRoughnessToRoughness(brdfData.perceptualRoughness), FLT_MIN);
 
     brdfData.roughness2 = max(brdfData.roughness * brdfData.roughness, FLT_MIN);
 
-    brdfData.grazingTerm = saturate(litSurfaceData.smoothness + reflectivity);
+    brdfData.grazingTerm = saturate(smoothness + reflectivity);
 
     brdfData.normalizationTerm = brdfData.roughness * 4.0 + 2.0;
 

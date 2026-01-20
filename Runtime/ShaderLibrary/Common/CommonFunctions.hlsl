@@ -34,7 +34,7 @@ float3 GetViewForwardDir()
 float3 GetCameraPositionWS()
 {
     // TODO: Camera Relative Rendering
-    return _WorldSpaceCameraPos;
+    return _WorldSpaceCameraPos.xyz;
 }
 
 float4 GetScaledScreenParams()

@@ -98,7 +98,6 @@ namespace HN.HNRP.Editor
         {
             ReflectionProbe reflectionProbe = (ReflectionProbe)owner.target;
 
-            EditorGUILayout.PropertyField(p.boxProjection, Styles.boxProjectionText);
             EditorGUILayout.PropertyField(p.blendDistance, Styles.blendDistanceText);
             EditorGUI.BeginChangeCheck();
             EditorGUILayout.PropertyField(p.boxSize, Styles.boxSizeText);
@@ -606,7 +605,6 @@ namespace HN.HNRP.Editor
             public static GUIContent timeSlicingText = EditorGUIUtility.TrTextContent("Time Slicing", "If enabled this probe will update over several frames, to help reduce the impact on the frame rate");
 
             public static GUIContent influenceVolumeHeader = EditorGUIUtility.TrTextContent("Influence Volume");
-            public static GUIContent boxProjectionText = EditorGUIUtility.TrTextContent("Box Projection", "When enabled, Unity assumes that the reflected light is originating from the inside of the probe's box, rather than from infinitely far away. This is useful for box-shaped indoor environments.");
             public static GUIContent blendDistanceText = EditorGUIUtility.TrTextContent("Blend Distance", "Area around the probe where it is blended with other probes. Only used in deferred probes.");
             public static GUIContent boxSizeText = EditorGUIUtility.TrTextContent("Box Size", "The size of the box in which the reflections will be applied to objects. The value is not affected by the Transform of the Game Object.");
             public static GUIContent boxOffsetText = EditorGUIUtility.TrTextContent("Box Offset", "The center of the box in which the reflections will be applied to objects. The value is relative to the position of the Game Object.");

@@ -62,6 +62,9 @@ namespace HN.HNRP
                 }
 
                 CatcheProbes(passData, ref renderingData.catchedReflectionProbes);
+
+                UpdateReflectionProbeGlobalConstantBuffer(passData);
+
                 ImportProbeTextures(renderGraph, passData);
 
                 passData.reflectionProbeAtlas = renderGraph.ImportTexture(reflectionProbeAtlasHandle);
@@ -86,7 +89,9 @@ namespace HN.HNRP
                             }
                         }
                         Debug.Log("Execute ReflectionProbeAtlasPass.");
+                        Debug.Log(data.reflectionProbeAtlas.IsValid());
                         ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
+                        ConstantBuffer.PushGlobal(ctx.cmd, globalConstantBuffer, PropertyIDs.reflectionProbeGlobalConstantBuffer);
                     }
                 );
             }
@@ -243,6 +248,32 @@ namespace HN.HNRP
             return new Vector2(width, width);
         }
 
+        unsafe private void UpdateReflectionProbeGlobalConstantBuffer(ReflectionProbeAtlasPassData passData)
+        {
+            for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
+            {
+                var probe = passData.probe[i];
+                if(probe.texture == null)
+                    continue;
+                globalConstantBuffer.reflectionProbeData0[i + 0] = probe.bounds.max.x;
+                globalConstantBuffer.reflectionProbeData0[i + 1] = probe.bounds.max.y;
+                globalConstantBuffer.reflectionProbeData0[i + 2] = probe.bounds.max.z;
+                globalConstantBuffer.reflectionProbeData0[i + 3] = probe.blendDistance;
+                globalConstantBuffer.reflectionProbeData1[i + 0] = probe.bounds.min.x;
+                globalConstantBuffer.reflectionProbeData1[i + 1] = probe.bounds.min.y;
+                globalConstantBuffer.reflectionProbeData1[i + 2] = probe.bounds.min.z;
+                globalConstantBuffer.reflectionProbeData1[i + 3] = probe.importance;
+                globalConstantBuffer.reflectionProbeData2[i + 0] = probe.localToWorldMatrix.m03;
+                globalConstantBuffer.reflectionProbeData2[i + 1] = probe.localToWorldMatrix.m13;
+                globalConstantBuffer.reflectionProbeData2[i + 2] = probe.localToWorldMatrix.m23;
+                globalConstantBuffer.reflectionProbeData2[i + 3] = probe.reflectionProbe.intensity;
+                globalConstantBuffer.reflectionProbeData3[i + 0] = passData.scaleOffset[i].x;
+                globalConstantBuffer.reflectionProbeData3[i + 1] = passData.scaleOffset[i].y;
+                globalConstantBuffer.reflectionProbeData3[i + 2] = passData.scaleOffset[i].z;
+                globalConstantBuffer.reflectionProbeData3[i + 3] = passData.scaleOffset[i].w;
+            }
+        }
+
 
         // 当前帧从剔除结果获取的reflection probe列表
         private Dictionary<uint, VisibleReflectionProbe>[] refProbes = new Dictionary<uint, VisibleReflectionProbe>[5]
@@ -257,6 +288,7 @@ namespace HN.HNRP
         private RTHandle[] textureRTHandles = new RTHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
         private RenderTexture reflectionProbeAtlasRT;
         private RTHandle reflectionProbeAtlasHandle;
+        private ReflectionProbeGlobalConstantBuffer globalConstantBuffer = default;
         
 
         public const string PassName = "Reflection Probe Atlas Pass";
@@ -265,11 +297,11 @@ namespace HN.HNRP
         private const int REFLECTION_PROBE_ATLAS_SIZE = 4096;
         private const RenderTextureFormat REFLECTION_PROBE_ATLAS_FORMAT = RenderTextureFormat.RGB111110Float;
         private const TextureDimension REFLECTION_PROBE_ATLAS_DIMENSION = TextureDimension.Tex2D;
-        private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Bilinear;
+        private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Trilinear;
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
         private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 8;
         private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 2;
-        private const string REFLECTION_PROBE_ATLAS_NAME = "HN_ReflectionProbeAtlas";
+        private const string REFLECTION_PROBE_ATLAS_NAME = "_ReflectionProbeAtlas";
 
 
         public class ReflectionProbeAtlasPassData
@@ -281,12 +313,32 @@ namespace HN.HNRP
             public VisibleReflectionProbe[] probe = new VisibleReflectionProbe[MAX_REFLECTION_PROBES_ON_SCREEN];
             public bool[] isBilinear = new bool[MAX_REFLECTION_PROBES_ON_SCREEN];
             public TextureHandle[] textures = new TextureHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
+            // xyz:box max w:blend distance
+            public Vector4[] reflectionProbeData0 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
+            // xyz:box min w:importance
+            public Vector4[] reflectionProbeData1 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
+            // xyz:position w:intensity
+            public Vector4[] reflectionProbeData2 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
         }
 
 
         public static class PropertyIDs
         {
-            public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_HN_ReflectionProbeAtlas");
+            public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_ReflectionProbeAtlas");
+            public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("ReflectionProbeVariablesGlobal");
+        }
+
+
+        unsafe public struct ReflectionProbeGlobalConstantBuffer
+        {
+            // xyz: boxMax w: blendDistance
+            public fixed float reflectionProbeData0[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
+            // xyz: boxMin w: importance
+            public fixed float reflectionProbeData1[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
+            // xyz: positionWS w: intensity
+            public fixed float reflectionProbeData2[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
+            // xyzw: scaleOffset
+            public fixed float reflectionProbeData3[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
         }
     }
 }

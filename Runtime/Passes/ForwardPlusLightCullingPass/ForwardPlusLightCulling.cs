@@ -13,8 +13,16 @@ namespace HN.HNRP
     {
         public override void Cleanup()
         {
+            // 释放时确保Job执行完成
+            try
+            {
+                cullingHandle.Complete(); 
+            }
+            catch { }
+
             base.Cleanup();
-            if(reflectionProbes.IsCreated)
+
+            if (reflectionProbes.IsCreated)
             {
                 reflectionProbes.Dispose();
             }
@@ -129,8 +137,10 @@ namespace HN.HNRP
 
         private int lightCount;
         private int directionalLightCount;
+        // Unity内部维护，不需要手动释放
         private NativeArray<VisibleLight> visibleLights;
         private int reflectionProbeCount;
+        // TempJob job Complete后释放
         private NativeArray<VisibleReflectionProbe> reflectionProbes;
 
         private LightMinMaxZJob lightMinMaxZJob;

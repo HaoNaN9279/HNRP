@@ -24,7 +24,7 @@ void BuildPreBRDFData(LitVaryings litVaryings, out PreBRDFData preBRDFData)
 
 void BuildBRDFData(LitSurfaceData litSurfaceData, PreBRDFData preBRDFData, out BRDFData brdfData)
 {
-    InitializeBRDFData(litSurfaceData, preBRDFData, brdfData);
+    InitializeBRDFData(litSurfaceData.albedo, litSurfaceData.normalTS, litSurfaceData.smoothness, litSurfaceData.metallic, preBRDFData, brdfData);
 }
 
 void BuildLightingInputData(LitVaryings litVaryings, BRDFData brdfData, out LightingInputData lightingInputData)
@@ -61,7 +61,7 @@ void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, B
     }
 #endif
 
-    int lightCount = GetAdditionalLightsCount();
+    uint lightCount = GetAdditionalLightsCount();
     float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
     float3 positionWS = lightingInputData.positionWS;
     LIGHT_LOOP_BEGIN(lightCount)
@@ -85,12 +85,12 @@ void BuildLightingOutputData(LitSurfaceData litSurfaceData, LightingData lightin
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
 
     lightingOutputData.lightingColor.rgb = 
-        lightingData.mainDirectLight.diffuse.rgb + 
-        lightingData.mainDirectLight.specular.rgb + 
-        lightingData.additionalDirectLight.diffuse.rgb +
-        lightingData.additionalDirectLight.specular.rgb +
-        lightingData.indirectLight.diffuse.rgb + 
-        lightingData.indirectLight.specular.rgb
+        lightingData.mainDirectLight.diffuse.rgb 
+        + lightingData.mainDirectLight.specular.rgb
+        + lightingData.additionalDirectLight.diffuse.rgb
+        + lightingData.additionalDirectLight.specular.rgb
+        + lightingData.indirectLight.diffuse.rgb
+        + lightingData.indirectLight.specular.rgb
         ;
     lightingOutputData.lightingColor.rgb += litSurfaceData.emission.rgb;
 }
