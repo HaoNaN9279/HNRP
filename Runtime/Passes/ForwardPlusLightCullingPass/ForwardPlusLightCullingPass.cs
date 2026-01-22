@@ -12,15 +12,9 @@ namespace HN.HNRP
     [Serializable]
     public class ForwardPlusLightCullingPass : PassBase
     {
-        public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
-            base.Initialize(hnRenderGraph, passName);
-
-            if(forwardPlusLightCulling == null)
-            {
-                forwardPlusLightCulling = new ForwardPlusLightCulling();
-            }
-            forwardPlusLightCulling.Initialize();
+            base.OnCreate(hnRenderGraph, passName);
 
             forwardPlusZBinsBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
             forwardPlusTileMasksBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
@@ -30,8 +24,9 @@ namespace HN.HNRP
         {
             if(forwardPlusLightCulling == null)
             {
-                return;
+                forwardPlusLightCulling = new ForwardPlusLightCulling();
             }
+            forwardPlusLightCulling.Initialize();
             
             using (var builder = renderGraph.AddRenderPass<ForwardPlusLightCullingPassData>($"{name}({PassName})", out var passData))
             {                

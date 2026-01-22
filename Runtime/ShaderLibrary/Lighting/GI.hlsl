@@ -108,11 +108,13 @@ float CalculateProbeWeight(float3 positionWS, float4 probeBoxMin, float4 probeBo
     return saturate(min(weightDir.x, min(weightDir.y, weightDir.z)));
 }
 
-float CalculateProbeBoxWeight(float3 positionWS, float3 probeBoxMin, float3 probeBoxMax, float blendDisntance)
+float CalculateProbeBoxWeight(float3 positionWS, float3 probeBoxMin, float3 probeBoxMax, float blendDistance)
 {
     float3 boxCenter = (probeBoxMin + probeBoxMax) * 0.5;
+    float3 boxExtents = (probeBoxMax - probeBoxMin) * 0.5;
     float3 weightDir = abs(positionWS - boxCenter);
-    return saturate((weightDir.x + weightDir.y + weightDir.z) / blendDisntance);
+    float3 weights = saturate(weightDir - boxExtents * (1 - blendDistance)) / boxExtents;
+    return saturate((weights.x + weights.y + weights.z) / 3);
 }
 
 half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
@@ -152,7 +154,6 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
         }
     }
     irradiance /= totalWeight > 0.0f ? half(totalWeight) : half(1.0h);
-    return irradiance;
 #else
     half probe0Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
     half probe1Volume = CalculateProbeVolumeSqrMagnitude(unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
@@ -207,9 +208,8 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
 
         irradiance += (1.0f - totalWeight) * DecodeHDREnvironment(encodedIrradiance, _GlossyEnvironmentCubeMap_HDR);
     }
-
-    return irradiance;
 #endif
+    return irradiance;
 }
 
 half3 GlossyEnvironmentReflection(half3 reflectVector, float3 positionWS, half perceptualRoughness, half occlusion, float2 normalizedScreenSpaceUV)

@@ -14,10 +14,13 @@ namespace HN.HNRP
     [Serializable]
     public class ReflectionProbeAtlasPass : PassBase
     {
-        public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
-            base.Initialize(hnRenderGraph, passName);
+            base.OnCreate(hnRenderGraph, passName);
+        }
 
+        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
+        {
             if(reflectionProbeAtlasRT == null)
             {
                 reflectionProbeAtlasRT = new RenderTexture(new RenderTextureDescriptor(REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_FORMAT))
@@ -33,10 +36,7 @@ namespace HN.HNRP
                 };
             }
             reflectionProbeAtlasHandle = RTHandles.Alloc(reflectionProbeAtlasRT);
-        }
-
-        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
-        {
+            
             using (var builder = renderGraph.AddRenderPass<ReflectionProbeAtlasPassData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
@@ -128,7 +128,7 @@ namespace HN.HNRP
             int resolution = probe.texture.width;
             uint probeHash = GetProbeHash(probe, probeData, resolution);
             int index = (int)Math.Log(4096 / resolution, 2);
-            refProbes[index].Add(probeHash, probe);
+            refProbes[index].TryAdd(probeHash, probe);
         }
 
         private uint GetProbeHash(VisibleReflectionProbe probe, HNAdditionalReflectionProbeData probeData, int resolution)
@@ -145,14 +145,14 @@ namespace HN.HNRP
             int catchedProbeCount = 0;
             uint offsetMask = 0;
             uint maxOffsetMask = 0x00FFC000; // 0000 0000 1111 1111 1100 0000 0000 0000
+            int maxCount = MAX_REFLECTION_PROBES_ON_SCREEN;
             for(int i = 0; i < refProbes.Length; i++)
             {
                 int index = 0;
-                int maxCount = MAX_REFLECTION_PROBES_ON_SCREEN;
                 var hashes = refProbes[i].Keys.ToList();
                 while(refProbes[i].Count > 0 && index < hashes.Count && index < maxCount && offsetMask < maxOffsetMask)
                 {
-                    int width = 4096 / (i + 1);
+                    int width = 4096 / (int)Mathf.Pow(2, i);
                     GetOffset(offsetMask, out int offsetX, out int offsetY);
                     int4 scaleOffset = new int4(width, width, offsetX, offsetY);
                     if(passData.probeHash[catchedProbeCount] != hashes[index])
@@ -160,6 +160,7 @@ namespace HN.HNRP
                         passData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
                         passData.scaleOffset[catchedProbeCount] = scaleOffset;
                         passData.needUpdate[catchedProbeCount] = true;
+                        passData.probeHash[catchedProbeCount] = hashes[index];
                     }
                     else
                     {
@@ -173,10 +174,9 @@ namespace HN.HNRP
                             passData.needUpdate[catchedProbeCount] = false;
                         }
                     }
-                    passData.probeHash[catchedProbeCount] = hashes[index];
                     index++;
                     catchedProbeCount++;
-                    offsetMask += (uint)1 << (3 + i);
+                    offsetMask += (uint)1 << (int)(Mathf.Log(width, 2) * 2 - 2);
                 }
             }
             catchedReflectionProbes = passData.probe;
@@ -209,22 +209,26 @@ namespace HN.HNRP
             // 下面的计算是为了将相邻的x和y位拆开，分别计算出offsetX和offsetY
 
             offsetX = offsetY = 0;
-            // 0000 0000 1010 1010 1000 0000 0000 0000
-            uint offsetXBits = offsetMask & 0x00AA8000;
-            offsetXBits = (offsetXBits | (offsetXBits >> 1)) & 0xCCCCCCCC;
-            offsetXBits = (offsetXBits | (offsetXBits >> 2)) & 0xF0F0F0F0;
-            offsetXBits = (offsetXBits | (offsetXBits >> 4)) & 0xFF00FF00;
-            offsetXBits = (offsetXBits | (offsetXBits >> 8)) & 0xFFFF0000;
-            
-            // 0000 0000 0101 0101 0100 0000 0000 0000
-            uint offsetYBits = offsetMask & 0x00554000;
-            offsetYBits = (offsetYBits | (offsetYBits >> 1)) & 0x33333333;
-            offsetYBits = (offsetYBits | (offsetYBits >> 2)) & 0x0F0F0F0F;
-            offsetYBits = (offsetYBits | (offsetYBits >> 4)) & 0x00FF00FF;
-            offsetYBits = (offsetYBits | (offsetYBits >> 8)) & 0x0000FFFF;
-
-            offsetX = (int)offsetXBits;
-            offsetY = (int)offsetYBits;
+            uint oddBits = 0;
+            uint evenBits = 0;
+            int oddIndex = 0;
+            int evenIndex = 0;
+            for(int i = 0; i < 32; i++)
+            {
+                uint bit = (offsetMask >> i) & 0x1;
+                if(i % 2 == 0)
+                {
+                    evenIndex++;
+                    evenBits |= (bit << evenIndex);
+                }
+                else
+                {
+                    oddIndex++;
+                    oddBits |= (bit << oddIndex);
+                }
+            }
+            offsetX = (int)evenBits;
+            offsetY = (int)oddBits;
         }
 
         private bool Int4Equal(int4 int4A, int4 int4B)
@@ -244,8 +248,9 @@ namespace HN.HNRP
 
         private Vector2 GetTextureSizeWithoutpadding(Vector4 scaleOffset, int texelPadding)
         {
-            float width = scaleOffset.x * REFLECTION_PROBE_ATLAS_SIZE - texelPadding * 2;
-            return new Vector2(width, width);
+            float scaleX = (scaleOffset.x - texelPadding * 2) / scaleOffset.x;
+            float scaleY = (scaleOffset.y - texelPadding * 2) / scaleOffset.y;
+            return new Vector2(scaleX, scaleY);
         }
 
         unsafe private void UpdateReflectionProbeGlobalConstantBuffer(ReflectionProbeAtlasPassData passData)
@@ -300,7 +305,7 @@ namespace HN.HNRP
         private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Trilinear;
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
         private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 8;
-        private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 2;
+        private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 16;
         private const string REFLECTION_PROBE_ATLAS_NAME = "_ReflectionProbeAtlas";
 
 

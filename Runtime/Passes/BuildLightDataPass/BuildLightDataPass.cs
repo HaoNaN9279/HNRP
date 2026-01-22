@@ -16,9 +16,9 @@ namespace HN.HNRP
     [Serializable]
     public class BuildLightDataPass : PassBase
     {
-        public override void Initialize(HNRenderGraphBase hnRenderGraph, string passName)
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
-            base.Initialize(hnRenderGraph, passName);
+            base.OnCreate(hnRenderGraph, passName);
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)

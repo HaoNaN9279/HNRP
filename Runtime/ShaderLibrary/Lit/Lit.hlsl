@@ -70,10 +70,10 @@ float4 FragMain(PackedVaryings packedVaryings)
 //     float test = 0;
 // #endif
     // float test = GetAdditionalLightsCount() - 2;
-    float3 test3 = litVaryings.positionWS.xyz; /* float3(test, test, test) */;
-    // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
+    float3 test3 = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_ReflectionProbeAtlas, lightingInputData.mainUV, 0).xyz; /* float3(test, test, test) */;
+    float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
-    float4 outColor = float4(lightingOutputData.lightingColor.r, lightingOutputData.lightingColor.g, lightingOutputData.lightingColor.b, 1);
+    // float4 outColor = float4(lightingOutputData.lightingColor.r, lightingOutputData.lightingColor.g, lightingOutputData.lightingColor.b, 1);
     return outColor;
 }
 

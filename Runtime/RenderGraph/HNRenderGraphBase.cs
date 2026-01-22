@@ -62,7 +62,7 @@ namespace HN.HNRP
             {
                 pass = passes[name] as T;
             }
-            pass.Initialize(this, name);
+            pass.OnCreate(this, name);
             return pass;
         }
 
@@ -97,6 +97,9 @@ namespace HN.HNRP
             this.renderingData = renderingData;
         }
 
+        /// <summary>
+        /// TODO:将Pass的创建与资源的引用连接分开
+        /// </summary>
         public abstract void Build();
 
         public virtual void RecordRenderGraph()

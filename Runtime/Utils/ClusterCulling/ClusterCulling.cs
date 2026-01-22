@@ -11,10 +11,7 @@ namespace HN.HNRP
     {
         public virtual void Initialize()
         {
-            Cleanup();
             
-            zBins = new NativeArray<uint>(maxZBinWords, Allocator.Persistent); 
-            tileMasks = new NativeArray<uint>(maxTileWords, Allocator.Persistent); 
         }
 
         public virtual void Cleanup()
@@ -31,6 +28,15 @@ namespace HN.HNRP
 
         protected void PrepareData(Camera camera, int itemsPerTile, int itemsGroupCount)
         {
+            if(!zBins.IsCreated)
+            {
+                zBins = new NativeArray<uint>(maxZBinWords, Allocator.Persistent); 
+            }
+            if(!tileMasks.IsCreated)
+            {
+                tileMasks = new NativeArray<uint>(maxTileWords, Allocator.Persistent); 
+            }
+            
             wordsPerTile = (itemsPerTile + 31) / 32;
             
             screenResolution = math.int2(camera.pixelWidth, camera.pixelHeight);

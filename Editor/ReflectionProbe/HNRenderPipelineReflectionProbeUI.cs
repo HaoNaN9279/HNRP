@@ -98,7 +98,7 @@ namespace HN.HNRP.Editor
         {
             ReflectionProbe reflectionProbe = (ReflectionProbe)owner.target;
 
-            EditorGUILayout.PropertyField(p.blendDistance, Styles.blendDistanceText);
+            p.blendDistance.floatValue = EditorGUILayout.Slider(Styles.blendDistanceText, p.blendDistance.floatValue, 0.0f, 1.0f);
             EditorGUI.BeginChangeCheck();
             EditorGUILayout.PropertyField(p.boxSize, Styles.boxSizeText);
             EditorGUILayout.PropertyField(p.boxOffset, Styles.boxOffsetText);
@@ -549,6 +549,7 @@ namespace HN.HNRP.Editor
                 textureImporter.textureShape = TextureImporterShape.TextureCube;
                 textureImporter.sRGBTexture = false;
                 textureImporter.mipmapEnabled = true;
+                textureImporter.wrapMode = TextureWrapMode.Clamp;
                 textureImporter.filterMode = FilterMode.Trilinear;
                 textureImporter.SaveAndReimport();
             }
@@ -630,7 +631,6 @@ namespace HN.HNRP.Editor
             public static int[] resolutionValues = new int[6] { 128, 256, 512, 1024, 2048, 4096 };
             public static GUIContent[] resolutionOptionsText = new[]
             {
-                EditorGUIUtility.TrTextContent("Resolution: 128"),
                 EditorGUIUtility.TrTextContent("Resolution: 256"),
                 EditorGUIUtility.TrTextContent("Resolution: 512"),
                 EditorGUIUtility.TrTextContent("Resolution: 1024"),
