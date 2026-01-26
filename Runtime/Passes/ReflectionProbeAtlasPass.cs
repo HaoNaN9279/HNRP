@@ -248,8 +248,8 @@ namespace HN.HNRP
 
         private Vector2 GetTextureSizeWithoutpadding(Vector4 scaleOffset, int texelPadding)
         {
-            float scaleX = (scaleOffset.x - texelPadding * 2) / scaleOffset.x;
-            float scaleY = (scaleOffset.y - texelPadding * 2) / scaleOffset.y;
+            float scaleX = scaleOffset.x * REFLECTION_PROBE_ATLAS_SIZE - texelPadding * 2;
+            float scaleY = scaleOffset.y * REFLECTION_PROBE_ATLAS_SIZE - texelPadding * 2;
             return new Vector2(scaleX, scaleY);
         }
 
@@ -260,22 +260,24 @@ namespace HN.HNRP
                 var probe = passData.probe[i];
                 if(probe.texture == null)
                     continue;
-                globalConstantBuffer.reflectionProbeData0[i + 0] = probe.bounds.max.x;
-                globalConstantBuffer.reflectionProbeData0[i + 1] = probe.bounds.max.y;
-                globalConstantBuffer.reflectionProbeData0[i + 2] = probe.bounds.max.z;
-                globalConstantBuffer.reflectionProbeData0[i + 3] = probe.blendDistance;
-                globalConstantBuffer.reflectionProbeData1[i + 0] = probe.bounds.min.x;
-                globalConstantBuffer.reflectionProbeData1[i + 1] = probe.bounds.min.y;
-                globalConstantBuffer.reflectionProbeData1[i + 2] = probe.bounds.min.z;
-                globalConstantBuffer.reflectionProbeData1[i + 3] = probe.importance;
-                globalConstantBuffer.reflectionProbeData2[i + 0] = probe.localToWorldMatrix.m03;
-                globalConstantBuffer.reflectionProbeData2[i + 1] = probe.localToWorldMatrix.m13;
-                globalConstantBuffer.reflectionProbeData2[i + 2] = probe.localToWorldMatrix.m23;
-                globalConstantBuffer.reflectionProbeData2[i + 3] = probe.reflectionProbe.intensity;
-                globalConstantBuffer.reflectionProbeData3[i + 0] = passData.scaleOffset[i].x;
-                globalConstantBuffer.reflectionProbeData3[i + 1] = passData.scaleOffset[i].y;
-                globalConstantBuffer.reflectionProbeData3[i + 2] = passData.scaleOffset[i].z;
-                globalConstantBuffer.reflectionProbeData3[i + 3] = passData.scaleOffset[i].w;
+                int baseIndex = i * 4;
+                globalConstantBuffer.reflectionProbeData0[baseIndex + 0] = probe.bounds.max.x;
+                globalConstantBuffer.reflectionProbeData0[baseIndex + 1] = probe.bounds.max.y;
+                globalConstantBuffer.reflectionProbeData0[baseIndex + 2] = probe.bounds.max.z;
+                globalConstantBuffer.reflectionProbeData0[baseIndex + 3] = probe.blendDistance;
+                globalConstantBuffer.reflectionProbeData1[baseIndex + 0] = probe.bounds.min.x;
+                globalConstantBuffer.reflectionProbeData1[baseIndex + 1] = probe.bounds.min.y;
+                globalConstantBuffer.reflectionProbeData1[baseIndex + 2] = probe.bounds.min.z;
+                globalConstantBuffer.reflectionProbeData1[baseIndex + 3] = probe.importance;
+                globalConstantBuffer.reflectionProbeData2[baseIndex + 0] = probe.localToWorldMatrix.m03;
+                globalConstantBuffer.reflectionProbeData2[baseIndex + 1] = probe.localToWorldMatrix.m13;
+                globalConstantBuffer.reflectionProbeData2[baseIndex + 2] = probe.localToWorldMatrix.m23;
+                globalConstantBuffer.reflectionProbeData2[baseIndex + 3] = probe.reflectionProbe.intensity;
+                Vector4 scaleOffsetNormalized = GetTextureScaleOffsetInAtlas(passData.scaleOffset[i]);
+                globalConstantBuffer.reflectionProbeData3[baseIndex + 0] = scaleOffsetNormalized.x;
+                globalConstantBuffer.reflectionProbeData3[baseIndex + 1] = scaleOffsetNormalized.y;
+                globalConstantBuffer.reflectionProbeData3[baseIndex + 2] = scaleOffsetNormalized.z;
+                globalConstantBuffer.reflectionProbeData3[baseIndex + 3] = scaleOffsetNormalized.w;
             }
         }
 
@@ -305,7 +307,7 @@ namespace HN.HNRP
         private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Trilinear;
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
         private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 8;
-        private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 16;
+        private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 2;
         private const string REFLECTION_PROBE_ATLAS_NAME = "_ReflectionProbeAtlas";
 
 

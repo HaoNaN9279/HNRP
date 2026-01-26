@@ -126,13 +126,19 @@ half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
 half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positionWS, half perceptualRoughness, float2 normalizedScreenSpaceUV)
 {
     half3 irradiance = half3(0.0h, 0.0h, 0.0h);
-    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT);
+    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT - 1);
 #if FORWARD_PLUS
     float totalWeight = 0.0f;
     uint probeIndex;
-    ClusterIterator it = ClusterInit(normalizedScreenSpaceUV, positionWS, FP_PROBES_BEGIN);
+    ClusterIterator it = ClusterInit(normalizedScreenSpaceUV, positionWS, 1);
     [loop] while (ClusterNext(it, probeIndex))
     {
+        probeIndex -= FP_PROBES_BEGIN;
+        
+        // Safety: skip invalid probe indices
+        if (probeIndex >= MAX_REFLECTION_PROBES_ON_SCREEN)
+            continue;
+
         float3 probeBoxMax = _ReflectionProbeData0[probeIndex].xyz;
         float3 probeBoxMin = _ReflectionProbeData1[probeIndex].xyz;
         float3 probePositionWS = _ReflectionProbeData2[probeIndex].xyz;
@@ -147,9 +153,10 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
             probeWeight *= importance;
             half3 reflectVectorProbe = reflectVector;
             reflectVectorProbe = BoxProjectedCubemapDirection(reflectVector, positionWS, probePositionWS, probeBoxMin, probeBoxMax);
+            reflectVectorProbe = normalize(reflectVectorProbe);
             float2 uv = saturate(PackNormalOctQuadEncode(reflectVectorProbe) * 0.5 + 0.5);
-            half4 irradiance = half4(SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_ReflectionProbeAtlas, uv * scaleOffset.xy + scaleOffset.zw, mip));
-            irradiance += probeWeight * intensity;
+            float3 irradianceColor = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_ReflectionProbeAtlas, uv * scaleOffset.xy + scaleOffset.zw, mip).xyz;
+            irradiance += irradianceColor * probeWeight * intensity;
             totalWeight += probeWeight;
         }
     }

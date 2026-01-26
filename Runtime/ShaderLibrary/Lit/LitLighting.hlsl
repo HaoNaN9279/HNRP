@@ -76,7 +76,7 @@ void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, B
     LIGHT_LOOP_END
 
     float3 envSpecular = EnvironmentBRDFSpecular(brdfData, brdfLightingData);
-    float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, float2(0.0, 0.0));
+    float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, normalizedScreenSpaceUV);
     lightingData.indirectLight = IndirectLightingPBR(brdfData.diffuse, lightingInputData.bakedGI, envSpecular, envReflection);
 }
 

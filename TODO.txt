@@ -1,4 +1,7 @@
 reflection probe
+    ReflectionProbeAtlas正确采样
+    bake逻辑
+    UpdateCount更新逻辑
 
 绘制Gizmos
 自定义preview https://gwb.tencent.com/community/detail/115720
