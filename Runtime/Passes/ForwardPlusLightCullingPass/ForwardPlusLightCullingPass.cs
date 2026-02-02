@@ -30,25 +30,22 @@ namespace HN.HNRP
             
             using (var builder = renderGraph.AddRenderPass<ForwardPlusLightCullingPassData>($"{name}({PassName})", out var passData))
             {                
-                passData.forwardPlusZBinsBuffer = renderGraph.CreateComputeBuffer(
+                passData.forwardPlusZBinsBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         ClusterCulling.maxZBinWords, 
                         UnsafeUtility.SizeOf<float4>()
                     ) { name = "Forward Plus Z-Bin Buffer" }
-                );
+                ));
                 renderingData.GraphData.computeBufferHandles.Add(passData.forwardPlusZBinsBuffer);
-                passData.forwardPlusTileMasksBuffer = renderGraph.CreateComputeBuffer(
+                passData.forwardPlusTileMasksBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         ClusterCulling.maxTileWords, 
                         UnsafeUtility.SizeOf<float4>()
                     ) { name = "Forward Plus Tile Buffer" }
-                ); 
+                )); 
                 renderingData.GraphData.computeBufferHandles.Add(passData.forwardPlusTileMasksBuffer);
 
                 forwardPlusLightCulling.PrepareLightData(ref renderingData);
-
-                builder.WriteComputeBuffer(passData.forwardPlusZBinsBuffer);
-                builder.WriteComputeBuffer(passData.forwardPlusTileMasksBuffer);
 
                 builder.SetRenderFunc(
                     (ForwardPlusLightCullingPassData data, RenderGraphContext ctx) =>

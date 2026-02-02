@@ -1,0 +1,152 @@
+#pragma kernel ClusterCulling
+
+#pragma enable_d3d11_debug_symbols
+
+#define PI 3.14159265358979323846
+#define FLT_MIN  1.175494351e-38
+#define FLT_MAX  3.402823466e+38
+#define HALF_MIN 6.103515625e-5
+#define HALF_MAX 65504.0
+#define UINT_MIN 0
+#define UINT_MAX 0xFFFFFFFFu
+
+#define MAX_REFLECTION_PROBES_ON_SCREEN 64
+
+struct ReflectionProbeData
+{
+    float3 boundCenter;
+    float3 boundExtents;
+};
+
+RWStructuredBuffer<uint> clusterCullingReflectionProbeMaskBuffer;
+StructuredBuffer<ReflectionProbeData> reflectionProbeDatasBuffer;
+float4 cullingParams0;
+float4 cullingParams1;
+// float2 clusterZScaleOffset;
+// float wordsPerCluster;
+// float isOrthographic;
+// float3 clusterSize;
+// float probeCount;
+float4x4 clipToView;
+float4x4 viewToClip;
+float4x4 clipToWorld;
+
+void EncodeHeader(uint min, uint max, inout uint result)
+{
+    result = (min & 0xFFFF) | ((max & 0xFFFF) << 16);
+}
+
+void DecodeHeader(uint bin, inout uint min, inout uint max)
+{
+    min = bin & 0xFFFF;
+    max = (bin >> 16) & 0xFFFF;
+}
+
+void UpdateHeader(inout uint header, uint index)
+{
+    index &= 0xFFFF;
+    if(index < (header & 0xFFFF))
+    {
+        header &= 0xFFFF0000u;
+        header |= index;
+    }
+    if(index > ((header >> 16) & 0xFFFF))
+    {
+        header &= 0x0000FFFFu;
+        header |= index << 16;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void ClusterCulling(uint3 id : SV_DispatchThreadID)
+{    
+    float2 clusterZScaleOffset = cullingParams0.xy;
+    uint wordsPerCluster = asuint(int(cullingParams0.z));
+    bool isOrthographic = cullingParams0.w > 0.5;
+    uint3 clusterSize = uint3(asuint(cullingParams1.x), asuint(cullingParams1.y), asuint(cullingParams1.z));
+    uint probeCount = asuint(int(cullingParams1.w));
+
+    uint clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
+    uint headerIndex = ((id.x + 1) * (id.y + 1) * (id.z + 1) - 1) * wordsPerCluster;
+
+    clusterCullingReflectionProbeMaskBuffer[headerIndex] = 0u;
+    for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
+    {
+        clusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
+    }
+
+    if(
+        id.x > clusterSize.x
+        || id.y > clusterSize.y
+        || id.z > clusterSize.z
+    )
+    {
+        return;
+    }
+
+    uint clusterIndexZ = id.z;
+    uint clusterIndexY = id.y;
+    uint clusterIndexX = id.x;
+    
+    // header中写入初始值
+    uint header = 0;
+    EncodeHeader(0xFFFFFFFFu, 0, header);
+
+    // 计算当前cluster在clip space下的minmax
+    float3 clusterMinCS, clusterMaxCS;
+    float2 clusterMinMaxZVS;
+    float zSize = pow(2, clusterSize.z);
+    clusterMinMaxZVS.x = ((float)clusterIndexZ - clusterZScaleOffset.y) / clusterZScaleOffset.x;
+    clusterMinMaxZVS.x = isOrthographic ? pow(2, clusterMinMaxZVS.x) : clusterMinMaxZVS.x;
+    clusterMinMaxZVS.y = ((float)clusterIndexZ + 1 - clusterZScaleOffset.y) / clusterZScaleOffset.x;
+    clusterMinMaxZVS.y = isOrthographic ? pow(2, clusterMinMaxZVS.y) : clusterMinMaxZVS.y;
+    clusterMinCS.z = mul(viewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
+    clusterMaxCS.z = mul(viewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
+    clusterMinCS.xy = float2((float)clusterIndexX / clusterSize.x, (float)clusterIndexY / clusterSize.y) * 2 - 1;
+    clusterMaxCS.xy = float2((float)(clusterIndexX + 1) / clusterSize.x, (float)(clusterIndexY + 1) / clusterSize.y) * 2 - 1;
+    clusterMinCS = max(clusterMinCS, float3(-1, -1, 0));
+    clusterMaxCS = min(clusterMaxCS, float3(1, 1, 1));
+    
+    // 计算当前cluster在world space下的bound
+    float3 clusterMinWS = float3(FLT_MAX, FLT_MAX, FLT_MAX);
+    float3 clusterMaxWS = float3(FLT_MIN, FLT_MIN, FLT_MIN);
+    for(uint pointIndex = 0; pointIndex < 8; pointIndex++)
+    {
+        float3 pointCS;
+        pointCS.x = (pointIndex >> 2 & 1) == 1 ? clusterMaxCS.x : clusterMinCS.x;
+        pointCS.y = (pointIndex >> 1 & 1) == 1 ? clusterMaxCS.y : clusterMinCS.y;
+        pointCS.z = (pointIndex & 1) == 1 ? clusterMaxCS.z : clusterMinCS.z;
+        float3 pointWS = mul(clipToWorld, float4(pointCS, 1)).xyz;
+        clusterMinWS = min(clusterMinWS, pointWS);
+        clusterMaxWS = max(clusterMaxWS, pointWS);
+    }
+
+    // 遍历probe
+    for(uint probeIndex = 0; probeIndex < probeCount; probeIndex++)
+    {
+        // 计算probe在view space下的minmax
+        ReflectionProbeData probeData = reflectionProbeDatasBuffer[probeIndex];
+        float3 centerWS = probeData.boundCenter.xyz;
+        float3 extentsWS = probeData.boundExtents.xyz;
+        float3 probeMinWS = centerWS - extentsWS;
+        float3 probeMaxWS = centerWS + extentsWS;
+
+        // 判断probe与cluster是否相交
+        if(
+            clusterMinWS.x < probeMaxWS.x
+            || clusterMinWS.y < probeMaxWS.y
+            || clusterMinWS.z < probeMaxWS.z
+            || clusterMaxWS.x > probeMinWS.x
+            || clusterMaxWS.y > probeMinWS.y
+            || clusterMaxWS.z > probeMinWS.z
+        )
+        {
+            UpdateHeader(header, probeIndex);
+
+            int wordIndex = probeIndex / 32;
+            uint bitMask = 1u << (probeIndex % 32);
+            clusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+        }
+    }
+    clusterCullingReflectionProbeMaskBuffer[headerIndex] = header;
+}

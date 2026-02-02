@@ -24,6 +24,9 @@ namespace HN.HNRP
 
             [Reload("Runtime/ShaderLibrary/Shaders/BlitColorAndDepth.shader")]
             public Shader BlitColorAndDepth;
+
+            [Reload("Runtime/ShaderLibrary/ComputeShaders/ClusterCullingReflectionProbeCS.compute")]
+            public ComputeShader clusterCullingReflectionProbeCS;
         }
     }
 }

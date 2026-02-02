@@ -32,6 +32,7 @@ namespace HN.HNRP
         {
             camera = renderingData.Camera;
 
+            // 计算local light数量
             lightCount = renderingData.visibleLights.Length;
             int lightOffset = 0;
             while (lightOffset < lightCount && renderingData.visibleLights[lightOffset].lightType == LightType.Directional)
@@ -39,6 +40,8 @@ namespace HN.HNRP
                 lightOffset++;
             }
             lightCount -= lightOffset;
+
+            // 计算directional light数量 不包括main light
             directionalLightCount = lightCount;
             if (renderingData.mainLightIndex != -1 && directionalLightCount != 0)
             {
@@ -46,7 +49,8 @@ namespace HN.HNRP
             }
 
             visibleLights = renderingData.visibleLights.GetSubArray(lightOffset, lightCount);
-            reflectionProbes = new NativeArray<VisibleReflectionProbe>(renderingData.catchedReflectionProbes, Allocator.TempJob);
+            // reflectionProbes数据来自ReflectionProbeAtlasPass筛选后的Reflection Probes
+            reflectionProbes = new NativeArray<VisibleReflectionProbe>(new VisibleReflectionProbe[] {}, Allocator.TempJob);
             reflectionProbeCount = reflectionProbes.Length;
             itemsPerTile = visibleLights.Length + reflectionProbeCount;
 

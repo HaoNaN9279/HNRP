@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using UnityEngine.Rendering;
 
 namespace HN.HNRP.Editor
 {
@@ -16,8 +17,21 @@ namespace HN.HNRP.Editor
 
         public override void OnInspectorGUI()
         {
+            if(GUILayout.Button(new GUIContent("Reload All Resources")))
+            {
+                ReloadAllResources(target as HNRenderPipelineEditorResources);
+            }
             EditorGUILayout.PropertyField(shaderResourcesProperty);
             EditorGUILayout.PropertyField(materialResourcesProperty);
+        }
+
+
+        private void ReloadAllResources(RenderPipelineResources resources)
+        {
+            if(resources == null)
+                return;
+                
+            ResourceReloader.ReloadAllNullIn(resources, HNRenderPipelineGlobalSettings.HNRenderPipelinePath);
         }
 
 
