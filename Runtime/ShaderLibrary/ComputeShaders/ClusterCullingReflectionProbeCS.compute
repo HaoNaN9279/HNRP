@@ -18,18 +18,18 @@ struct ReflectionProbeData
     float3 boundExtents;
 };
 
-RWStructuredBuffer<uint> clusterCullingReflectionProbeMaskBuffer;
-StructuredBuffer<ReflectionProbeData> reflectionProbeDatasBuffer;
-float4 cullingParams0;
-float4 cullingParams1;
+RWStructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
+StructuredBuffer<ReflectionProbeData> _ReflectionProbeDatasBuffer;
+float4 _CullingParams0;
+float4 _CullingParams1;
 // float2 clusterZScaleOffset;
 // float wordsPerCluster;
 // float isOrthographic;
 // float3 clusterSize;
 // float probeCount;
-float4x4 clipToView;
-float4x4 viewToClip;
-float4x4 clipToWorld;
+float4x4 _ClipToView;
+float4x4 _ViewToClip;
+float4x4 _ClipToWorld;
 
 void EncodeHeader(uint min, uint max, inout uint result)
 {
@@ -60,19 +60,19 @@ void UpdateHeader(inout uint header, uint index)
 [numthreads(8, 8, 1)]
 void ClusterCulling(uint3 id : SV_DispatchThreadID)
 {    
-    float2 clusterZScaleOffset = cullingParams0.xy;
-    uint wordsPerCluster = asuint(int(cullingParams0.z));
-    bool isOrthographic = cullingParams0.w > 0.5;
-    uint3 clusterSize = uint3(asuint(cullingParams1.x), asuint(cullingParams1.y), asuint(cullingParams1.z));
-    uint probeCount = asuint(int(cullingParams1.w));
+    float2 clusterZScaleOffset = _CullingParams0.xy;
+    uint wordsPerCluster = asuint(int(_CullingParams0.z));
+    bool isOrthographic = _CullingParams0.w > 0.5;
+    uint3 clusterSize = uint3(asuint(_CullingParams1.x), asuint(_CullingParams1.y), asuint(_CullingParams1.z));
+    uint probeCount = asuint(int(_CullingParams1.w));
 
     uint clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
     uint headerIndex = ((id.x + 1) * (id.y + 1) * (id.z + 1) - 1) * wordsPerCluster;
 
-    clusterCullingReflectionProbeMaskBuffer[headerIndex] = 0u;
+    _ClusterCullingReflectionProbeMaskBuffer[headerIndex] = 0u;
     for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
     {
-        clusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
+        _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
     }
 
     if(
@@ -100,8 +100,8 @@ void ClusterCulling(uint3 id : SV_DispatchThreadID)
     clusterMinMaxZVS.x = isOrthographic ? pow(2, clusterMinMaxZVS.x) : clusterMinMaxZVS.x;
     clusterMinMaxZVS.y = ((float)clusterIndexZ + 1 - clusterZScaleOffset.y) / clusterZScaleOffset.x;
     clusterMinMaxZVS.y = isOrthographic ? pow(2, clusterMinMaxZVS.y) : clusterMinMaxZVS.y;
-    clusterMinCS.z = mul(viewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
-    clusterMaxCS.z = mul(viewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
+    clusterMinCS.z = mul(_ViewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
+    clusterMaxCS.z = mul(_ViewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
     clusterMinCS.xy = float2((float)clusterIndexX / clusterSize.x, (float)clusterIndexY / clusterSize.y) * 2 - 1;
     clusterMaxCS.xy = float2((float)(clusterIndexX + 1) / clusterSize.x, (float)(clusterIndexY + 1) / clusterSize.y) * 2 - 1;
     clusterMinCS = max(clusterMinCS, float3(-1, -1, 0));
@@ -116,7 +116,7 @@ void ClusterCulling(uint3 id : SV_DispatchThreadID)
         pointCS.x = (pointIndex >> 2 & 1) == 1 ? clusterMaxCS.x : clusterMinCS.x;
         pointCS.y = (pointIndex >> 1 & 1) == 1 ? clusterMaxCS.y : clusterMinCS.y;
         pointCS.z = (pointIndex & 1) == 1 ? clusterMaxCS.z : clusterMinCS.z;
-        float3 pointWS = mul(clipToWorld, float4(pointCS, 1)).xyz;
+        float3 pointWS = mul(_ClipToWorld, float4(pointCS, 1)).xyz;
         clusterMinWS = min(clusterMinWS, pointWS);
         clusterMaxWS = max(clusterMaxWS, pointWS);
     }
@@ -125,7 +125,7 @@ void ClusterCulling(uint3 id : SV_DispatchThreadID)
     for(uint probeIndex = 0; probeIndex < probeCount; probeIndex++)
     {
         // 计算probe在view space下的minmax
-        ReflectionProbeData probeData = reflectionProbeDatasBuffer[probeIndex];
+        ReflectionProbeData probeData = _ReflectionProbeDatasBuffer[probeIndex];
         float3 centerWS = probeData.boundCenter.xyz;
         float3 extentsWS = probeData.boundExtents.xyz;
         float3 probeMinWS = centerWS - extentsWS;
@@ -145,8 +145,8 @@ void ClusterCulling(uint3 id : SV_DispatchThreadID)
 
             int wordIndex = probeIndex / 32;
             uint bitMask = 1u << (probeIndex % 32);
-            clusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+            _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
         }
     }
-    clusterCullingReflectionProbeMaskBuffer[headerIndex] = header;
+    _ClusterCullingReflectionProbeMaskBuffer[headerIndex] = header;
 }

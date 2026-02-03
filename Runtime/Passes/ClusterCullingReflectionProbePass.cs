@@ -11,6 +11,7 @@ using Unity.Mathematics;
 using Unity.Collections.LowLevel.Unsafe;
 using log4net.Util;
 using Unity.Properties;
+using log4net.DateFormatter;
 
 namespace HN.HNRP
 {
@@ -53,7 +54,7 @@ namespace HN.HNRP
                 ClearProbesRef();
                 UpdateProbeRefs(ref renderingData.visibleReflectionProbes);
                 CatcheProbes(passData, ref catchedReflectionProbes);
-                UpdateReflectionProbeGlobalConstantBuffer(passData);
+                UpdateReflectionProbeData(passData);
                 ImportProbeTextures(renderGraph, passData);
                 passData.reflectionProbeAtlas = renderGraph.ImportTexture(reflectionProbeAtlasHandle);
 
@@ -72,10 +73,11 @@ namespace HN.HNRP
                 int clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
                 // Debug.Log($"ClusterSize: x: {clusterSize.x} y: {clusterSize.y} z: {clusterSize.z}.");
                 float2 clusterZScaleOffset = GetClusterZScaleOffset(clusterSize, camera.orthographic, camera.nearClipPlane, camera.farClipPlane);
+                UpdateReflectionProbeParams(clusterSize, clusterZScaleOffset, wordsPerCluster);
                 GetCameraMatrix(camera);
                 passData.clusterCullingReflectionProbeCS = renderingData.runtimeResources.shaderResources.clusterCullingReflectionProbeCS;
                 passData.clusterCullingKernel = passData.clusterCullingReflectionProbeCS.FindKernel(CLUSTER_CULLING_CS_KERNEL_NAME);
-                GetReflectionProbeData(catchedReflectionProbes);
+                GetReflectionProbeDataForCS(catchedReflectionProbes);
                 passData.reflectionProbeDatasBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         reflectionProbeDatas.Length,
@@ -86,26 +88,25 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ClusterCullingReflectionProbePassData data, RenderGraphContext ctx) =>
                     {
+                        ctx.cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
+                        
                         for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
                         {
                             if(data.needUpdate[i])
                             {
-                                // Debug.Log($"Update Reflection Probe {i}, Hash:{data.probeHash[i]}.");
-                                Vector4 scaleOffset = GetTextureScaleOffsetInAtlas(data.scaleOffset[i]);
-                                Vector2 textureSizeWithoutPadding = GetTextureSizeWithoutpadding(scaleOffset, REFLECTION_PROBE_ATLAS_TEXEL_PADDING);
+                                int texelPadding = REFLECTION_PROBE_ATLAS_TEXEL_PADDING;
+                                Vector4 scaleOffset = GetTextureScaleOffsetWithoutPaddingInAtlas(data.scaleOffset[i]);
+                                Vector2 textureSizeWithoutPadding = GetTextureSizeWithoutpadding(scaleOffset, texelPadding);
                                 
                                 for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
                                 {
+                                    texelPadding *= 2;
                                     ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
                                     var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-                                    Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], REFLECTION_PROBE_ATLAS_TEXEL_PADDING);
+                                    Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], texelPadding);
                                 }
                             }
                         }
-                        // Debug.Log("Execute ReflectionProbeAtlasPass.");
-                        // Debug.Log(data.reflectionProbeAtlas.IsValid());
-                        ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
-                        ConstantBuffer.PushGlobal(ctx.cmd, globalConstantBuffer, PropertyIDs.reflectionProbeGlobalConstantBuffer);
 
                         ctx.cmd.SetComputeBufferParam(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
                         ctx.cmd.SetBufferData(data.reflectionProbeDatasBuffer, reflectionProbeDatas);
@@ -120,6 +121,8 @@ namespace HN.HNRP
                         ctx.cmd.DispatchCompute(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, clusterSize.y, threadGroupY, 1);
 
                         ctx.cmd.SetGlobalBuffer(PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
+                        ConstantBuffer.PushGlobal(ctx.cmd, globalConstantBuffer, PropertyIDs.reflectionProbeGlobalConstantBuffer);
+                        ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
                     }
                 );
             }
@@ -199,7 +202,6 @@ namespace HN.HNRP
                     int4 scaleOffset = new int4(width, width, offsetX, offsetY);
                     if(passData.probeHash[catchedProbeCount] != hashes[index])
                     {
-                        passData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
                         passData.scaleOffset[catchedProbeCount] = scaleOffset;
                         passData.needUpdate[catchedProbeCount] = true;
                         passData.probeHash[catchedProbeCount] = hashes[index];
@@ -216,6 +218,8 @@ namespace HN.HNRP
                             passData.needUpdate[catchedProbeCount] = false;
                         }
                     }
+                    // 如果probe没变，probe中的参数改变也需要更新
+                    passData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
                     index++;
                     catchedProbeCount++;
                     offsetMask += (uint)1 << (int)(Mathf.Log(width, 2) * 2 - 2);
@@ -278,13 +282,23 @@ namespace HN.HNRP
             return int4A.x == int4B.x && int4A.y == int4B.y && int4A.z == int4B.z && int4A.w == int4B.w;
         }
 
-        private Vector4 GetTextureScaleOffsetInAtlas(int4 scaleOffset)
+        private Vector4 GetTextureScaleOffsetWithoutPaddingInAtlas(int4 scaleOffset)
         {
             float atlasSize = REFLECTION_PROBE_ATLAS_SIZE;
             float scaleX = scaleOffset.x / atlasSize;
             float scaleY = scaleOffset.y / atlasSize;
             float offsetX = scaleOffset.z / atlasSize;
             float offsetY = scaleOffset.w / atlasSize;
+            return new Vector4(scaleX, scaleY, offsetX, offsetY);
+        }
+
+        private Vector4 GetTextureScaleOffsetWithPaddingInAtlas(int4 scaleOffset)
+        {
+            float atlasSize = REFLECTION_PROBE_ATLAS_SIZE;
+            float scaleX = (scaleOffset.x - REFLECTION_PROBE_ATLAS_TEXEL_PADDING * 2) / atlasSize;
+            float scaleY = (scaleOffset.y - REFLECTION_PROBE_ATLAS_TEXEL_PADDING * 2) / atlasSize;
+            float offsetX = (scaleOffset.z + REFLECTION_PROBE_ATLAS_TEXEL_PADDING) / atlasSize;
+            float offsetY = (scaleOffset.w + REFLECTION_PROBE_ATLAS_TEXEL_PADDING) / atlasSize;
             return new Vector4(scaleX, scaleY, offsetX, offsetY);
         }
 
@@ -295,7 +309,7 @@ namespace HN.HNRP
             return new Vector2(scaleX, scaleY);
         }
 
-        unsafe private void UpdateReflectionProbeGlobalConstantBuffer(ClusterCullingReflectionProbePassData passData)
+        unsafe private void UpdateReflectionProbeData(ClusterCullingReflectionProbePassData passData)
         {
             for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
             {
@@ -315,7 +329,7 @@ namespace HN.HNRP
                 globalConstantBuffer.reflectionProbeData2[baseIndex + 1] = probe.localToWorldMatrix.m13;
                 globalConstantBuffer.reflectionProbeData2[baseIndex + 2] = probe.localToWorldMatrix.m23;
                 globalConstantBuffer.reflectionProbeData2[baseIndex + 3] = probe.reflectionProbe.intensity;
-                Vector4 scaleOffsetNormalized = GetTextureScaleOffsetInAtlas(passData.scaleOffset[i]);
+                Vector4 scaleOffsetNormalized = GetTextureScaleOffsetWithoutPaddingInAtlas(passData.scaleOffset[i]);
                 globalConstantBuffer.reflectionProbeData3[baseIndex + 0] = scaleOffsetNormalized.x;
                 globalConstantBuffer.reflectionProbeData3[baseIndex + 1] = scaleOffsetNormalized.y;
                 globalConstantBuffer.reflectionProbeData3[baseIndex + 2] = scaleOffsetNormalized.z;
@@ -355,7 +369,7 @@ namespace HN.HNRP
             return clusterZScaleOffset;
         }
 
-        private void GetReflectionProbeData(VisibleReflectionProbe[] catchedReflectionProbes)
+        private void GetReflectionProbeDataForCS(VisibleReflectionProbe[] catchedReflectionProbes)
         {
             reflectionProbeDatas = new ReflectionProbeData[MAX_REFLECTION_PROBES_ON_SCREEN];
             for(int i = 0; i < catchedReflectionProbes.Length; i++)
@@ -363,6 +377,15 @@ namespace HN.HNRP
                 reflectionProbeDatas[i].boundCenter = catchedReflectionProbes[i].bounds.center;
                 reflectionProbeDatas[i].boundExtents = catchedReflectionProbes[i].bounds.extents;
             }
+        }
+
+        unsafe private void UpdateReflectionProbeParams(int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster)
+        {
+            globalConstantBuffer.reflectionProbeParam0[0] = clusterSize.x;
+            globalConstantBuffer.reflectionProbeParam0[1] = clusterSize.y;
+            globalConstantBuffer.reflectionProbeParam0[2] = clusterZScaleOffset.x;
+            globalConstantBuffer.reflectionProbeParam0[3] = clusterZScaleOffset.y;
+            globalConstantBuffer.reflectionProbeParam1[0] = wordsPerCluster;
         }
 
         private void GetCameraMatrix(Camera camera)
@@ -445,15 +468,15 @@ namespace HN.HNRP
         {
             public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_ReflectionProbeAtlas");
             public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("ReflectionProbeVariablesGlobal");
-            public static readonly int clusterCullingReflectionProbeMaskBuffer = Shader.PropertyToID("clusterCullingReflectionProbeMaskBuffer");
-            public static readonly int reflectionProbeDatasBuffer = Shader.PropertyToID("reflectionProbeDatasBuffer");
+            public static readonly int clusterCullingReflectionProbeMaskBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeMaskBuffer");
+            public static readonly int reflectionProbeDatasBuffer = Shader.PropertyToID("_ReflectionProbeDatasBuffer");
             // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
-            public static readonly int cullingParams0 = Shader.PropertyToID("cullingParams0");
+            public static readonly int cullingParams0 = Shader.PropertyToID("_CullingParams0");
             // xyz:clusterSize w:probeCount
-            public static readonly int cullingParams1 = Shader.PropertyToID("cullingParams1");
-            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("clipToView");
-            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("viewToClip");
-            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("clipToWorld");
+            public static readonly int cullingParams1 = Shader.PropertyToID("_CullingParams1");
+            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClipToView");
+            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ViewToClip");
+            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClipToWorld");
         }
 
 
@@ -467,6 +490,10 @@ namespace HN.HNRP
             public fixed float reflectionProbeData2[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
             // xyzw: scaleOffset
             public fixed float reflectionProbeData3[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
+            // xy: X Y scale zw:Z scale offset
+            public fixed float reflectionProbeParam0[4];
+            // x: words per cluster
+            public fixed float reflectionProbeParam1[4];
         }
     }
 }

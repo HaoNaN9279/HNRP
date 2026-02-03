@@ -1,5 +1,5 @@
 reflection probe
-    ReflectionProbeAtlas正确采样
+    ReflectionProbeAtlas正确采样 处理接缝
     bake逻辑
     UpdateCount更新逻辑
 

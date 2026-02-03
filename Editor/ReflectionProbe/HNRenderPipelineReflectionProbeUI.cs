@@ -98,8 +98,8 @@ namespace HN.HNRP.Editor
         {
             ReflectionProbe reflectionProbe = (ReflectionProbe)owner.target;
 
-            p.blendDistance.floatValue = EditorGUILayout.Slider(Styles.blendDistanceText, p.blendDistance.floatValue, 0.0f, 1.0f);
             EditorGUI.BeginChangeCheck();
+            EditorGUILayout.PropertyField(p.blendDistance, Styles.blendDistanceText);
             EditorGUILayout.PropertyField(p.boxSize, Styles.boxSizeText);
             EditorGUILayout.PropertyField(p.boxOffset, Styles.boxOffsetText);
             if(EditorGUI.EndChangeCheck())

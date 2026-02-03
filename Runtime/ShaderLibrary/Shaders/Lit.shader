@@ -67,6 +67,7 @@ Shader "HNRP/Lit"
             // HNRP Keywords
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
             #pragma multi_compile _ FORWARD_PLUS
+            #pragma multi_compile _ CLUSTER_CULLING_REFLECTION_PROBE
 
             // Unity defined Keywords
             #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
@@ -77,7 +78,7 @@ Shader "HNRP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            // #pragma enable_d3d11_debug_symbols
+            #pragma enable_d3d11_debug_symbols
 
             #include "../Lit/Lit.hlsl"
             ENDHLSL

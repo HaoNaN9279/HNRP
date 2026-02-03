@@ -73,6 +73,7 @@ namespace HN.HNRP
     {
         public static readonly string evaluateSHMixed = "EVALUATE_SH_MIXED";
         public static readonly string evaluateSHVertex = "EVALUATE_SH_VERTEX";
+        public static readonly string clusterCullingReflectionProbe = "CLUSTER_CULLING_REFLECTION_PROBE";
         public static readonly string forwardPlus = "FORWARD_PLUS";
     }
 }

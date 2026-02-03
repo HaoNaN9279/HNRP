@@ -5,8 +5,11 @@
 
 #define MAX_DIRECTIONAL_LIGHT_ON_SCREEN (16)
 #define MAX_LOCAL_LIGHT_ON_SCREEN (512)
+#define MAX_REFLECTION_PROBE_MASK_WORDS (16384)
 #define MAX_REFLECTION_PROBES_ON_SCREEN (64)
 #define REFLECTION_PROBE_ATLAS_MIP_COUNT (8)
+#define REFLECTION_PROBE_ATLAS_TEXEL_PADDING (2)
+#define REFLECTION_PROBE_ATLAS_SIZE (4096)
 
 // Light Data Structure
 struct LightData
@@ -23,18 +26,29 @@ struct LightData
 // Light Data Buffer
 StructuredBuffer<LightData> _LightDatas;
 
-// Reflection Probes Data
+#if CLUSTER_CULLING_REFLECTION_PROBE
+
+// Reflection Probes
 GLOBAL_CBUFFER_START(ReflectionProbeVariablesGlobal, b2)
     float4 _ReflectionProbeData0[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: boxMax, w: blendDistance
     float4 _ReflectionProbeData1[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: boxMin, w: importance
     float4 _ReflectionProbeData2[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: positionWS, w: intensity
     float4 _ReflectionProbeData3[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z,w: scaleOffset
+    float4 _ReflectionProbeParam0; // xy:X Y scale, zw:Z scale offset
+    float4 _ReflectionProbeParam1; // x:words per cluster
 CBUFFER_END
 
+#define _CLUSTER_CULLING_REFLECTION_PROBE_XY_SCALE (_ReflectionProbeParam0.xy)
+#define _CLUSTER_CULLING_REFLECTION_PROBE_Z_SCALE (_ReflectionProbeParam0.z)
+#define _CLUSTER_CULLING_REFLECTION_PROBE_Z_OFFSET (_ReflectionProbeParam0.w)
+#define _CLUSTER_CULLING_REFLECTION_PROBE_WORDS_PER_CLUSTER (_ReflectionProbeParam1.x)
 
-// Reflection Probes Atlas
+StructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
+
 TEXTURE2D(_ReflectionProbeAtlas);
 SAMPLER(sampler_ReflectionProbeAtlas);
+
+#endif
 
 #if FORWARD_PLUS
 

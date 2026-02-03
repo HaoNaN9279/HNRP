@@ -40,7 +40,7 @@ float3 GetCameraPositionWS()
 float4 GetScaledScreenParams()
 {
     // TODO: Dynamic Resolution _ScaledScreenParams
-    return float4(1, 1, 1, 1);
+    return _ScreenParams;
 }
 
 uint Select4(uint4 v, uint i)
