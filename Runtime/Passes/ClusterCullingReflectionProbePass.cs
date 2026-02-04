@@ -100,10 +100,10 @@ namespace HN.HNRP
                                 
                                 for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
                                 {
-                                    texelPadding *= 2;
                                     ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
                                     var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                                     Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], texelPadding);
+                                    texelPadding *= 2;
                                 }
                             }
                         }
@@ -425,7 +425,7 @@ namespace HN.HNRP
         private const TextureDimension REFLECTION_PROBE_ATLAS_DIMENSION = TextureDimension.Tex2D;
         private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Trilinear;
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
-        private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 8;
+        private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 7;
         private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 2;
         private const string REFLECTION_PROBE_ATLAS_NAME = "_ReflectionProbeAtlas";
         private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;

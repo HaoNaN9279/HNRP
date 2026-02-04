@@ -123,9 +123,9 @@ half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
 float2 GetReflectionProbeAtlasUV(float3 reflectVector, float4 scaleOffset, float mip)
 {
     float2 uv = saturate(PackNormalOctQuadEncode(reflectVector) * 0.5 + 0.5);
-    float padding = (float)(1u << REFLECTION_PROBE_ATLAS_TEXEL_PADDING) / REFLECTION_PROBE_ATLAS_SIZE;
-    padding *= pow(2.0, mip + REFLECTION_PROBE_ATLAS_TEXEL_PADDING * 0.5);
-    float2 size = scaleOffset.xy - float2(padding, padding);
+    float2 padding = (float)REFLECTION_PROBE_ATLAS_TEXEL_PADDING / REFLECTION_PROBE_ATLAS_SIZE;
+    padding *= pow(2.0, mip);
+    float2 size = scaleOffset.xy - padding;
     float2 offset = scaleOffset.zw + 0.5 * padding;
     return uv * size + offset;
 }
@@ -133,7 +133,7 @@ float2 GetReflectionProbeAtlasUV(float3 reflectVector, float4 scaleOffset, float
 half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positionWS, half perceptualRoughness, float2 normalizedScreenSpaceUV)
 {
     half3 irradiance = half3(0.0h, 0.0h, 0.0h);
-    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT);
+    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT - 1);
 #if CLUSTER_CULLING_REFLECTION_PROBE
     float totalWeight = 0.0f;
     uint probeIndex;
