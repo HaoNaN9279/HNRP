@@ -42,6 +42,7 @@ CBUFFER_END
 #define _CLUSTER_CULLING_REFLECTION_PROBE_Z_SCALE (_ReflectionProbeParam0.z)
 #define _CLUSTER_CULLING_REFLECTION_PROBE_Z_OFFSET (_ReflectionProbeParam0.w)
 #define _CLUSTER_CULLING_REFLECTION_PROBE_WORDS_PER_CLUSTER (_ReflectionProbeParam1.x)
+#define _CLUSTER_CULLING_REFLECTION_PROBE_COUNT (_ReflectionProbeParam1.y)
 
 StructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
 

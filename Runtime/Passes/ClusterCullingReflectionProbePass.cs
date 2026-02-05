@@ -9,9 +9,6 @@ using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Collections.LowLevel.Unsafe;
-using log4net.Util;
-using Unity.Properties;
-using log4net.DateFormatter;
 
 namespace HN.HNRP
 {
@@ -25,22 +22,6 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
-            if(reflectionProbeAtlasRT == null)
-            {
-                reflectionProbeAtlasRT = new RenderTexture(new RenderTextureDescriptor(REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_FORMAT))
-                {
-                    name = REFLECTION_PROBE_ATLAS_NAME,
-                    dimension = REFLECTION_PROBE_ATLAS_DIMENSION,
-                    volumeDepth = 1,
-                    enableRandomWrite = false,
-                    useMipMap = true,
-                    autoGenerateMips = false,
-                    filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
-                    wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE
-                };
-            }
-            reflectionProbeAtlasHandle = RTHandles.Alloc(reflectionProbeAtlasRT);
-
             using (var builder = renderGraph.AddRenderPass<ClusterCullingReflectionProbePassData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
@@ -51,37 +32,78 @@ namespace HN.HNRP
                     return;
                 }
                 
+                // 清空当前帧可见probe的引用
                 ClearProbesRef();
-                UpdateProbeRefs(ref renderingData.visibleReflectionProbes);
-                CatcheProbes(passData, ref catchedReflectionProbes);
-                UpdateReflectionProbeData(passData);
-                ImportProbeTextures(renderGraph, passData);
-                passData.reflectionProbeAtlas = renderGraph.ImportTexture(reflectionProbeAtlasHandle);
 
+                // 更新当前帧可见probe的引用
+                UpdateProbeRefs(ref renderingData.visibleReflectionProbes);
+
+                // 从当前帧可见probe的引用中catch需要渲染的probe
+                CatcheProbes(passData, ref catchedReflectionProbes);
+
+                // 更新当前帧需要渲染的probe的数据
+                UpdateReflectionProbeData(passData);
+
+                // 将当前帧需要更新的probe的texture导入render graph
+                ImportProbeTextures(renderGraph, passData);
+                
+                // 创建当前帧的reflection probe atlas
+                passData.reflectionProbeAtlas = builder.WriteTexture(renderGraph.CreateTexture(new TextureDesc(REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_SIZE, false, false)
+                {
+                    name = REFLECTION_PROBE_ATLAS_NAME,
+                    colorFormat = REFLECTION_PROBE_ATLAS_FORMAT,
+                    dimension = REFLECTION_PROBE_ATLAS_DIMENSION,
+                    useMipMap = true,
+                    autoGenerateMips = false,
+                    filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
+                    wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE
+                }));
+
+                // 创建当前帧的mask buffer
                 passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         MAX_CLUSTER_MASK_WORDS,
                         sizeof(uint)
                     ) { name = "Cluster Culling Reflection Probe Cluster Mask Buffer" }
                 ));
+
+                // 单个cluster中可见probe的最大数量
                 int itemsPerCluster = MAX_REFLECTION_PROBES_ON_SCREEN;
+
+                // 单个cluster中所需的words 
                 int wordsPerCluster = (itemsPerCluster + 31) / 32 + 1/* 1 for header */;
+
                 Camera camera = renderingData.Camera;
                 HNAdditionalCameraData cameraData = renderingData.CameraData;
                 int2 screenResolution = math.int2(camera.pixelWidth, camera.pixelHeight);
+                
+                // 计算当前帧三个方向的cluster数量
                 int3 clusterSize = GetClusterSize(screenResolution);
+
+                // 当前帧总cluster的数量
                 int clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
-                // Debug.Log($"ClusterSize: x: {clusterSize.x} y: {clusterSize.y} z: {clusterSize.z}.");
+                
+                // 计算cluster Z方向的scaleoffset
                 float2 clusterZScaleOffset = GetClusterZScaleOffset(clusterSize, camera.orthographic, camera.nearClipPlane, camera.farClipPlane);
-                UpdateReflectionProbeParams(clusterSize, clusterZScaleOffset, wordsPerCluster);
+                
+                // 更新当前帧渲染需要的cluster数据
+                UpdateReflectionProbeParams(passData, clusterSize, clusterZScaleOffset, wordsPerCluster);
+
+                // 获取计算cluster所需的矩阵
                 GetCameraMatrix(camera);
+
+                // 计算cluster所需的compute shader
                 passData.clusterCullingReflectionProbeCS = renderingData.runtimeResources.shaderResources.clusterCullingReflectionProbeCS;
                 passData.clusterCullingKernel = passData.clusterCullingReflectionProbeCS.FindKernel(CLUSTER_CULLING_CS_KERNEL_NAME);
-                GetReflectionProbeDataForCS(catchedReflectionProbes);
-                passData.reflectionProbeDatasBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
+                
+                // 获取计算mask所需的probe数据
+                GetReflectionProbeData4CS();
+
+                // 创建计算mask所需的probe数据的buffer
+                passData.reflectionProbeDatas4CSBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
-                        reflectionProbeDatas.Length,
-                        UnsafeUtility.SizeOf<ReflectionProbeData>()
+                        reflectionProbeDatas4CS.Length,
+                        UnsafeUtility.SizeOf<ReflectionProbeData4CS>()
                     ) { name = "Reflection Probe Datas Buffer" }
                 ));
 
@@ -90,38 +112,49 @@ namespace HN.HNRP
                     {
                         ctx.cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
                         
-                        for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
+                        if(isEmpty)
                         {
-                            if(data.needUpdate[i])
+                            for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
                             {
-                                int texelPadding = REFLECTION_PROBE_ATLAS_TEXEL_PADDING;
-                                Vector4 scaleOffset = GetTextureScaleOffsetWithoutPaddingInAtlas(data.scaleOffset[i]);
-                                Vector2 textureSizeWithoutPadding = GetTextureSizeWithoutpadding(scaleOffset, texelPadding);
-                                
-                                for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
-                                {
-                                    ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
-                                    var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
-                                    Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], texelPadding);
-                                    texelPadding *= 2;
-                                }
+                                ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
+                                ctx.cmd.ClearRenderTarget(false, true, Color.black);
                             }
                         }
+                        else
+                        {
+                            for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
+                            {
+                                if(data.needUpdate[i])
+                                {
+                                    int texelPadding = REFLECTION_PROBE_ATLAS_TEXEL_PADDING;
+                                    Vector4 scaleOffset = GetTextureScaleOffsetWithoutPaddingInAtlas(data.scaleOffset[i]);
+                                    Vector2 textureSizeWithoutPadding = GetTextureSizeWithoutpadding(scaleOffset, texelPadding);
+                                    
+                                    for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
+                                    {
+                                        ctx.cmd.SetRenderTarget(data.reflectionProbeAtlas, mipLevel, CubemapFace.Unknown, 0);
+                                        var propertyBlock = ctx.renderGraphPool.GetTempMaterialPropertyBlock();
+                                        Blitter.BlitCubeToOctahedral2DQuadWithPadding(ctx.cmd, propertyBlock, data.textures[i], textureSizeWithoutPadding, scaleOffset, mipLevel, data.isBilinear[i], texelPadding);
+                                        texelPadding *= 2;
+                                    }
+                                }
+                            }
 
-                        ctx.cmd.SetComputeBufferParam(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
-                        ctx.cmd.SetBufferData(data.reflectionProbeDatasBuffer, reflectionProbeDatas);
-                        ctx.cmd.SetComputeBufferParam(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, PropertyIDs.reflectionProbeDatasBuffer, data.reflectionProbeDatasBuffer);
-                        ctx.cmd.SetComputeVectorParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingParams0, new Vector4(clusterZScaleOffset.x, clusterZScaleOffset.y, wordsPerCluster, camera.orthographic ? 1.0f : 0.0f));
-                        ctx.cmd.SetComputeVectorParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, catchedProbeCount));
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingClipToViewMatrix, clipToView);
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingViewToClipMatrix, viewToClip);
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingClipToWorldMatrix, clipToWorld);
-                        int threadGroup = (clusterCount + 63) / 64;
-                        int threadGroupY = (threadGroup + clusterSize.y - 1) / clusterSize.y;
-                        ctx.cmd.DispatchCompute(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, clusterSize.y, threadGroupY, 1);
+                            ctx.cmd.SetComputeBufferParam(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
+                            ctx.cmd.SetBufferData(data.reflectionProbeDatas4CSBuffer, reflectionProbeDatas4CS);
+                            ctx.cmd.SetComputeBufferParam(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, PropertyIDs.reflectionProbeDatas4CSBuffer, data.reflectionProbeDatas4CSBuffer);
+                            ctx.cmd.SetComputeVectorParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingParams0, new Vector4(clusterZScaleOffset.x, clusterZScaleOffset.y, wordsPerCluster, camera.orthographic ? 1.0f : 0.0f));
+                            ctx.cmd.SetComputeVectorParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, catchedProbeCount));
+                            ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingClipToViewMatrix, clipToView);
+                            ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingViewToClipMatrix, viewToClip);
+                            ctx.cmd.SetComputeMatrixParam(data.clusterCullingReflectionProbeCS, PropertyIDs.cullingClipToWorldMatrix, clipToWorld);
+                            int threadGroup = (clusterCount + 63) / 64;
+                            int threadGroupY = (threadGroup + clusterSize.y - 1) / clusterSize.y;
+                            ctx.cmd.DispatchCompute(data.clusterCullingReflectionProbeCS, data.clusterCullingKernel, clusterSize.y, threadGroupY, 1);
+                        }
 
                         ctx.cmd.SetGlobalBuffer(PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
-                        ConstantBuffer.PushGlobal(ctx.cmd, globalConstantBuffer, PropertyIDs.reflectionProbeGlobalConstantBuffer);
+                        ConstantBuffer.PushGlobal(ctx.cmd, data.globalConstantBuffer, PropertyIDs.reflectionProbeGlobalConstantBuffer);
                         ctx.cmd.SetGlobalTexture(PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
                     }
                 );
@@ -138,11 +171,12 @@ namespace HN.HNRP
                     textureRTHandles[i] = null;
                 }
             }
-
-            RTHandles.Release(reflectionProbeAtlasHandle);
         }
 
 
+        /// <summary>
+        /// 清空当前帧可见probe的引用
+        /// </summary>
         private void ClearProbesRef()
         {
             foreach(var probesDict in refProbes)
@@ -151,17 +185,29 @@ namespace HN.HNRP
             }
         }
 
+        /// <summary>
+        /// 更新当前帧可见probe的引用
+        /// </summary>
+        /// <param name="visibleReflectionProbes"></param>
         private void UpdateProbeRefs(ref NativeArray<VisibleReflectionProbe> visibleReflectionProbes)
         {
             var reflectionProbes = visibleReflectionProbes;
-            for(int i = 0; i < reflectionProbes.Length; i++)
+            if(reflectionProbes.Length == 0)
             {
-                var probe = reflectionProbes[i];
-                if(probe.texture == null)
-                    continue;
-                
-                var probeData = probe.reflectionProbe.GetHNAdditionalReflectionProbeData();
-                UpdateProbeRef(probe, probeData);
+                isEmpty = true;
+            }
+            else
+            {
+                isEmpty = false;
+                for(int i = 0; i < reflectionProbes.Length; i++)
+                {
+                    var probe = reflectionProbes[i];
+                    if(probe.texture == null)
+                        continue;
+                    
+                    var probeData = probe.reflectionProbe.GetHNAdditionalReflectionProbeData();
+                    UpdateProbeRef(probe, probeData);
+                }
             }
         }
 
@@ -185,6 +231,11 @@ namespace HN.HNRP
             return (kPrime + (uint)resolution) * textureID + probeCount;
         }
 
+        /// <summary>
+        /// 从当前帧可见probe的引用中catch需要渲染的probe
+        /// </summary>
+        /// <param name="passData"></param>
+        /// <param name="catchedReflectionProbes"></param>
         private void CatcheProbes(ClusterCullingReflectionProbePassData passData, ref VisibleReflectionProbe[] catchedReflectionProbes)
         {
             catchedProbeCount = 0;
@@ -193,18 +244,18 @@ namespace HN.HNRP
             int maxCount = MAX_REFLECTION_PROBES_ON_SCREEN;
             for(int i = 0; i < refProbes.Length; i++)
             {
-                int index = 0;
+                int refIndex = 0;
                 var hashes = refProbes[i].Keys.ToList();
-                while(refProbes[i].Count > 0 && index < hashes.Count && index < maxCount && offsetMask < maxOffsetMask)
+                while(refProbes[i].Count > 0 && refIndex < hashes.Count && refIndex < maxCount && offsetMask < maxOffsetMask)
                 {
                     int width = 4096 / (int)Mathf.Pow(2, i);
                     GetOffset(offsetMask, out int offsetX, out int offsetY);
                     int4 scaleOffset = new int4(width, width, offsetX, offsetY);
-                    if(passData.probeHash[catchedProbeCount] != hashes[index])
+                    if(passData.probeHash[catchedProbeCount] != hashes[refIndex])
                     {
                         passData.scaleOffset[catchedProbeCount] = scaleOffset;
                         passData.needUpdate[catchedProbeCount] = true;
-                        passData.probeHash[catchedProbeCount] = hashes[index];
+                        passData.probeHash[catchedProbeCount] = hashes[refIndex];
                     }
                     else
                     {
@@ -219,15 +270,37 @@ namespace HN.HNRP
                         }
                     }
                     // 如果probe没变，probe中的参数改变也需要更新
-                    passData.probe[catchedProbeCount] = refProbes[i][hashes[index]];
-                    index++;
+                    passData.probe[catchedProbeCount] = refProbes[i][hashes[refIndex]];
+                    refIndex++;
                     catchedProbeCount++;
                     offsetMask += (uint)1 << (int)(Mathf.Log(width, 2) * 2 - 2);
                 }
             }
             catchedReflectionProbes = passData.probe;
+
+            int dataIndex = catchedProbeCount;
+            while(dataIndex < MAX_REFLECTION_PROBES_ON_SCREEN)
+            {
+                // if(passData.probeHash[dataIndex] != 0u)
+                // {
+                //     passData.needUpdate[dataIndex] = true;
+                // }
+                // else
+                // {
+                    passData.needUpdate[dataIndex] = false;
+                // }
+                passData.probeHash[dataIndex] = 0u;
+                passData.scaleOffset[dataIndex] = new int4(0, 0, 0, 0);
+                passData.probe[dataIndex] = default;
+                dataIndex++;
+            }
         }
 
+        /// <summary>
+        /// 将当前帧需要更新的probe的texture导入render graph
+        /// </summary>
+        /// <param name="renderGraph"></param>
+        /// <param name="passData"></param>
         private void ImportProbeTextures(RenderGraph renderGraph, ClusterCullingReflectionProbePassData passData)
         {
             for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
@@ -309,6 +382,10 @@ namespace HN.HNRP
             return new Vector2(scaleX, scaleY);
         }
 
+        /// <summary>
+        /// 更新当前帧需要渲染的probe的数据
+        /// </summary>
+        /// <param name="passData"></param>
         unsafe private void UpdateReflectionProbeData(ClusterCullingReflectionProbePassData passData)
         {
             for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
@@ -317,26 +394,31 @@ namespace HN.HNRP
                 if(probe.texture == null)
                     continue;
                 int baseIndex = i * 4;
-                globalConstantBuffer.reflectionProbeData0[baseIndex + 0] = probe.bounds.max.x;
-                globalConstantBuffer.reflectionProbeData0[baseIndex + 1] = probe.bounds.max.y;
-                globalConstantBuffer.reflectionProbeData0[baseIndex + 2] = probe.bounds.max.z;
-                globalConstantBuffer.reflectionProbeData0[baseIndex + 3] = probe.blendDistance;
-                globalConstantBuffer.reflectionProbeData1[baseIndex + 0] = probe.bounds.min.x;
-                globalConstantBuffer.reflectionProbeData1[baseIndex + 1] = probe.bounds.min.y;
-                globalConstantBuffer.reflectionProbeData1[baseIndex + 2] = probe.bounds.min.z;
-                globalConstantBuffer.reflectionProbeData1[baseIndex + 3] = probe.importance;
-                globalConstantBuffer.reflectionProbeData2[baseIndex + 0] = probe.localToWorldMatrix.m03;
-                globalConstantBuffer.reflectionProbeData2[baseIndex + 1] = probe.localToWorldMatrix.m13;
-                globalConstantBuffer.reflectionProbeData2[baseIndex + 2] = probe.localToWorldMatrix.m23;
-                globalConstantBuffer.reflectionProbeData2[baseIndex + 3] = probe.reflectionProbe.intensity;
+                passData.globalConstantBuffer.reflectionProbeData0[baseIndex + 0] = probe.bounds.max.x;
+                passData.globalConstantBuffer.reflectionProbeData0[baseIndex + 1] = probe.bounds.max.y;
+                passData.globalConstantBuffer.reflectionProbeData0[baseIndex + 2] = probe.bounds.max.z;
+                passData.globalConstantBuffer.reflectionProbeData0[baseIndex + 3] = probe.blendDistance;
+                passData.globalConstantBuffer.reflectionProbeData1[baseIndex + 0] = probe.bounds.min.x;
+                passData.globalConstantBuffer.reflectionProbeData1[baseIndex + 1] = probe.bounds.min.y;
+                passData.globalConstantBuffer.reflectionProbeData1[baseIndex + 2] = probe.bounds.min.z;
+                passData.globalConstantBuffer.reflectionProbeData1[baseIndex + 3] = probe.importance;
+                passData.globalConstantBuffer.reflectionProbeData2[baseIndex + 0] = probe.localToWorldMatrix.m03;
+                passData.globalConstantBuffer.reflectionProbeData2[baseIndex + 1] = probe.localToWorldMatrix.m13;
+                passData.globalConstantBuffer.reflectionProbeData2[baseIndex + 2] = probe.localToWorldMatrix.m23;
+                passData.globalConstantBuffer.reflectionProbeData2[baseIndex + 3] = probe.reflectionProbe.intensity;
                 Vector4 scaleOffsetNormalized = GetTextureScaleOffsetWithoutPaddingInAtlas(passData.scaleOffset[i]);
-                globalConstantBuffer.reflectionProbeData3[baseIndex + 0] = scaleOffsetNormalized.x;
-                globalConstantBuffer.reflectionProbeData3[baseIndex + 1] = scaleOffsetNormalized.y;
-                globalConstantBuffer.reflectionProbeData3[baseIndex + 2] = scaleOffsetNormalized.z;
-                globalConstantBuffer.reflectionProbeData3[baseIndex + 3] = scaleOffsetNormalized.w;
+                passData.globalConstantBuffer.reflectionProbeData3[baseIndex + 0] = scaleOffsetNormalized.x;
+                passData.globalConstantBuffer.reflectionProbeData3[baseIndex + 1] = scaleOffsetNormalized.y;
+                passData.globalConstantBuffer.reflectionProbeData3[baseIndex + 2] = scaleOffsetNormalized.z;
+                passData.globalConstantBuffer.reflectionProbeData3[baseIndex + 3] = scaleOffsetNormalized.w;
             }
         }
 
+        /// <summary>
+        /// 计算当前帧三个方向的cluster数量
+        /// </summary>
+        /// <param name="screenResolution"></param>
+        /// <returns></returns>
         private int3 GetClusterSize(int2 screenResolution)
         {
             int2 clusterSizeXY = new int2(1, 1);
@@ -353,6 +435,14 @@ namespace HN.HNRP
             return new int3(clusterSizeXY.x, clusterSizeXY.y, sliceCount);
         }
 
+        /// <summary>
+        /// 计算cluster Z方向的scaleoffset
+        /// </summary>
+        /// <param name="clusterSize"></param>
+        /// <param name="isOrthographic"></param>
+        /// <param name="nearClipPlane"></param>
+        /// <param name="farClipPlane"></param>
+        /// <returns></returns>
         private float2 GetClusterZScaleOffset(int3 clusterSize, bool isOrthographic, float nearClipPlane, float farClipPlane)
         {
             float2 clusterZScaleOffset = new float2(0, 0);
@@ -369,25 +459,41 @@ namespace HN.HNRP
             return clusterZScaleOffset;
         }
 
-        private void GetReflectionProbeDataForCS(VisibleReflectionProbe[] catchedReflectionProbes)
+        /// <summary>
+        /// 获取计算mask所需的probe数据
+        /// </summary>
+        private void GetReflectionProbeData4CS()
         {
-            reflectionProbeDatas = new ReflectionProbeData[MAX_REFLECTION_PROBES_ON_SCREEN];
-            for(int i = 0; i < catchedReflectionProbes.Length; i++)
+            reflectionProbeDatas4CS = new ReflectionProbeData4CS[MAX_REFLECTION_PROBES_ON_SCREEN];
+            for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
             {
-                reflectionProbeDatas[i].boundCenter = catchedReflectionProbes[i].bounds.center;
-                reflectionProbeDatas[i].boundExtents = catchedReflectionProbes[i].bounds.extents;
+                reflectionProbeDatas4CS[i].isValid = i < catchedProbeCount ? 1 : 0;
+                reflectionProbeDatas4CS[i].boundCenter = catchedReflectionProbes[i].bounds.center;
+                reflectionProbeDatas4CS[i].boundExtents = catchedReflectionProbes[i].bounds.extents;
             }
         }
 
-        unsafe private void UpdateReflectionProbeParams(int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster)
+        /// <summary>
+        /// 更新当前帧渲染需要的cluster数据
+        /// </summary>
+        /// <param name="passData"></param>
+        /// <param name="clusterSize"></param>
+        /// <param name="clusterZScaleOffset"></param>
+        /// <param name="wordsPerCluster"></param>
+        unsafe private void UpdateReflectionProbeParams(ClusterCullingReflectionProbePassData passData, int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster)
         {
-            globalConstantBuffer.reflectionProbeParam0[0] = clusterSize.x;
-            globalConstantBuffer.reflectionProbeParam0[1] = clusterSize.y;
-            globalConstantBuffer.reflectionProbeParam0[2] = clusterZScaleOffset.x;
-            globalConstantBuffer.reflectionProbeParam0[3] = clusterZScaleOffset.y;
-            globalConstantBuffer.reflectionProbeParam1[0] = wordsPerCluster;
+            passData.globalConstantBuffer.reflectionProbeParam0[0] = clusterSize.x;
+            passData.globalConstantBuffer.reflectionProbeParam0[1] = clusterSize.y;
+            passData.globalConstantBuffer.reflectionProbeParam0[2] = clusterZScaleOffset.x;
+            passData.globalConstantBuffer.reflectionProbeParam0[3] = clusterZScaleOffset.y;
+            passData.globalConstantBuffer.reflectionProbeParam1[0] = wordsPerCluster;
+            passData.globalConstantBuffer.reflectionProbeParam1[1] = catchedReflectionProbes.Length;
         }
 
+        /// <summary>
+        /// 获取计算cluster所需的矩阵
+        /// </summary>
+        /// <param name="camera"></param>
         private void GetCameraMatrix(Camera camera)
         {
             clipToView = camera.projectionMatrix;
@@ -406,80 +512,141 @@ namespace HN.HNRP
             new Dictionary<uint, VisibleReflectionProbe>()
         };
 
+        // 当前帧是否不存在可见的reflection probe
+        private bool isEmpty = false;
+
+        // 按照分辨率排序catch 当前帧需要渲染的reflection probe
         private VisibleReflectionProbe[] catchedReflectionProbes = new VisibleReflectionProbe[MAX_REFLECTION_PROBES_ON_SCREEN];
+        
+        // 记录当前帧需要渲染的reflection probe数量
         private int catchedProbeCount = 0;
+
+        // 当前帧需要渲染的reflection probe的texture handles
         private RTHandle[] textureRTHandles = new RTHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
-        private RenderTexture reflectionProbeAtlasRT;
-        private RTHandle reflectionProbeAtlasHandle;
-        private ReflectionProbeGlobalConstantBuffer globalConstantBuffer = default;
+        
+        // 计算剔除的Compute Shader
         private ComputeShader clusterCullingReflectionProbeCS;
-        private ReflectionProbeData[] reflectionProbeDatas;
+
+        // 计算剔除的Compute Shader所需的Reflection Probe的数据
+        private ReflectionProbeData4CS[] reflectionProbeDatas4CS;
+
+        // 计算剔除的Compute Shader所需的矩阵
         private Matrix4x4 clipToView, viewToClip, clipToWorld;
         
 
         public const string PassName = "Cluster Culling Reflection Probe Pass";
 
-        private const int MAX_REFLECTION_PROBES_ON_SCREEN = HNRenderPipelineAsset.MAX_REFLECTION_PROBES_ON_SCREEN;
+        // 当前帧屏幕可见的Reflection Probe的最大数量 与Input.hlsl中同步
+        private const int MAX_REFLECTION_PROBES_ON_SCREEN = 64;
+        
+        // reflection probe atlas的尺寸 与Input.hlsl中同步
         private const int REFLECTION_PROBE_ATLAS_SIZE = 4096;
-        private const RenderTextureFormat REFLECTION_PROBE_ATLAS_FORMAT = RenderTextureFormat.RGB111110Float;
+
+        // reflection probe atlas的格式
+        private const GraphicsFormat REFLECTION_PROBE_ATLAS_FORMAT = GraphicsFormat.B10G11R11_UFloatPack32;
+
+        // reflection probe atlas的Dimension
         private const TextureDimension REFLECTION_PROBE_ATLAS_DIMENSION = TextureDimension.Tex2D;
+
+        // reflection probe atlas的Filter Mode
         private const FilterMode REFLECTION_PROBE_ATLAS_FILTER_MODE = FilterMode.Trilinear;
+
+        // reflection probe atlas的Wrap Mode
         private const TextureWrapMode REFLECTION_PROBE_ATLAS_WRAP_MODE = TextureWrapMode.Clamp;
+
+        // reflection probe atlas的mip数量 与Input.hlsl中同步
         private const int REFLECTION_PROBE_ATLAS_MIP_COUNT = 7;
+
+        // reflection probe atlas中每张贴图的padding值 与Input.hlsl中同步
         private const int REFLECTION_PROBE_ATLAS_TEXEL_PADDING = 2;
+
+        // reflection probe atlas的名字
         private const string REFLECTION_PROBE_ATLAS_NAME = "_ReflectionProbeAtlas";
+
+        // mask buffer的最大尺寸（1 words = 32 bit）
         private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;
+
+        // 单个cluster最小尺寸（pixel）
         private const int CLUSTER_MIN_TILE_SIZE = 8;
+
+        // cluster Z方向最大切分数量
         private const int CLUSTER_MAX_Z_SLICE = 128;
+
+        // cluster Z方向最小切分数量
         private const int CLUSTER_MIN_Z_SLIZE = 16;
-        private const string CLUSTER_CULLING_CS_KERNEL_NAME = "ClusterCulling";
+
+        // cluster culling compute shader中的kernel名
+        private const string CLUSTER_CULLING_CS_KERNEL_NAME = "ClusterCullingReflectionProbeCS";
 
 
         public class ClusterCullingReflectionProbePassData
         {
+            // reflection probe atlas handle
             public TextureHandle reflectionProbeAtlas;
+
+            // 当前帧渲染的每个probe的hash 没有probe为0
             public uint[] probeHash = new uint[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // 当前帧渲染的每个probe的lod0的texture在reflection probe atlas中的实际尺寸 单位：pixel
             public int4[] scaleOffset = new int4[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // 当前帧渲染的每个probe是否需要更新 非realtime的probe的texture不需要每帧更新
             public bool[] needUpdate = new bool[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // 当前帧渲染的每个probe的数据
             public VisibleReflectionProbe[] probe = new VisibleReflectionProbe[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // 当前帧渲染的每个probe的texture是否是Bilinear
             public bool[] isBilinear = new bool[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // 当前帧渲染的每个probe的texture handle （需要render graph导入后blit到atlas上）
             public TextureHandle[] textures = new TextureHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // reflection probe渲染所需数据
             // xyz:box max w:blend distance
             public Vector4[] reflectionProbeData0 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // reflection probe渲染所需数据
             // xyz:box min w:importance
             public Vector4[] reflectionProbeData1 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // reflection probe渲染所需数据
             // xyz:position w:intensity
             public Vector4[] reflectionProbeData2 = new Vector4[MAX_REFLECTION_PROBES_ON_SCREEN];
+
+            // reflection probe渲染所需的global数据
+            public ReflectionProbeGlobalConstantBuffer globalConstantBuffer = default;
+
+            // 计算cluster culling的compute shader
             public ComputeShader clusterCullingReflectionProbeCS;
+
+            // 计算cluster culling的compute shader的kernel
             public int clusterCullingKernel;
+
+            // cluster culling计算出的mask buffer
             public ComputeBufferHandle clusterCullingReflectionProbeMaskBuffer;
-            public ComputeBufferHandle reflectionProbeDatasBuffer;
+
+            // cluster culling计算所需的数据
+            public ComputeBufferHandle reflectionProbeDatas4CSBuffer;
         }
 
+
+        // cluster culling计算所需的数据结构
         [Serializable]
-        public struct ReflectionProbeData
+        public struct ReflectionProbeData4CS
         {
+            // 当前probe是否存在
+            public int isValid;
+
+            // 当前probe的bound中心 world space
             public float3 boundCenter;
+
+            // 当前probe的bound的extent world space
             public float3 boundExtents;
         }
 
 
-        public static class PropertyIDs
-        {
-            public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_ReflectionProbeAtlas");
-            public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("ReflectionProbeVariablesGlobal");
-            public static readonly int clusterCullingReflectionProbeMaskBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeMaskBuffer");
-            public static readonly int reflectionProbeDatasBuffer = Shader.PropertyToID("_ReflectionProbeDatasBuffer");
-            // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
-            public static readonly int cullingParams0 = Shader.PropertyToID("_CullingParams0");
-            // xyz:clusterSize w:probeCount
-            public static readonly int cullingParams1 = Shader.PropertyToID("_CullingParams1");
-            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClipToView");
-            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ViewToClip");
-            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClipToWorld");
-        }
-
-
+        // probe渲染所需的global数据
         unsafe public struct ReflectionProbeGlobalConstantBuffer
         {
             // xyz: boxMax w: blendDistance
@@ -492,8 +659,24 @@ namespace HN.HNRP
             public fixed float reflectionProbeData3[MAX_REFLECTION_PROBES_ON_SCREEN * 4];
             // xy: X Y scale zw:Z scale offset
             public fixed float reflectionProbeParam0[4];
-            // x: words per cluster
+            // x: words per cluster y: reflection probe count
             public fixed float reflectionProbeParam1[4];
+        }
+
+
+        public static class PropertyIDs
+        {
+            public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_ReflectionProbeAtlas");
+            public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("ReflectionProbeVariablesGlobal");
+            public static readonly int clusterCullingReflectionProbeMaskBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeMaskBuffer");
+            public static readonly int reflectionProbeDatas4CSBuffer = Shader.PropertyToID("_ReflectionProbeDatas4CSBuffer");
+            // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
+            public static readonly int cullingParams0 = Shader.PropertyToID("_CullingParams0");
+            // xyz:clusterSize w:probeCount
+            public static readonly int cullingParams1 = Shader.PropertyToID("_CullingParams1");
+            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClipToView");
+            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ViewToClip");
+            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClipToWorld");
         }
     }
 }

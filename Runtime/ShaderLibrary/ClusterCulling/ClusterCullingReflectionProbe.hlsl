@@ -29,7 +29,7 @@ ClusterCullingReflectionProbeIterator ClusterCullingReflectionProbeInit(float2 n
 
 bool ClusterCullingReflectionProbeNext(inout ClusterCullingReflectionProbeIterator it, out uint probeIndex)
 {
-    if(it.currentIndex >= it.minIndex && it.currentIndex <= it.maxIndex)
+    if(it.currentIndex >= it.minIndex && it.currentIndex <= it.maxIndex && _CLUSTER_CULLING_REFLECTION_PROBE_COUNT != 0)
     {
         bool valid = 0;
         do

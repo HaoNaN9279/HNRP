@@ -1,4 +1,4 @@
-#pragma kernel ClusterCulling
+#pragma kernel ClusterCullingReflectionProbeCS
 
 #pragma enable_d3d11_debug_symbols
 
@@ -12,14 +12,15 @@
 
 #define MAX_REFLECTION_PROBES_ON_SCREEN 64
 
-struct ReflectionProbeData
+struct ReflectionProbeData4CS
 {
+    int isValid;
     float3 boundCenter;
     float3 boundExtents;
 };
 
 RWStructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
-StructuredBuffer<ReflectionProbeData> _ReflectionProbeDatasBuffer;
+StructuredBuffer<ReflectionProbeData4CS> _ReflectionProbeDatas4CSBuffer;
 float4 _CullingParams0;
 float4 _CullingParams1;
 // float2 clusterZScaleOffset;
@@ -58,7 +59,7 @@ void UpdateHeader(inout uint header, uint index)
 }
 
 [numthreads(8, 8, 1)]
-void ClusterCulling(uint3 id : SV_DispatchThreadID)
+void ClusterCullingReflectionProbeCS(uint3 id : SV_DispatchThreadID)
 {    
     float2 clusterZScaleOffset = _CullingParams0.xy;
     uint wordsPerCluster = asuint(int(_CullingParams0.z));
@@ -122,30 +123,38 @@ void ClusterCulling(uint3 id : SV_DispatchThreadID)
     }
 
     // 遍历probe
-    for(uint probeIndex = 0; probeIndex < probeCount; probeIndex++)
+    for(uint probeIndex = 0; probeIndex < MAX_REFLECTION_PROBES_ON_SCREEN; probeIndex++)
     {
         // 计算probe在view space下的minmax
-        ReflectionProbeData probeData = _ReflectionProbeDatasBuffer[probeIndex];
-        float3 centerWS = probeData.boundCenter.xyz;
-        float3 extentsWS = probeData.boundExtents.xyz;
-        float3 probeMinWS = centerWS - extentsWS;
-        float3 probeMaxWS = centerWS + extentsWS;
-
-        // 判断probe与cluster是否相交
-        if(
-            clusterMinWS.x < probeMaxWS.x
-            || clusterMinWS.y < probeMaxWS.y
-            || clusterMinWS.z < probeMaxWS.z
-            || clusterMaxWS.x > probeMinWS.x
-            || clusterMaxWS.y > probeMinWS.y
-            || clusterMaxWS.z > probeMinWS.z
-        )
+        ReflectionProbeData4CS probeData = _ReflectionProbeDatas4CSBuffer[probeIndex];
+        int wordIndex = probeIndex / 32;
+        if(probeData.isValid == 1)
         {
-            UpdateHeader(header, probeIndex);
+            float3 centerWS = probeData.boundCenter.xyz;
+            float3 extentsWS = probeData.boundExtents.xyz;
+            float3 probeMinWS = centerWS - extentsWS;
+            float3 probeMaxWS = centerWS + extentsWS;
 
-            int wordIndex = probeIndex / 32;
+            // 判断probe与cluster是否相交
+            if(
+                clusterMinWS.x < probeMaxWS.x
+                || clusterMinWS.y < probeMaxWS.y
+                || clusterMinWS.z < probeMaxWS.z
+                || clusterMaxWS.x > probeMinWS.x
+                || clusterMaxWS.y > probeMinWS.y
+                || clusterMaxWS.z > probeMinWS.z
+            )
+            {
+                UpdateHeader(header, probeIndex);
+
+                uint bitMask = 1u << (probeIndex % 32);
+                _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+            }
+        }
+        else
+        {
             uint bitMask = 1u << (probeIndex % 32);
-            _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+            _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
         }
     }
     _ClusterCullingReflectionProbeMaskBuffer[headerIndex] = header;

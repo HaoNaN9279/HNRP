@@ -9,7 +9,6 @@ namespace HN.HNRP
     {
         public override void Build()
         {
-            // ReflectionProbeAtlasPass reflectionProbeAtlasPass = AddPass<ReflectionProbeAtlasPass>("Reflection Probe Atlas");
             ClusterCullingReflectionProbePass clusterCullingReflectionProbePass = AddPass<ClusterCullingReflectionProbePass>("Cluster Culling Reflection Probe");
 
             BuildLightDataPass buildLightDataPass = AddPass<BuildLightDataPass>("Build Light Data");
