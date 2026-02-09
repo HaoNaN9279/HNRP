@@ -1,7 +1,7 @@
 #ifndef HNRP_LIGHT_INCLUDED
 #define HNRP_LIGHT_INCLUDED
 
-#include "../ClusterCulling/ForwardPlusCluster.hlsl"
+#include "../ClusterCulling/ClusterCullingLight.hlsl"
 
 struct Light
 {
@@ -12,19 +12,14 @@ struct Light
     float distanceAttenuation;
 };
 
-#if FORWARD_PLUS && defined(LIGHTMAP_ON) && defined(LIGHTMAP_SHADOW_MIXING)
-#define FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK if(_AdditionalLightsColor[lightIndex].a > 0.0) continue;
-#else
-#define FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK
-#endif
-
-#if FORWARD_PLUS
+#if CLUSTER_CULLING_LIGHT
     #define LIGHT_LOOP_BEGIN(lightCount) { \
     uint lightIndex; \
-    ClusterIterator _internal_clusterIterator = ClusterInit(normalizedScreenSpaceUV, positionWS, 0); \
-    [loop] while (ClusterNext(_internal_clusterIterator, lightIndex)) { \
-        lightIndex += FP_DIRECTIONAL_LIGHTS_COUNT; \
-        FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK
+    ClusterCullingLightIterator _internal_clusterIterator = ClusterCullingLightInit(normalizedScreenSpaceUV, positionWS); \
+    [loop] while (ClusterCullingLightNext(_internal_clusterIterator, lightIndex)) { \
+        if(lightIndex > MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN) break; \
+        if(lightIndex == _LightConstantData.x) continue;
+        
     #define LIGHT_LOOP_END } }
 #else
     #define LIGHT_LOOP_BEGIN(lightCount) \
@@ -64,14 +59,14 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
     {
         light.distanceAttenuation = 1.0;
     }
-    else if(lightType == 2 /* Point Light */|| lightType == 0 /* Spot Light */)
+    else if(lightType == 2 /* Point Light */|| lightType == 3 /* Spot Light */)
     {
         float3 lightVector = light.positionWS - positionWS;
         float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
         light.directionWS = lightVector * rsqrt(distanceSqr);
-        float distanceAttenuation = DistanceAttenuation(distanceSqr, _LightDatas[lightIndex].attenuation.xy);
+        float distanceAttenuation = DistanceAttenuation(lightVector, _LightDatas[lightIndex].range);
         light.distanceAttenuation = distanceAttenuation;
-        if(lightType == 0 /* Spot Light */)
+        if(lightType == 3 /* Spot Light */)
         {
             float angleAttenuation = AngleAttenuation(_LightDatas[lightIndex].directionWS, light.directionWS, _LightDatas[lightIndex].attenuation.zw);
             light.distanceAttenuation = distanceAttenuation * angleAttenuation;
@@ -83,7 +78,11 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
 
 uint GetAdditionalLightsCount()
 {
+#if CLUSTER_CULLING_LIGHT
+    return _CLUSTER_CULLING_LIGHT_LOCAL_LIGHT_COUNT + _CLUSTER_CULLING_LIGHT_DIRECTIONAL_LIGHT_COUNT;
+#else
     return asuint(_LightConstantData.y);
+#endif
 }
 
 #endif

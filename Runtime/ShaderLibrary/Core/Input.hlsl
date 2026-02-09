@@ -5,6 +5,7 @@
 
 #define MAX_DIRECTIONAL_LIGHT_ON_SCREEN (16)
 #define MAX_LOCAL_LIGHT_ON_SCREEN (512)
+
 #define MAX_REFLECTION_PROBE_MASK_WORDS (16384)
 #define MAX_REFLECTION_PROBES_ON_SCREEN (64)
 #define REFLECTION_PROBE_ATLAS_MIP_COUNT (7)
@@ -17,10 +18,10 @@ struct LightData
     float3 positionWS;
     uint lightType;
     float3 color;
-    float __unused__0;
+    float range;
     float4 attenuation;
     float3 directionWS;
-    bool __unused__1;
+    uint renderingLayerMask;
 };
 
 // Light Data Buffer
@@ -28,8 +29,7 @@ StructuredBuffer<LightData> _LightDatas;
 
 #if CLUSTER_CULLING_REFLECTION_PROBE
 
-// Reflection Probes
-GLOBAL_CBUFFER_START(ReflectionProbeVariablesGlobal, b2)
+GLOBAL_CBUFFER_START(_ClusterCullingReflectionProbeGlobalConstantBuffer, b2)
     float4 _ReflectionProbeData0[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: boxMax, w: blendDistance
     float4 _ReflectionProbeData1[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: boxMin, w: importance
     float4 _ReflectionProbeData2[MAX_REFLECTION_PROBES_ON_SCREEN]; // x,y,z: positionWS, w: intensity
@@ -48,6 +48,24 @@ StructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
 
 TEXTURE2D(_ReflectionProbeAtlas);
 SAMPLER(sampler_ReflectionProbeAtlas);
+
+#endif
+
+#if CLUSTER_CULLING_LIGHT
+
+GLOBAL_CBUFFER_START(_ClusterCullingLightGlobalConstantBuffer, b3)
+    float4 _ClusterCullingLightParam0; // xy: X Y scale zw:Z scale offset
+    float4 _ClusterCullingLightParam1; // x: words per cluster y: local light count z: directional light count(without main light)
+CBUFFER_END
+
+#define _CLUSTER_CULLING_LIGHT_XY_SCALE (_ClusterCullingLightParam0.xy)
+#define _CLUSTER_CULLING_LIGHT_Z_SCALE (_ClusterCullingLightParam0.z)
+#define _CLUSTER_CULLING_LIGHT_Z_OFFSET (_ClusterCullingLightParam0.w)
+#define _CLUSTER_CULLING_LIGHT_WORDS_PER_CLUSTER (_ClusterCullingLightParam1.x)
+#define _CLUSTER_CULLING_LIGHT_LOCAL_LIGHT_COUNT (_ClusterCullingLightParam1.y)
+#define _CLUSTER_CULLING_LIGHT_DIRECTIONAL_LIGHT_COUNT (_ClusterCullingLightParam1.z)
+
+StructuredBuffer<uint> _ClusterCullingLightMaskBuffer;
 
 #endif
 

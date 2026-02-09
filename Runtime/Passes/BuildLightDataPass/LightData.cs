@@ -12,11 +12,12 @@ namespace HN.HNRP
         public Vector3 positionWS;
 
         /// <summary>
-        /// directional light: 1
-        /// point light: 2
-        /// spot light: 0
+        /// 0: None
+        /// 1: directional light
+        /// 2: point light
+        /// 3: spot light
         /// </summary>
-        public LightType lightType;
+        public uint lightType;
 
         /// <summary>
         /// light color
@@ -24,9 +25,9 @@ namespace HN.HNRP
         public Vector3 color; 
 
         /// <summary>
-        /// TODO: rendering layer mask
+        /// range
         /// </summary>
-        public float __unused__0;
+        public float range;
 
         /// <summary>
         /// directional light: unused
@@ -43,7 +44,7 @@ namespace HN.HNRP
         public Vector3 directionWS;
 
         /// <summary>
-        /// is actived
+        /// TODO: rendering layer mask
         /// </summary>
         public bool __unused__1;
     }

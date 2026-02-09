@@ -1,0 +1,206 @@
+#pragma kernel ClusterCullingLightCS
+
+// #pragma enable_d3d11_debug_symbols
+
+#define PI 3.14159265358979323846
+#define FLT_MIN  1.175494351e-38
+#define FLT_MAX  3.402823466e+38
+#define HALF_MIN 6.103515625e-5
+#define HALF_MAX 65504.0
+#define UINT_MIN 0
+#define UINT_MAX 0xFFFFFFFFu
+
+#define MAX_LIGHT_ON_SCREEN (528)
+
+// Light Data Structure
+struct LightData
+{
+    float3 positionWS;
+    uint lightType;
+    float3 color;
+    float range;
+    float4 attenuation;
+    float3 directionWS;
+    uint renderingLayerMask;
+};
+
+// Light Data Buffer
+StructuredBuffer<LightData> _LightDatas;
+RWStructuredBuffer<uint> _ClusterCullingLightMaskBuffer;
+// x:z scale y:z offset z:wordsPerCluster w:isOrthographic
+float4 _ClusterCullingLightParams0;
+// xyz:clusterSize w:probeCount
+float4 _ClusterCullingLightParams1;
+float4x4 _ClusterCullingLightClipToView;
+float4x4 _ClusterCullingLightViewToClip;
+float4x4 _ClusterCullingLightClipToWorld;
+
+
+void EncodeHeader(uint min, uint max, inout uint result)
+{
+    result = (min & 0xFFFF) | ((max & 0xFFFF) << 16);
+}
+
+void DecodeHeader(uint bin, inout uint min, inout uint max)
+{
+    min = bin & 0xFFFF;
+    max = (bin >> 16) & 0xFFFF;
+}
+
+void UpdateHeader(inout uint header, uint index)
+{
+    index &= 0xFFFF;
+    if(index < (header & 0xFFFF))
+    {
+        header &= 0xFFFF0000u;
+        header |= index;
+    }
+    if(index > ((header >> 16) & 0xFFFF))
+    {
+        header &= 0x0000FFFFu;
+        header |= index << 16;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
+{    
+    float2 clusterZScaleOffset = _ClusterCullingLightParams0.xy;
+    uint wordsPerCluster = asuint(int(_ClusterCullingLightParams0.z));
+    bool isOrthographic = _ClusterCullingLightParams0.w > 0.5;
+    uint3 clusterSize = uint3(asuint(int(_ClusterCullingLightParams1.x)), asuint(int(_ClusterCullingLightParams1.y)), asuint(int(_ClusterCullingLightParams1.z)));
+    uint lightCount = asuint(int(_ClusterCullingLightParams1.w));
+
+    uint clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
+    uint headerIndex = ((id.x + 1) * (id.y + 1) * (id.z + 1) - 1) * wordsPerCluster;
+
+    _ClusterCullingLightMaskBuffer[headerIndex] = 0u;
+    for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
+    {
+        _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
+    }
+
+    if(
+        id.x > clusterSize.x
+        || id.y > clusterSize.y
+        || id.z > clusterSize.z
+    )
+    {
+        return;
+    }
+
+    uint clusterIndexZ = id.z;
+    uint clusterIndexY = id.y;
+    uint clusterIndexX = id.x;
+
+    // header中写入初始值
+    uint header = 0;
+    EncodeHeader(0xFFFFFFFFu, 0, header);
+
+    // 计算当前cluster在clip space下的minmax
+    float3 clusterMinCS, clusterMaxCS;
+    float2 clusterMinMaxZVS;
+    float zSize = pow(2, clusterSize.z);
+    clusterMinMaxZVS.x = ((float)clusterIndexZ - clusterZScaleOffset.y) / clusterZScaleOffset.x;
+    clusterMinMaxZVS.x = isOrthographic ? pow(2, clusterMinMaxZVS.x) : clusterMinMaxZVS.x;
+    clusterMinMaxZVS.y = ((float)clusterIndexZ + 1 - clusterZScaleOffset.y) / clusterZScaleOffset.x;
+    clusterMinMaxZVS.y = isOrthographic ? pow(2, clusterMinMaxZVS.y) : clusterMinMaxZVS.y;
+    clusterMinCS.z = mul(_ClusterCullingLightViewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
+    clusterMaxCS.z = mul(_ClusterCullingLightViewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
+    clusterMinCS.xy = float2((float)clusterIndexX / clusterSize.x, (float)clusterIndexY / clusterSize.y) * 2 - 1;
+    clusterMaxCS.xy = float2((float)(clusterIndexX + 1) / clusterSize.x, (float)(clusterIndexY + 1) / clusterSize.y) * 2 - 1;
+    clusterMinCS = max(clusterMinCS, float3(-1, -1, 0));
+    clusterMaxCS = min(clusterMaxCS, float3(1, 1, 1));
+
+    // 计算当前cluster在world space下的AABB
+    float3 clusterMinWS = float3(FLT_MAX, FLT_MAX, FLT_MAX);
+    float3 clusterMaxWS = float3(FLT_MIN, FLT_MIN, FLT_MIN);
+    for(uint pointIndex = 0; pointIndex < 8; pointIndex++)
+    {
+        float3 pointCS;
+        pointCS.x = (pointIndex >> 2 & 1) == 1 ? clusterMaxCS.x : clusterMinCS.x;
+        pointCS.y = (pointIndex >> 1 & 1) == 1 ? clusterMaxCS.y : clusterMinCS.y;
+        pointCS.z = (pointIndex & 1) == 1 ? clusterMaxCS.z : clusterMinCS.z;
+        float3 pointWS = mul(_ClusterCullingLightClipToWorld, float4(pointCS, 1)).xyz;
+        clusterMinWS = min(clusterMinWS, pointWS);
+        clusterMaxWS = max(clusterMaxWS, pointWS);
+    }
+
+    // 遍历light
+    for(uint lightIndex = 0; lightIndex < MAX_LIGHT_ON_SCREEN; lightIndex++)
+    {
+        LightData lightData = _LightDatas[lightIndex];
+        uint wordIndex = lightIndex / 32;
+        uint bitMask = 1u << (lightIndex % 32);
+        uint lightType = lightData.lightType;
+        if(lightType == 1/* directional light */)
+        {
+            // directional light默认都与cluster相交，不更新header，header中只存储local light的最大最小index
+            _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+        }
+        else if(lightType == 2/* point light */ || lightType == 3/* spot light */)
+        {
+            // 判断cluster是否与point light相交是通过判断cluster AABB与point light的球形bound的相交
+            // 判断cluster是否与spot light相交是先计算spot light的球形bound，再计算球形bound的球体与cluster AABB的相交
+
+            // 计算球体bound
+            float lightBoundRange;
+            float3 lightBoundCenter, lightBoundMin, lightBoundMax;
+            if(lightType == 2/* point light */)
+            {
+                lightBoundRange = lightData.range;
+                lightBoundCenter = lightData.positionWS;
+                lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
+            }
+            else // /* spot light */
+            {
+                lightBoundRange = lightData.range * 0.5 / cos(lightData.attenuation.x);
+                lightBoundCenter = lightData.positionWS + lightBoundRange * lightData.directionWS;
+                lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
+            }
+
+            // cluster AABB与球体的相交分两步：
+            // 1. 计算cluster AABB的八个顶点是否在球体内部
+            bool isClusterPointsIntersectRange = 
+                length(float3(clusterMinWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMinWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                ;
+            // 2. 考虑cluster AABB的八个点都在范围外，但是与cluster AABB的某个面相交的情况
+            // 计算point light的AABB在三轴方向的边界与cluster AABB中心点的距离是否小于cluster AABB在该方向的尺寸的一半，小于则是相交
+            float3 clusterExtent = (clusterMaxWS - clusterMinWS) * 0.5;
+            float3 clusterCenter = float3(clusterMinWS + clusterExtent);
+            float3 dis0 = lightBoundMin - clusterCenter;
+            float3 dis1 = clusterCenter - lightBoundMax;
+            bool isClusterFaceIntersectRange = 
+                dis0.x < clusterExtent.x || dis1.x < clusterExtent.x
+                || dis0.y < clusterExtent.y || dis1.y < clusterExtent.y
+                || dis0.z < clusterExtent.z || dis1.z < clusterExtent.z
+                ;
+            
+            // 判断以上两种相交情况
+            if(isClusterPointsIntersectRange || isClusterFaceIntersectRange)
+            {
+                UpdateHeader(header, lightIndex);
+
+                _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+            }
+            else
+            {
+                _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
+            }
+        }
+        else
+        {
+            _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
+        }
+    }
+    _ClusterCullingLightMaskBuffer[headerIndex] = header;
+}

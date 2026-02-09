@@ -86,23 +86,19 @@ float2 GetNormalizedScreenSpaceUV(float4 positionCS)
     return GetNormalizedScreenSpaceUV(positionCS.xy);
 }
 
-float DistanceAttenuation(float distanceSqr, float2 distanceAttenuation)
+float DistanceAttenuation(float3 lightVector, float range)
 {
-    float lightAtten = rcp(distanceSqr);
-    float2 distanceAttenuationFloat = float2(distanceAttenuation);
-
-    float factor = float(distanceSqr * distanceAttenuationFloat.x);
-    float smoothFactor = saturate(float(1.0) - factor * factor);
-    smoothFactor = smoothFactor * smoothFactor;
-
-    return lightAtten * smoothFactor;
+    range = max(1e-5, range);
+    float div = length(lightVector) / range;
+    float atten = 1 - div * div;
+    return atten;
 }
 
 float AngleAttenuation(float3 spotDirection, float3 lightDirection, float2 spotAttenuation)
 {
     float SdotL = dot(spotDirection, lightDirection);
-    float atten = saturate(SdotL * spotAttenuation.x + spotAttenuation.y);
-    return atten * atten;
+    float atten = saturate((SdotL - spotAttenuation.x) / (spotAttenuation.x - spotAttenuation.y));
+    return atten;
 }
 
 

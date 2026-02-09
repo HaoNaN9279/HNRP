@@ -9,6 +9,9 @@ using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Collections.LowLevel.Unsafe;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace HN.HNRP
 {
@@ -18,10 +21,20 @@ namespace HN.HNRP
         public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.OnCreate(hnRenderGraph, passName);
+
+#if UNITY_EDITOR
+            clusterCullingReflectionProbeCS = AssetDatabase.LoadAssetAtPath<ComputeShader>(HNRenderPipelineGlobalSettings.HNRenderPipelinePath + CLUSTER_CULLING_CS_PATH);
+#endif
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
+            if(clusterCullingReflectionProbeCS == null)
+            {
+                Debug.LogError("Cluster Culling Reflection Probe Computer Shader is Null.");
+                return;
+            }
+
             using (var builder = renderGraph.AddRenderPass<ClusterCullingReflectionProbePassData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowPassCulling(false);
@@ -64,7 +77,7 @@ namespace HN.HNRP
                     new ComputeBufferDesc(
                         MAX_CLUSTER_MASK_WORDS,
                         sizeof(uint)
-                    ) { name = "Cluster Culling Reflection Probe Cluster Mask Buffer" }
+                    ) { name = "Cluster Culling Reflection Probe Mask Buffer" }
                 ));
 
                 // 单个cluster中可见probe的最大数量
@@ -89,15 +102,15 @@ namespace HN.HNRP
                 // 更新当前帧渲染需要的cluster数据
                 UpdateReflectionProbeParams(passData, clusterSize, clusterZScaleOffset, wordsPerCluster);
 
-                // 获取计算cluster所需的矩阵
+                // 获取计算cluster culling所需的矩阵
                 GetCameraMatrix(camera);
 
-                // 计算cluster所需的compute shader
-                passData.clusterCullingReflectionProbeCS = renderingData.runtimeResources.shaderResources.clusterCullingReflectionProbeCS;
+                //获取cluster所需的compute shader
+                passData.clusterCullingReflectionProbeCS = clusterCullingReflectionProbeCS;
                 passData.clusterCullingKernel = passData.clusterCullingReflectionProbeCS.FindKernel(CLUSTER_CULLING_CS_KERNEL_NAME);
                 
                 // 获取计算mask所需的probe数据
-                GetReflectionProbeData4CS();
+                GetReflectionProbeDatas4CS();
 
                 // 创建计算mask所需的probe数据的buffer
                 passData.reflectionProbeDatas4CSBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
@@ -422,7 +435,7 @@ namespace HN.HNRP
         private int3 GetClusterSize(int2 screenResolution)
         {
             int2 clusterSizeXY = new int2(1, 1);
-            int sliceCount = CLUSTER_MIN_Z_SLIZE;
+            int sliceCount = CLUSTER_MIN_Z_SLICE;
             int tileWidth = 8 >> 1;
             do
             {
@@ -431,7 +444,7 @@ namespace HN.HNRP
                 int tileCountPerSlice = clusterSizeXY.x * clusterSizeXY.y;
                 sliceCount = MAX_CLUSTER_MASK_WORDS / tileCountPerSlice - 1;
             }
-            while(sliceCount < CLUSTER_MIN_Z_SLIZE || sliceCount > CLUSTER_MAX_Z_SLICE);
+            while(sliceCount < CLUSTER_MIN_Z_SLICE || sliceCount > CLUSTER_MAX_Z_SLICE);
             return new int3(clusterSizeXY.x, clusterSizeXY.y, sliceCount);
         }
 
@@ -462,12 +475,10 @@ namespace HN.HNRP
         /// <summary>
         /// 获取计算mask所需的probe数据
         /// </summary>
-        private void GetReflectionProbeData4CS()
+        private void GetReflectionProbeDatas4CS()
         {
-            reflectionProbeDatas4CS = new ReflectionProbeData4CS[MAX_REFLECTION_PROBES_ON_SCREEN];
             for(int i = 0; i < MAX_REFLECTION_PROBES_ON_SCREEN; i++)
             {
-                reflectionProbeDatas4CS[i].isValid = i < catchedProbeCount ? 1 : 0;
                 reflectionProbeDatas4CS[i].boundCenter = catchedReflectionProbes[i].bounds.center;
                 reflectionProbeDatas4CS[i].boundExtents = catchedReflectionProbes[i].bounds.extents;
             }
@@ -487,7 +498,7 @@ namespace HN.HNRP
             passData.globalConstantBuffer.reflectionProbeParam0[2] = clusterZScaleOffset.x;
             passData.globalConstantBuffer.reflectionProbeParam0[3] = clusterZScaleOffset.y;
             passData.globalConstantBuffer.reflectionProbeParam1[0] = wordsPerCluster;
-            passData.globalConstantBuffer.reflectionProbeParam1[1] = catchedReflectionProbes.Length;
+            passData.globalConstantBuffer.reflectionProbeParam1[1] = catchedProbeCount;
         }
 
         /// <summary>
@@ -512,6 +523,11 @@ namespace HN.HNRP
             new Dictionary<uint, VisibleReflectionProbe>()
         };
 
+        // 计算剔除的Compute Shader
+        [SerializeField]
+        private ComputeShader clusterCullingReflectionProbeCS;
+
+
         // 当前帧是否不存在可见的reflection probe
         private bool isEmpty = false;
 
@@ -524,11 +540,8 @@ namespace HN.HNRP
         // 当前帧需要渲染的reflection probe的texture handles
         private RTHandle[] textureRTHandles = new RTHandle[MAX_REFLECTION_PROBES_ON_SCREEN];
         
-        // 计算剔除的Compute Shader
-        private ComputeShader clusterCullingReflectionProbeCS;
-
         // 计算剔除的Compute Shader所需的Reflection Probe的数据
-        private ReflectionProbeData4CS[] reflectionProbeDatas4CS;
+        private ReflectionProbeData4CS[] reflectionProbeDatas4CS = new ReflectionProbeData4CS[MAX_REFLECTION_PROBES_ON_SCREEN];
 
         // 计算剔除的Compute Shader所需的矩阵
         private Matrix4x4 clipToView, viewToClip, clipToWorld;
@@ -573,10 +586,13 @@ namespace HN.HNRP
         private const int CLUSTER_MAX_Z_SLICE = 128;
 
         // cluster Z方向最小切分数量
-        private const int CLUSTER_MIN_Z_SLIZE = 16;
+        private const int CLUSTER_MIN_Z_SLICE = 16;
 
         // cluster culling compute shader中的kernel名
         private const string CLUSTER_CULLING_CS_KERNEL_NAME = "ClusterCullingReflectionProbeCS";
+
+        // cluster culling compute shader的路径
+        private const string CLUSTER_CULLING_CS_PATH = "Runtime/ShaderLibrary/ComputeShaders/ClusterCullingReflectionProbeCS.compute";
 
 
         public class ClusterCullingReflectionProbePassData
@@ -635,9 +651,6 @@ namespace HN.HNRP
         [Serializable]
         public struct ReflectionProbeData4CS
         {
-            // 当前probe是否存在
-            public int isValid;
-
             // 当前probe的bound中心 world space
             public float3 boundCenter;
 
@@ -667,16 +680,16 @@ namespace HN.HNRP
         public static class PropertyIDs
         {
             public static readonly int reflectionProbeAtlas = Shader.PropertyToID("_ReflectionProbeAtlas");
-            public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("ReflectionProbeVariablesGlobal");
+            public static readonly int reflectionProbeGlobalConstantBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeGlobalConstantBuffer");
             public static readonly int clusterCullingReflectionProbeMaskBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeMaskBuffer");
-            public static readonly int reflectionProbeDatas4CSBuffer = Shader.PropertyToID("_ReflectionProbeDatas4CSBuffer");
+            public static readonly int reflectionProbeDatas4CSBuffer = Shader.PropertyToID("_ClusterCullingReflectionProbeDatas4CSBuffer");
             // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
-            public static readonly int cullingParams0 = Shader.PropertyToID("_CullingParams0");
+            public static readonly int cullingParams0 = Shader.PropertyToID("_ClusterCullingReflectionProbeParams0");
             // xyz:clusterSize w:probeCount
-            public static readonly int cullingParams1 = Shader.PropertyToID("_CullingParams1");
-            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClipToView");
-            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ViewToClip");
-            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClipToWorld");
+            public static readonly int cullingParams1 = Shader.PropertyToID("_ClusterCullingReflectionProbeParams1");
+            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClusterCullingReflectionProbeClipToView");
+            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ClusterCullingReflectionProbeViewToClip");
+            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClusterCullingReflectionProbeClipToWorld");
         }
     }
 }

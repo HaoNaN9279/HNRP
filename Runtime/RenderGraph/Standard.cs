@@ -9,9 +9,10 @@ namespace HN.HNRP
     {
         public override void Build()
         {
-            ClusterCullingReflectionProbePass clusterCullingReflectionProbePass = AddPass<ClusterCullingReflectionProbePass>("Cluster Culling Reflection Probe");
-
             BuildLightDataPass buildLightDataPass = AddPass<BuildLightDataPass>("Build Light Data");
+            
+            ClusterCullingReflectionProbePass clusterCullingReflectionProbePass = AddPass<ClusterCullingReflectionProbePass>("Cluster Culling Reflection Probe");
+            ClusterCullingLightPass clusterCullingLightPass = AddPass<ClusterCullingLightPass>("Cluster Culling Light Pass");
 
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
             DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");

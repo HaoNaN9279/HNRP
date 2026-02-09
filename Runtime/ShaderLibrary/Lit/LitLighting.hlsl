@@ -45,22 +45,6 @@ void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, B
     float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
     lightingData.mainDirectLight = DirectLightingPBR(brdfData.diffuse, mainLightRadiance, brdfData.specular, mainLightSpecularTerm);
 
-#if FORWARD_PLUS
-    for(uint lightIndex = 0; lightIndex < FP_DIRECTIONAL_LIGHTS_COUNT; lightIndex++)
-    {
-        FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK
-        
-        Light light = GetAdditionalLight(lightIndex, lightingInputData.positionWS);
-        float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
-        float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
-        float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
-        float3 specularRadiance = DirectLightingSpecularRadiance(light, lightSpecularTerm);
-        DirectLightingData additionalDirectLight = DirectLightingPBR(brdfData.diffuse, diffuseRadiance, brdfData.specular, specularRadiance);
-        lightingData.additionalDirectLight.diffuse += additionalDirectLight.diffuse;
-        lightingData.additionalDirectLight.specular += additionalDirectLight.specular;
-    }
-#endif
-
     uint lightCount = GetAdditionalLightsCount();
     float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
     float3 positionWS = lightingInputData.positionWS;

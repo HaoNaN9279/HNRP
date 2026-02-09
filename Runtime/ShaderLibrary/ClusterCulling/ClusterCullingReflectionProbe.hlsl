@@ -3,6 +3,8 @@
 
 #if CLUSTER_CULLING_REFLECTION_PROBE
 
+#include "../Core/Input.hlsl"
+
 struct ClusterCullingReflectionProbeIterator
 {
     uint minIndex;

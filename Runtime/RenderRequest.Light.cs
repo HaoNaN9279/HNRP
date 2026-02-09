@@ -53,7 +53,7 @@ namespace HN.HNRP
         private void UpdateMainLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
         {
             int mainLightIndex = GetMainLightIndex(renderingData.visibleLights);
-            globalConstantBuffer._LightConstantData = new Vector4(mainLightIndex, renderingData.visibleLights.Length, 0.0f, 0.0f);
+            globalConstantBuffer._LightConstantData = new Vector4(mainLightIndex, renderingData.visibleLights.Length - 1, 0.0f, 0.0f);
         }
 
         private void UpdateAdditionalLightGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)

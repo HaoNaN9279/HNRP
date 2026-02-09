@@ -68,6 +68,7 @@ Shader "HNRP/Lit"
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
             #pragma multi_compile _ FORWARD_PLUS
             #pragma multi_compile _ CLUSTER_CULLING_REFLECTION_PROBE
+            #pragma multi_compile _ CLUSTER_CULLING_LIGHT
 
             // Unity defined Keywords
             #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
