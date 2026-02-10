@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Palmmedia.ReportGenerator.Core.Parser.Analysis;
+using Unity.Properties;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -28,8 +29,13 @@ namespace HN.HNRP
                     passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.ReadWrite);
                 }
 
-                passData.forwardPlusZBinsBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusZBinsBufferIndex]);
-                passData.forwardPlusTileMasksBuffer = builder.ReadComputeBuffer(computeBufferHandles[forwardPlusTileMasksBufferIndex]);
+                passData.lightDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[lightDatasBufferIndex]);
+
+                passData.reflectionProbeAtlas = builder.ReadTexture(textureHandles[reflectionProbeAtlasIndex]);
+                passData.clusterCullingReflectionProbeMaskBuffer = builder.ReadComputeBuffer(computeBufferHandles[clusterCullingReflectionProbeMaskBufferIndex]);
+                passData.clusterCullingReflectionProbeDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[clusterCullingReflectionProbeDatasBufferIndex]);
+
+                passData.clusterCullingLightMaskBuffer = builder.ReadComputeBuffer(computeBufferHandles[clusterCullingLightMaskBufferIndex]);
 
                 RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetOpaqueRendererListDesc(ShaderPassNames.AllForwardNames, renderingData.CullingResults, renderingData.Camera, renderingLayerMask);
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
@@ -37,8 +43,13 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ForwardOpaquePassData data, RenderGraphContext ctx) =>
                     {
-                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusZBinsBuffer, PropertyIDs.forwardPlusZBinsBuffer, 0, ClusterCulling.maxZBinWords * 4);
-                        ctx.cmd.SetGlobalConstantBuffer(passData.forwardPlusTileMasksBuffer, PropertyIDs.forwardPlusTileMasksBuffer, 0, ClusterCulling.maxTileWords * 4);
+                        ctx.cmd.SetGlobalBuffer(BuildLightDataPass.PropertyIDs.lightDatasBuffer, passData.lightDatasBuffer);
+
+                        ctx.cmd.SetGlobalTexture(ClusterCullingReflectionProbePass.PropertyIDs.reflectionProbeAtlas, data.reflectionProbeAtlas);
+                        ctx.cmd.SetGlobalBuffer(ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeMaskBuffer, data.clusterCullingReflectionProbeMaskBuffer);
+                        ctx.cmd.SetGlobalBuffer(ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeDatasBuffer, data.clusterCullingReflectionProbeDatasBuffer);
+
+                        ctx.cmd.SetGlobalBuffer(ClusterCullingLightPass.PropertyIDs.clusterCullingLightMaskBuffer, data.clusterCullingLightMaskBuffer);
                         
                         ctx.cmd.DrawRendererList(data.rendererList);
                     }
@@ -63,13 +74,20 @@ namespace HN.HNRP
         public int depthTargetIndex = -1;
 
         [SerializeField]
-        public int forwardPlusZBinsBufferIndex = -1;
-
-        [SerializeField]
-        public int forwardPlusTileMasksBufferIndex = -1;
-
-        [SerializeField]
         public int lightDatasBufferIndex = -1;
+
+        [SerializeField]
+        public int reflectionProbeAtlasIndex = -1;
+
+        [SerializeField]
+        public int clusterCullingReflectionProbeMaskBufferIndex = -1;
+
+        [SerializeField]
+        public int clusterCullingReflectionProbeDatasBufferIndex = -1;
+
+        [SerializeField]
+        public int clusterCullingLightMaskBufferIndex = -1;
+
 
         public const string PassName = "Forward Opaque Pass";
 
@@ -78,9 +96,12 @@ namespace HN.HNRP
         {
             public TextureHandle colorTarget;
             public TextureHandle depthTarget;
-            public ComputeBufferHandle forwardPlusZBinsBuffer;
-            public ComputeBufferHandle forwardPlusTileMasksBuffer;
             public ComputeBufferHandle lightDatasBuffer;
+            public TextureHandle reflectionProbeAtlas;
+            public ComputeBufferHandle clusterCullingReflectionProbeMaskBuffer;
+            public ComputeBufferHandle clusterCullingReflectionProbeDatasBuffer;
+            public ComputeBufferHandle clusterCullingLightMaskBuffer;
+            public ComputeBufferHandle clusterCullingLightParamsBuffer;
             public RendererListHandle rendererList;
 
         }
@@ -88,8 +109,6 @@ namespace HN.HNRP
 
         public static class PropertyIDs
         {
-            public static readonly int forwardPlusZBinsBuffer = Shader.PropertyToID("_ForwardPlusZBinsBuffer");
-            public static readonly int forwardPlusTileMasksBuffer = Shader.PropertyToID("_ForwardPlusTileMasksBuffer");
         }
 
     }

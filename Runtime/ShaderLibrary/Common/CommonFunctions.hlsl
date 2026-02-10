@@ -91,14 +91,14 @@ float DistanceAttenuation(float3 lightVector, float range)
     range = max(1e-5, range);
     float div = length(lightVector) / range;
     float atten = 1 - div * div;
-    return atten;
+    return saturate(atten);
 }
 
 float AngleAttenuation(float3 spotDirection, float3 lightDirection, float2 spotAttenuation)
 {
     float SdotL = dot(spotDirection, lightDirection);
     float atten = saturate((SdotL - spotAttenuation.x) / (spotAttenuation.x - spotAttenuation.y));
-    return atten;
+    return saturate(atten);
 }
 
 

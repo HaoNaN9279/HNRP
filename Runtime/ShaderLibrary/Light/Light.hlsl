@@ -39,8 +39,8 @@ Light GetMainLight()
     uint mainLightIndex = _LightConstantData.x;
     Light light;
     ZERO_INITIALIZE(Light, light);
-    light.color = _LightDatas[mainLightIndex].color;
-    light.directionWS = _LightDatas[mainLightIndex].directionWS;
+    light.color = _LightDatasBuffer[mainLightIndex].color;
+    light.directionWS = _LightDatasBuffer[mainLightIndex].directionWS;
     light.shadowAttenuation = 1.0;
     light.distanceAttenuation = 1.0;
 
@@ -50,11 +50,11 @@ Light GetMainLight()
 Light GetAdditionalLight(uint lightIndex, float3 positionWS)
 {
     Light light;
-    light.color = _LightDatas[lightIndex].color;
-    light.directionWS = _LightDatas[lightIndex].directionWS;
-    light.positionWS = _LightDatas[lightIndex].positionWS;
+    light.color = _LightDatasBuffer[lightIndex].color;
+    light.directionWS = _LightDatasBuffer[lightIndex].directionWS;
+    light.positionWS = _LightDatasBuffer[lightIndex].positionWS;
     light.shadowAttenuation = 1.0;
-    uint lightType = asuint(_LightDatas[lightIndex].lightType);
+    uint lightType = asuint(_LightDatasBuffer[lightIndex].lightType);
     if(lightType == 1/* Directional light */)
     {
         light.distanceAttenuation = 1.0;
@@ -64,11 +64,11 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
         float3 lightVector = light.positionWS - positionWS;
         float distanceSqr = max(dot(lightVector, lightVector), FLT_MIN);
         light.directionWS = lightVector * rsqrt(distanceSqr);
-        float distanceAttenuation = DistanceAttenuation(lightVector, _LightDatas[lightIndex].range);
+        float distanceAttenuation = DistanceAttenuation(lightVector, _LightDatasBuffer[lightIndex].range);
         light.distanceAttenuation = distanceAttenuation;
         if(lightType == 3 /* Spot Light */)
         {
-            float angleAttenuation = AngleAttenuation(_LightDatas[lightIndex].directionWS, light.directionWS, _LightDatas[lightIndex].attenuation.zw);
+            float angleAttenuation = AngleAttenuation(_LightDatasBuffer[lightIndex].directionWS, light.directionWS, _LightDatasBuffer[lightIndex].attenuation.zw);
             light.distanceAttenuation = distanceAttenuation * angleAttenuation;
         }
     }

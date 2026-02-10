@@ -188,15 +188,6 @@ namespace HN.HNRP
             {
                 renderingData.GraphData.computeBufferHandles.Clear();
             }
-
-            if (renderingData.GraphData.rendererListHandles == null)
-            {
-                renderingData.GraphData.rendererListHandles = new List<RendererListHandle>();
-            }
-            else
-            {
-                renderingData.GraphData.rendererListHandles.Clear();
-            }
         }
 
 

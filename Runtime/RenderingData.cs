@@ -52,7 +52,6 @@ namespace HN.HNRP
     {
         public List<TextureHandle> textureHandles;
         public List<ComputeBufferHandle> computeBufferHandles;
-        public List<RendererListHandle> rendererListHandles;
     }
 
 

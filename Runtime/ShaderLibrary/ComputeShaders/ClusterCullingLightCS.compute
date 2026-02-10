@@ -25,11 +25,11 @@ struct LightData
 };
 
 // Light Data Buffer
-StructuredBuffer<LightData> _LightDatas;
+StructuredBuffer<LightData> _LightDatasBuffer;
 RWStructuredBuffer<uint> _ClusterCullingLightMaskBuffer;
 // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
 float4 _ClusterCullingLightParams0;
-// xyz:clusterSize w:probeCount
+// xyz:clusterSize w:lightCount
 float4 _ClusterCullingLightParams1;
 float4x4 _ClusterCullingLightClipToView;
 float4x4 _ClusterCullingLightViewToClip;
@@ -129,78 +129,85 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
     // 遍历light
     for(uint lightIndex = 0; lightIndex < MAX_LIGHT_ON_SCREEN; lightIndex++)
     {
-        LightData lightData = _LightDatas[lightIndex];
+        LightData lightData = _LightDatasBuffer[lightIndex];
         uint wordIndex = lightIndex / 32;
         uint bitMask = 1u << (lightIndex % 32);
-        uint lightType = lightData.lightType;
-        if(lightType == 1/* directional light */)
+        if(lightIndex < lightCount)
         {
-            // directional light默认都与cluster相交，不更新header，header中只存储local light的最大最小index
-            _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
-        }
-        else if(lightType == 2/* point light */ || lightType == 3/* spot light */)
-        {
-            // 判断cluster是否与point light相交是通过判断cluster AABB与point light的球形bound的相交
-            // 判断cluster是否与spot light相交是先计算spot light的球形bound，再计算球形bound的球体与cluster AABB的相交
-
-            // 计算球体bound
-            float lightBoundRange;
-            float3 lightBoundCenter, lightBoundMin, lightBoundMax;
-            if(lightType == 2/* point light */)
+            uint lightType = lightData.lightType;
+            if(lightType == 1/* directional light */)
             {
-                lightBoundRange = lightData.range;
-                lightBoundCenter = lightData.positionWS;
-                lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
-                lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
-            }
-            else // /* spot light */
-            {
-                lightBoundRange = lightData.range * 0.5 / cos(lightData.attenuation.x);
-                lightBoundCenter = lightData.positionWS + lightBoundRange * lightData.directionWS;
-                lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
-                lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
-            }
-
-            // cluster AABB与球体的相交分两步：
-            // 1. 计算cluster AABB的八个顶点是否在球体内部
-            bool isClusterPointsIntersectRange = 
-                length(float3(clusterMinWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMinWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
-                || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
-                ;
-            // 2. 考虑cluster AABB的八个点都在范围外，但是与cluster AABB的某个面相交的情况
-            // 计算point light的AABB在三轴方向的边界与cluster AABB中心点的距离是否小于cluster AABB在该方向的尺寸的一半，小于则是相交
-            float3 clusterExtent = (clusterMaxWS - clusterMinWS) * 0.5;
-            float3 clusterCenter = float3(clusterMinWS + clusterExtent);
-            float3 dis0 = lightBoundMin - clusterCenter;
-            float3 dis1 = clusterCenter - lightBoundMax;
-            bool isClusterFaceIntersectRange = 
-                dis0.x < clusterExtent.x || dis1.x < clusterExtent.x
-                || dis0.y < clusterExtent.y || dis1.y < clusterExtent.y
-                || dis0.z < clusterExtent.z || dis1.z < clusterExtent.z
-                ;
-            
-            // 判断以上两种相交情况
-            if(isClusterPointsIntersectRange || isClusterFaceIntersectRange)
-            {
-                UpdateHeader(header, lightIndex);
-
+                // directional light默认都与cluster相交，不更新header，header中只存储local light的最大最小index
                 _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
             }
-            else
+            else if(lightType == 2/* point light */ || lightType == 3/* spot light */)
+            {
+                // 判断cluster是否与point light相交是通过判断cluster AABB与point light的球形bound的相交
+                // 判断cluster是否与spot light相交是先计算spot light的球形bound，再计算球形bound的球体与cluster AABB的相交
+
+                // 计算球体bound
+                float lightBoundRange;
+                float3 lightBoundCenter, lightBoundMin, lightBoundMax;
+                if(lightType == 2/* point light */)
+                {
+                    lightBoundRange = lightData.range;
+                    lightBoundCenter = lightData.positionWS;
+                    lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                    lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                }
+                else // /* spot light */
+                {
+                    lightBoundRange = lightData.range * 0.5 / cos(lightData.attenuation.x);
+                    lightBoundCenter = lightData.positionWS + lightBoundRange * lightData.directionWS;
+                    lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                    lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
+                }
+
+                // cluster AABB与球体的相交分两步：
+                // 1. 计算cluster AABB的八个顶点是否在球体内部
+                bool isClusterPointsIntersectRange = 
+                    length(float3(clusterMinWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMinWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMinWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMaxWS.x, clusterMinWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMinWS.z) - lightBoundCenter) < lightBoundRange
+                    || length(float3(clusterMaxWS.x, clusterMaxWS.y, clusterMaxWS.z) - lightBoundCenter) < lightBoundRange
+                    ;
+                // 2. 考虑cluster AABB的八个点都在范围外，但是与cluster AABB的某个面相交的情况
+                // 计算point light的AABB在三轴方向的边界与cluster AABB中心点的距离是否小于cluster AABB在该方向的尺寸的一半，小于则是相交
+                float3 clusterExtent = (clusterMaxWS - clusterMinWS) * 0.5;
+                float3 clusterCenter = float3(clusterMinWS + clusterExtent);
+                float3 dis0 = lightBoundMin - clusterCenter;
+                float3 dis1 = clusterCenter - lightBoundMax;
+                bool isClusterFaceIntersectRange = 
+                    dis0.x < clusterExtent.x || dis1.x < clusterExtent.x
+                    || dis0.y < clusterExtent.y || dis1.y < clusterExtent.y
+                    || dis0.z < clusterExtent.z || dis1.z < clusterExtent.z
+                    ;
+                
+                // 判断以上两种相交情况
+                if(isClusterPointsIntersectRange || isClusterFaceIntersectRange) // point light或spot light与cluster相交
+                {
+                    UpdateHeader(header, lightIndex);
+
+                    _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
+                }
+                else // point light或spot light与cluster不相交
+                {
+                    _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
+                }
+            }
+            else // 除了directional point spot外的其他灯光类型
             {
                 _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
             }
         }
-        else
+        else // 超出当前帧捕获的灯光数量
         {
             _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] &= ~bitMask;
         }
-    }
+    } // 写入header
     _ClusterCullingLightMaskBuffer[headerIndex] = header;
 }

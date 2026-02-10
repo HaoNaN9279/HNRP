@@ -19,9 +19,11 @@ namespace HN.HNRP
     [Serializable]
     public class ClusterCullingLightPass : PassBase
     {
-        public override void OnCreate(HNRenderGraphBase hNRenderGraph, string passName)
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.OnCreate(hnRenderGraph, passName);
+ 
+            clusterCullingLightMaskBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
 
 #if UNITY_EDITOR
             clusterCullingLightCS = AssetDatabase.LoadAssetAtPath<ComputeShader>(HNRenderPipelineGlobalSettings.HNRenderPipelinePath + CLUSTER_CULLING_CS_PATH);
@@ -46,9 +48,30 @@ namespace HN.HNRP
                         sizeof(uint)
                     ) { name = "Cluster Culling Light Mask Buffer" }
                 ));
+                renderingData.GraphData.computeBufferHandles.Add(passData.clusterCullingLightMaskBuffer);
+
+                // 读取传入的light datas buffer
+                var computeBufferHandles = renderingData.GraphData.computeBufferHandles;
+                passData.lightDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[lightDatasBufferIndex]);
 
                 // 获取当前帧所有可见的light数量
                 catchedLightCount = Math.Min(renderingData.visibleLights.Length, MAX_LIGHT_ON_SCREEN);
+                int directionalLightCount = 0, localLightCount = 0;
+                for(int i = 0; i < catchedLightCount; i++)
+                {
+                    var light = renderingData.visibleLights[i];
+                    if(light.lightType == LightType.Directional)
+                    {
+                        directionalLightCount++;
+                    }
+                    if(light.lightType == LightType.Point || light.lightType == LightType.Spot)
+                    {
+                        localLightCount++;
+                    }
+                }
+                
+                if(directionalLightCount > 0)
+                    directionalLightCount -= 1;
 
                 // 单个Cluster中可见光的最大数量
                 int itemsPerCluster = MAX_LIGHT_ON_SCREEN;
@@ -70,7 +93,7 @@ namespace HN.HNRP
                 float2 clusterZScaleOffset = GetClusterZScaleOffset(clusterSize, camera.orthographic, camera.nearClipPlane, camera.farClipPlane);
             
                 // 更新当前帧渲染需要的cluster数据
-                UpdateClusterCullingLightParams(passData, clusterSize, clusterZScaleOffset, wordsPerCluster);
+                UpdateClusterCullingLightParams(passData, clusterSize, clusterZScaleOffset, wordsPerCluster, directionalLightCount, localLightCount);
 
                 // 获取计算cluster culling所需的矩阵
                 GetCameraMatrix(camera);
@@ -86,16 +109,16 @@ namespace HN.HNRP
 
                         ctx.cmd.SetComputeBufferParam(data.clusterCullingLightCS, data.clusterCullingLightKernel, PropertyIDs.clusterCullingLightMaskBuffer, data.clusterCullingLightMaskBuffer);
                         ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams0, new Vector4(clusterZScaleOffset.x, clusterZScaleOffset.y, wordsPerCluster, camera.orthographic ? 1.0f : 0.0f));
-                        ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, 0f));
+                        ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, catchedLightCount));
                         ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingClipToViewMatrix, clipToView);
                         ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingViewToClipMatrix, viewToClip);
                         ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingClipToWorldMatrix, clipToWorld);
                         int threadGroup = (clusterCount + 63) / 64;
                         int threadGroupY = (threadGroup + clusterSize.y - 1) / clusterSize.y;
+                        ctx.cmd.SetComputeBufferParam(data.clusterCullingLightCS, data.clusterCullingLightKernel, BuildLightDataPass.PropertyIDs.lightDatasBuffer, data.lightDatasBuffer);
                         ctx.cmd.DispatchCompute(data.clusterCullingLightCS, data.clusterCullingLightKernel, clusterSize.y, threadGroupY, 1);
 
-                        ctx.cmd.SetGlobalBuffer(PropertyIDs.clusterCullingLightMaskBuffer, data.clusterCullingLightMaskBuffer);
-                        ConstantBuffer.PushGlobal(ctx.cmd, data.globalConstantBuffer, PropertyIDs.clusterCullingLightGlobalConstantBuffer);
+                        ConstantBuffer.PushGlobal(ctx.cmd, data.clusterCullingLightParams, PropertyIDs.clusterCullingLightParamsBuffer);
                     }
                 );
             }
@@ -106,6 +129,15 @@ namespace HN.HNRP
             
         }
 
+
+        [SerializeField]
+        public int lightDatasBufferIndex = -1;
+
+        [SerializeField]
+        public int clusterCullingLightMaskBufferIndex = -1;
+
+        [SerializeField]
+        public int clusterCullingLightParamsBufferIndex = -1;
 
         /// <summary>
         /// 计算当前帧三个方向的cluster数量
@@ -159,13 +191,14 @@ namespace HN.HNRP
         /// <param name="clusterSize"></param>
         /// <param name="clusterZScaleOffset"></param>
         /// <param name="wordsPerCluster"></param>
-        unsafe private void UpdateClusterCullingLightParams(ClusterCullingLightPassData passData, int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster)
+        private void UpdateClusterCullingLightParams(ClusterCullingLightPassData passData, int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster, int directionalLightCount, int localLightCount)
         {
-            passData.globalConstantBuffer.clusterCullingLightParam0[0] = clusterSize.x;
-            passData.globalConstantBuffer.clusterCullingLightParam0[1] = clusterSize.y;
-            passData.globalConstantBuffer.clusterCullingLightParam0[2] = clusterZScaleOffset.x;
-            passData.globalConstantBuffer.clusterCullingLightParam0[3] = clusterZScaleOffset.y;
-            passData.globalConstantBuffer.clusterCullingLightParam1[0] = wordsPerCluster;
+            passData.clusterCullingLightParams.clusterSize = new Vector2(clusterSize.x, clusterSize.y);
+            passData.clusterCullingLightParams.clusterZScaleOffset = new Vector2(clusterZScaleOffset.x, clusterZScaleOffset.y);
+            passData.clusterCullingLightParams.wordsPerCluster = wordsPerCluster;
+            passData.clusterCullingLightParams.directionalLightCount = directionalLightCount;
+            passData.clusterCullingLightParams.localLightCount = localLightCount;
+            passData.clusterCullingLightParams.unused = 0;
         }
 
         /// <summary>
@@ -203,11 +236,14 @@ namespace HN.HNRP
 
         public class ClusterCullingLightPassData
         {
+            // light datas
+            public ComputeBufferHandle lightDatasBuffer;
+
             // cluster culling计算出的mask buffer
             public ComputeBufferHandle clusterCullingLightMaskBuffer;
 
             // cluster culling light渲染所需的global数据
-            public ClusterCullingLightGlobalConstantBuffer globalConstantBuffer = default;
+            public ClusterCullingLightParams clusterCullingLightParams;
 
             // 计算cluster culling的compute shader
             public ComputeShader clusterCullingLightCS;
@@ -217,19 +253,21 @@ namespace HN.HNRP
         }
 
 
-        // cluster culling light渲染所需的global数据
-        unsafe public struct ClusterCullingLightGlobalConstantBuffer
+        unsafe public struct ClusterCullingLightParams
         {
-            // xy: X Y scale zw:Z scale offset
-            public fixed float clusterCullingLightParam0[4];
-            // x: words per cluster y: local light count z: directional light count(without main light)
-            public fixed float clusterCullingLightParam1[4];
+            public Vector2 clusterSize;
+            public Vector2 clusterZScaleOffset;
+            public int wordsPerCluster;
+            public int directionalLightCount;
+            public int localLightCount;
+            public float unused;
         }
 
 
         public static class PropertyIDs
         {
             public static readonly int clusterCullingLightMaskBuffer = Shader.PropertyToID("_ClusterCullingLightMaskBuffer");
+            public static readonly int clusterCullingLightParamsBuffer = Shader.PropertyToID("_ClusterCullingLightParamsBuffer");
             // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
             public static readonly int cullingParams0 = Shader.PropertyToID("_ClusterCullingLightParams0");
             // xyz:clusterSize w:probeCount
@@ -237,7 +275,6 @@ namespace HN.HNRP
             public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClusterCullingLightClipToView");
             public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ClusterCullingLightViewToClip");
             public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClusterCullingLightClipToWorld");
-            public static readonly int clusterCullingLightGlobalConstantBuffer = Shader.PropertyToID("_ClusterCullingLightGlobalConstantBuffer");
         }
     }
 }

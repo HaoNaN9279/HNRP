@@ -3,9 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using JetBrains.Annotations;
 using UnityEditor;
-using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -28,6 +26,9 @@ namespace HN.HNRP
 
         void OnEnable()
         {
+            emptyTextureIndex = RegistAndGetTextureHandleIndex();
+            emptyComputeBufferIndex = RegistAndGetComputeBufferHandleIndex();
+
             Build();
         }
 
@@ -45,7 +46,6 @@ namespace HN.HNRP
             passes.Clear();
             textureHandleMaxIndex = -1;
             computeBufferHandleMaxIndex = -1;
-            rendererListHandleMaxIndex = -1;
         }
 
         public T AddPass<T>(string name) where T : PassBase
@@ -85,12 +85,6 @@ namespace HN.HNRP
             return computeBufferHandleMaxIndex;
         }
 
-        public int RegistAndGetRendererListHandleIndex()
-        {
-            rendererListHandleMaxIndex++;
-            return rendererListHandleMaxIndex;
-        }
-
         public void UpdateData(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             this.renderGraph = renderGraph;
@@ -109,6 +103,11 @@ namespace HN.HNRP
                 Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
                 return;
             }
+
+            TextureHandle emptyTextureHandle = renderGraph.ImportTexture(RTHandles.Alloc(HNRenderPipeline.Asset.runtimeResources.emptyTexture));
+            renderingData.GraphData.textureHandles.Add(emptyTextureHandle);
+            ComputeBufferHandle emptyComputeBufferHandle = renderGraph.ImportComputeBuffer(HNRenderPipeline.Asset.runtimeResources.emptyBuffer);
+            renderingData.GraphData.computeBufferHandles.Add(emptyComputeBufferHandle);
 
             foreach (var pass in passes.Values)
             {
@@ -152,7 +151,9 @@ namespace HN.HNRP
 
         protected int textureHandleMaxIndex = -1;
         protected int computeBufferHandleMaxIndex = -1;
-        protected int rendererListHandleMaxIndex = -1;
+
+        protected int emptyTextureIndex;
+        protected int emptyComputeBufferIndex;
 
         protected RenderGraph renderGraph;
         protected RenderingData renderingData;

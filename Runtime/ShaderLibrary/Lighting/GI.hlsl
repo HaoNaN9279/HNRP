@@ -143,13 +143,13 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
         if (probeIndex >= MAX_REFLECTION_PROBES_ON_SCREEN)
             continue;
 
-        float3 probeBoxMax = _ReflectionProbeData0[probeIndex].xyz;
-        float3 probeBoxMin = _ReflectionProbeData1[probeIndex].xyz;
-        float3 probePositionWS = _ReflectionProbeData2[probeIndex].xyz;
-        float4 scaleOffset = _ReflectionProbeData3[probeIndex];
-        float blendDistance = _ReflectionProbeData0[probeIndex].w;
-        float importance = _ReflectionProbeData1[probeIndex].w;
-        float intensity = _ReflectionProbeData2[probeIndex].w;
+        float3 probeBoxMax = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].boxMax;
+        float3 probeBoxMin = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].boxMin;
+        float3 probePositionWS = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].positionWS;
+        float4 scaleOffset = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].scaleOffset;
+        float blendDistance = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].blendDistance;
+        float importance = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].importance;
+        float intensity = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].intensity;
 
         half probeWeight = half(CalculateProbeBoxWeight(positionWS, probeBoxMin, probeBoxMax, blendDistance));
         if (probeWeight > 0.01h)

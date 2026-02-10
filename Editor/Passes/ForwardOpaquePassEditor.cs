@@ -20,6 +20,12 @@ namespace HN.HNRP.Editor
             EditorGUI.BeginDisabledGroup(true);
             EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("lightDatasBufferIndex"), new GUIContent("Light Datas Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("reflectionProbeAtlasIndex"), new GUIContent("Reflection Probe Atlas Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingReflectionProbeMaskBufferIndex"), new GUIContent("Cluster Culling Reflection Probe Mask Buffer Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingReflectionProbeDatasBufferIndex"), new GUIContent("Cluster Culling Reflection Probe Datas Buffer Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingLightMaskBufferIndex"), new GUIContent("Cluster Culling Light Mask Bufer Index"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingLightParamsBufferIndex"), new GUIContent("Cluster Culling Light Params Buffer Index"));
             EditorGUI.EndDisabledGroup();
         }
     }

@@ -8,9 +8,19 @@ namespace HN.HNRP
 {
     public class HNRenderPipelineRuntimeResources : RenderPipelineResources
     {
+        void OnEnable()
+        {
+            emptyTexture = Texture2D.blackTexture;
+            emptyBuffer = new ComputeBuffer(1, 4);
+        }
+
+
         protected override string packagePath => HNRenderPipelineGlobalSettings.HNRenderPipelinePath;
 
         public ShaderResources shaderResources;
+
+        public Texture emptyTexture;
+        public ComputeBuffer emptyBuffer;
 
 
         [Serializable, ReloadGroup]

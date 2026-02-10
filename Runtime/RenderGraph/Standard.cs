@@ -12,18 +12,25 @@ namespace HN.HNRP
             BuildLightDataPass buildLightDataPass = AddPass<BuildLightDataPass>("Build Light Data");
             
             ClusterCullingReflectionProbePass clusterCullingReflectionProbePass = AddPass<ClusterCullingReflectionProbePass>("Cluster Culling Reflection Probe");
+            
             ClusterCullingLightPass clusterCullingLightPass = AddPass<ClusterCullingLightPass>("Cluster Culling Light Pass");
+            Connect(buildLightDataPass.lightDatasBufferIndex, ref clusterCullingLightPass.lightDatasBufferIndex);
 
             ColorBufferInput colorBufferInput = AddPass<ColorBufferInput>("Color Target");
-            DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
 
-            ForwardPlusLightCullingPass forwardPlusLightCullingPass = AddPass<ForwardPlusLightCullingPass>("Forward Plus Light Culling");
+            DepthBufferInput depthBufferInput = AddPass<DepthBufferInput>("Depth Target");
 
             ForwardOpaquePass forwardOpaquePass = AddPass<ForwardOpaquePass>("Opaque");
             Connect(colorBufferInput.colorTargetIndex, ref forwardOpaquePass.colorTargetIndex);
             Connect(depthBufferInput.depthTargetIndex, ref forwardOpaquePass.depthTargetIndex);
-            Connect(forwardPlusLightCullingPass.forwardPlusZBinsBufferIndex, ref forwardOpaquePass.forwardPlusZBinsBufferIndex);
-            Connect(forwardPlusLightCullingPass.forwardPlusTileMasksBufferIndex, ref forwardOpaquePass.forwardPlusTileMasksBufferIndex);
+
+            Connect(buildLightDataPass.lightDatasBufferIndex, ref forwardOpaquePass.lightDatasBufferIndex);
+
+            Connect(clusterCullingReflectionProbePass.reflectionProbeAtlasIndex, ref forwardOpaquePass.reflectionProbeAtlasIndex);
+            Connect(clusterCullingReflectionProbePass.clusterCullingReflectionProbeMaskBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeMaskBufferIndex);
+            Connect(clusterCullingReflectionProbePass.clusterCullingReflectionProbeDatasBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeDatasBufferIndex);
+
+            Connect(clusterCullingLightPass.clusterCullingLightMaskBufferIndex, ref forwardOpaquePass.clusterCullingLightMaskBufferIndex);
 
             BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
             Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);

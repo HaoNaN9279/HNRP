@@ -6,7 +6,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEditor;
-using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -19,6 +18,8 @@ namespace HN.HNRP
         public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.OnCreate(hnRenderGraph, passName);
+
+            lightDatasBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
@@ -27,14 +28,13 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                passData.lightDatasBuffer = renderGraph.CreateComputeBuffer(
+                passData.lightDatasBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN, 
                         UnsafeUtility.SizeOf<LightData>()
-                    ){ name = "Light Data Buffer" }
-                );
-                
-                builder.WriteComputeBuffer(passData.lightDatasBuffer);
+                    ){ name = "Light Datas Buffer" }
+                ));
+                renderingData.GraphData.computeBufferHandles.Add(passData.lightDatasBuffer);
 
                 int lightCount = math.min(renderingData.visibleLights.Length, HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
 
@@ -52,7 +52,6 @@ namespace HN.HNRP
                     {
                         buildLightDataHandle.Complete();
                         ctx.cmd.SetBufferData(passData.lightDatasBuffer, lightDatas);
-                        ctx.cmd.SetGlobalBuffer(PropertyIDs.lightDatasBuffer, passData.lightDatasBuffer);
 
                         lightDatas.Dispose();
                     }
@@ -65,6 +64,9 @@ namespace HN.HNRP
             
         }
 
+
+        [SerializeField]
+        public int lightDatasBufferIndex = -1;
 
         private BuildLightDataJob buildLightDataJob;
         private NativeArray<LightData> lightDatas;
@@ -81,7 +83,7 @@ namespace HN.HNRP
 
         public static class PropertyIDs
         {
-            public static readonly int lightDatasBuffer = Shader.PropertyToID("_LightDatas");
+            public static readonly int lightDatasBuffer = Shader.PropertyToID("_LightDatasBuffer");
         }
     }
 }
