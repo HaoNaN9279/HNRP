@@ -120,7 +120,8 @@ namespace HN.HNRP
         {
             cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHVertex);
             cmd.DisableShaderKeyword(GlobalKeywords.evaluateSHMixed);
-            cmd.DisableShaderKeyword(GlobalKeywords.forwardPlus);
+            cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
+            cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingLight);
         }
 
         private void SetupCameraProperties(ScriptableRenderContext context, Camera camera, CommandBuffer cmd)

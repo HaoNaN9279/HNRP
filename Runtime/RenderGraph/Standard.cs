@@ -29,8 +29,12 @@ namespace HN.HNRP
             Connect(clusterCullingReflectionProbePass.reflectionProbeAtlasIndex, ref forwardOpaquePass.reflectionProbeAtlasIndex);
             Connect(clusterCullingReflectionProbePass.clusterCullingReflectionProbeMaskBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeMaskBufferIndex);
             Connect(clusterCullingReflectionProbePass.clusterCullingReflectionProbeDatasBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeDatasBufferIndex);
+            // Connect(emptyTextureIndex, ref forwardOpaquePass.reflectionProbeAtlasIndex);
+            // Connect(emptyComputeBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeMaskBufferIndex);
+            // Connect(emptyComputeBufferIndex, ref forwardOpaquePass.clusterCullingReflectionProbeDatasBufferIndex);
 
             Connect(clusterCullingLightPass.clusterCullingLightMaskBufferIndex, ref forwardOpaquePass.clusterCullingLightMaskBufferIndex);
+            // Connect(emptyComputeBufferIndex, ref forwardOpaquePass.clusterCullingLightMaskBufferIndex);
 
             BuiltinSkyPass builtinSkyPass = AddPass<BuiltinSkyPass>("Sky");
             Connect(forwardOpaquePass.colorTargetIndex, ref builtinSkyPass.colorTargetIndex);

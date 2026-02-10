@@ -440,7 +440,7 @@ namespace HN.HNRP
         {
             int2 clusterSizeXY = new int2(1, 1);
             int sliceCount = CLUSTER_MIN_Z_SLICE;
-            int tileWidth = 8 >> 1;
+            int tileWidth = CLUSTER_MIN_TILE_SIZE >> 1;
             do
             {
                 tileWidth <<= 1;
