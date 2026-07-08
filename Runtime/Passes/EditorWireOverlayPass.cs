@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Codice.CM.SEIDInfo;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -13,6 +12,13 @@ namespace HN.HNRP
     [Serializable]
     public class EditorWireOverlayPass : PassBase
     {
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
+        {
+            base.OnCreate(hnRenderGraph, passName);
+
+            colorTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadWrite);
+        }
+
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
 #if UNITY_EDITOR
@@ -21,7 +27,8 @@ namespace HN.HNRP
             {
                 using (var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>($"{name}({PassName})", out var passData))
                 {
-                    builder.WriteTexture(renderingData.GraphData.textureHandles[colorTargetIndex]);
+                    var graphObject = renderingData.GraphObject;
+                    builder.WriteTexture(graphObject.GetTextureHandle(colorTargetSlot));
                     passData.camera = camera;
 
                     builder.SetRenderFunc(
@@ -44,7 +51,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int colorTargetIndex = -1;
+        public TexturePassSlot colorTargetSlot;
 
         public const string PassName = "Editor Wire Overlay Pass";
 

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "domains": {
+    "game-dev/unity": {
+      "links": {
+        "rules/game-dev_unity_unity-bugs.md": "domains/game-dev/unity/rules/unity-bugs.md",
+        "rules/game-dev_unity_unity-code-standards.md": "domains/game-dev/unity/rules/unity-code-standards.md",
+        "rules/game-dev_unity_unity.md": "domains/game-dev/unity/rules/unity.md",
+        "skills/game-dev_unity_unity-mcp-manager": "domains/game-dev/unity/skills/unity-mcp-manager"
+      }
+    }
+  }
+}

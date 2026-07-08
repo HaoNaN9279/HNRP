@@ -14,11 +14,13 @@ namespace HN.HNRP
         public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.OnCreate(hnRenderGraph, passName);
-            colorTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
+            
+            colorTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.WriteOnly);
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
+            var graphObject = renderingData.GraphObject;
             TextureHandle outputColorTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
                 colorFormat = colorFormat,
@@ -26,7 +28,7 @@ namespace HN.HNRP
                 clearColor = clearColor,
                 name = name
             });
-            renderingData.GraphData.textureHandles.Add(outputColorTarget);
+            graphObject.RegistTextureHandle(outputColorTarget);
         }
 
         public override void Cleanup()
@@ -49,7 +51,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int colorTargetIndex = -1;
+        public TexturePassSlot colorTargetSlot;
 
 
     }

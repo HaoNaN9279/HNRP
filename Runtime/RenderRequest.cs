@@ -24,7 +24,10 @@ namespace HN.HNRP
         {
             RTHandles.SetReferenceSize(renderingData.Camera.pixelWidth, renderingData.Camera.pixelHeight);
 
-            renderingData.Cmd.ClearRenderTarget(true, true, Color.gray);
+            if(renderingData.Camera.cameraType != CameraType.Preview)
+            {
+                renderingData.Cmd.ClearRenderTarget(true, true, Color.gray);
+            }
 
             if (renderingData.Camera.cameraType == CameraType.SceneView)
             {
@@ -76,7 +79,7 @@ namespace HN.HNRP
                 commandBuffer = renderingData.Cmd
             }))
             {
-                UpdateGraphData();
+                BeginRecord();
 
                 renderingData.GraphObject.UpdateData(renderGraph, ref renderingData);
                 renderingData.GraphObject.RecordRenderGraph();
@@ -170,25 +173,9 @@ namespace HN.HNRP
             cmd.Clear();
         }
 
-        private void UpdateGraphData()
+        private void BeginRecord()
         {
-            if (renderingData.GraphData.textureHandles == null)
-            {
-                renderingData.GraphData.textureHandles = new List<TextureHandle>();
-            }
-            else
-            {
-                renderingData.GraphData.textureHandles.Clear();
-            }
-
-            if (renderingData.GraphData.computeBufferHandles == null)
-            {
-                renderingData.GraphData.computeBufferHandles = new List<ComputeBufferHandle>();
-            }
-            else
-            {
-                renderingData.GraphData.computeBufferHandles.Clear();
-            }
+            renderingData.GraphObject.OnBeginRecord();
         }
 
 

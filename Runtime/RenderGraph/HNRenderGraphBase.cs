@@ -26,9 +26,6 @@ namespace HN.HNRP
 
         void OnEnable()
         {
-            emptyTextureIndex = RegistAndGetTextureHandleIndex();
-            emptyComputeBufferIndex = RegistAndGetComputeBufferHandleIndex();
-
             Build();
         }
 
@@ -46,6 +43,7 @@ namespace HN.HNRP
             passes.Clear();
             textureHandleMaxIndex = -1;
             computeBufferHandleMaxIndex = -1;
+            rendererListHandleMaxIndex = -1;
         }
 
         public T AddPass<T>(string name) where T : PassBase
@@ -67,22 +65,50 @@ namespace HN.HNRP
         }
 
 
-        protected void Connect(int upStream, ref int downStream)
+        protected void Connect(PassSlot upStream, PassSlot downStream)
         {
-            downStream = upStream;
+            PassSlot.Connect(upStream, downStream);
         }
 
 
-        public int RegistAndGetTextureHandleIndex()
+        public int RegistTexturePassSlot()
         {
-            textureHandleMaxIndex++;
-            return textureHandleMaxIndex;
+            return textureHandleMaxIndex++;
         }
 
-        public int RegistAndGetComputeBufferHandleIndex()
+        public int RegistComputeBufferPassSlot()
         {
-            computeBufferHandleMaxIndex++;
-            return computeBufferHandleMaxIndex;
+            return computeBufferHandleMaxIndex++;
+        }
+
+        public int RegistRendererListPassSlot()
+        {
+            return rendererListHandleMaxIndex++;
+        }
+
+        public void RegistTextureHandle(TextureHandle handle)
+        {
+            graphData.textureHandles.Add(handle);
+        }
+
+        public void RegistComputeBufferHandle(ComputeBufferHandle handle)
+        {
+            graphData.computeBufferHandles.Add(handle);
+        }
+
+        public void RegistRendererListHandle(RendererListHandle handle)
+        {
+            graphData.rendererListHandles.Add(handle);
+        }
+
+        public TextureHandle GetTextureHandle(TexturePassSlot slot)
+        {
+            return graphData.textureHandles[slot.Index];
+        }
+
+        public ComputeBufferHandle GetComputeBufferHandle(ComputeBufferPassSlot slot)
+        {
+            return graphData.computeBufferHandles[slot.Index];
         }
 
         public void UpdateData(RenderGraph renderGraph, ref RenderingData renderingData)
@@ -103,11 +129,6 @@ namespace HN.HNRP
                 Debug.LogWarning("No passes found in the RenderGraph. Please ensure you have added passes before recording.");
                 return;
             }
-
-            TextureHandle emptyTextureHandle = renderGraph.ImportTexture(RTHandles.Alloc(HNRenderPipeline.Asset.runtimeResources.emptyTexture));
-            renderingData.GraphData.textureHandles.Add(emptyTextureHandle);
-            ComputeBufferHandle emptyComputeBufferHandle = renderGraph.ImportComputeBuffer(HNRenderPipeline.Asset.runtimeResources.emptyBuffer);
-            renderingData.GraphData.computeBufferHandles.Add(emptyComputeBufferHandle);
 
             foreach (var pass in passes.Values)
             {
@@ -145,22 +166,52 @@ namespace HN.HNRP
             }
         }
 
+        public void OnBeginRecord()
+        {
+            if (graphData.textureHandles == null)
+            {
+                graphData.textureHandles = new List<TextureHandle>();
+            }
+            else
+            {
+                graphData.textureHandles.Clear();
+            }
+
+            if (graphData.computeBufferHandles == null)
+            {
+                graphData.computeBufferHandles = new List<ComputeBufferHandle>();
+            }
+            else
+            {
+                graphData.computeBufferHandles.Clear();
+            }
+        }
+
 
         [SerializeField]
         public SerializableDictionary<string, PassBase> passes = new SerializableDictionary<string, PassBase>();
 
         protected int textureHandleMaxIndex = -1;
         protected int computeBufferHandleMaxIndex = -1;
-
-        protected int emptyTextureIndex;
-        protected int emptyComputeBufferIndex;
+        protected int rendererListHandleMaxIndex = -1;
 
         protected RenderGraph renderGraph;
         protected RenderingData renderingData;
+        protected ResourceHandles graphData;
 
+
+        public struct ResourceHandles
+        {
+            public List<TextureHandle> textureHandles;
+            public List<ComputeBufferHandle> computeBufferHandles;
+            public List<RendererListHandle> rendererListHandles;
+        }
 
 
     }
+
+
+
 
 
     public enum SHEvalMode

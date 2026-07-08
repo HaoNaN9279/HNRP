@@ -24,8 +24,6 @@ namespace HN.HNRP
 
         public HNRenderGraphBase GraphObject;
 
-        public GraphData GraphData;
-
         public int mainLightIndex;
         
         /// <summary>
@@ -47,12 +45,6 @@ namespace HN.HNRP
         public VisibleReflectionProbe[] catchedReflectionProbes;
     }
 
-
-    public struct GraphData
-    {
-        public List<TextureHandle> textureHandles;
-        public List<ComputeBufferHandle> computeBufferHandles;
-    }
 
 
     // public struct CatchedReflectionProbeData

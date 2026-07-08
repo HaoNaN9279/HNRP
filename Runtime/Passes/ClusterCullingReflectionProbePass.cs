@@ -22,9 +22,9 @@ namespace HN.HNRP
         {
             base.OnCreate(hnRenderGraph, passName);
 
-            reflectionProbeAtlasIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
-            clusterCullingReflectionProbeMaskBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
-            clusterCullingReflectionProbeDatasBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
+            reflectionProbeAtlasSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.WriteOnly);
+            clusterCullingReflectionProbeMaskBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
+            clusterCullingReflectionProbeDatasBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
 
 #if UNITY_EDITOR
             clusterCullingReflectionProbeCS = AssetDatabase.LoadAssetAtPath<ComputeShader>(HNRenderPipelineGlobalSettings.HNRenderPipelinePath + CLUSTER_CULLING_CS_PATH);
@@ -64,6 +64,7 @@ namespace HN.HNRP
                 // 将当前帧需要更新的probe的texture导入render graph
                 ImportProbeTextures(renderGraph, passData);
                 
+                var graphObject = renderingData.GraphObject;
                 // 创建当前帧的reflection probe atlas
                 passData.reflectionProbeAtlas = builder.WriteTexture(renderGraph.CreateTexture(new TextureDesc(REFLECTION_PROBE_ATLAS_SIZE, REFLECTION_PROBE_ATLAS_SIZE, false, false)
                 {
@@ -75,7 +76,7 @@ namespace HN.HNRP
                     filterMode = REFLECTION_PROBE_ATLAS_FILTER_MODE,
                     wrapMode = REFLECTION_PROBE_ATLAS_WRAP_MODE
                 }));
-                renderingData.GraphData.textureHandles.Add(passData.reflectionProbeAtlas);
+                graphObject.RegistTextureHandle(passData.reflectionProbeAtlas);
 
                 // 创建当前帧的mask buffer
                 passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
@@ -84,7 +85,7 @@ namespace HN.HNRP
                         sizeof(uint)
                     ) { name = "Cluster Culling Reflection Probe Mask Buffer" }
                 ));
-                renderingData.GraphData.computeBufferHandles.Add(passData.clusterCullingReflectionProbeMaskBuffer);
+                graphObject.RegistComputeBufferHandle(passData.clusterCullingReflectionProbeMaskBuffer);
 
                 // 创建当前帧的global constant buffer
                 passData.clusterCullingReflectionProbeDatasBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
@@ -93,7 +94,7 @@ namespace HN.HNRP
                         UnsafeUtility.SizeOf<ClusterCullingReflectionProbeDatas>()
                     ) { name = "Cluster Culling Reflection Probe Datas Buffer" }
                 ));
-                renderingData.GraphData.computeBufferHandles.Add(passData.clusterCullingReflectionProbeDatasBuffer);
+                graphObject.RegistComputeBufferHandle(passData.clusterCullingReflectionProbeDatasBuffer);
 
                 // 单个cluster中可见probe的最大数量
                 int itemsPerCluster = MAX_REFLECTION_PROBES_ON_SCREEN;
@@ -138,8 +139,6 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ClusterCullingReflectionProbePassData data, RenderGraphContext ctx) =>
                     {
-                        ctx.cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
-                        
                         if(isEmpty)
                         {
                             for(int mipLevel = 0; mipLevel < REFLECTION_PROBE_ATLAS_MIP_COUNT; mipLevel++)
@@ -516,13 +515,13 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int reflectionProbeAtlasIndex = -1;
+        public TexturePassSlot reflectionProbeAtlasSlot;
 
         [SerializeField]
-        public int clusterCullingReflectionProbeMaskBufferIndex = -1;
+        public ComputeBufferPassSlot clusterCullingReflectionProbeMaskBufferSlot;
 
         [SerializeField]
-        public int clusterCullingReflectionProbeDatasBufferIndex = -1;
+        public ComputeBufferPassSlot clusterCullingReflectionProbeDatasBufferSlot;
 
 
         // 当前帧从剔除结果获取的reflection probe列表

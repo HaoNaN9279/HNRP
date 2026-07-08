@@ -1,9 +1,8 @@
-cluster culling light
-build light data不应该是pass 应该写在管线里
 reflection probe
     bake逻辑
     UpdateCount更新逻辑
-资源使用handle传递
+包装资源传递索引 处理空资源逻辑 
+pass开关 支持动态修改pass参数
 后处理
 绘制Gizmos
 阴影

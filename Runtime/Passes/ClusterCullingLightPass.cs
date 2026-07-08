@@ -23,7 +23,8 @@ namespace HN.HNRP
         {
             base.OnCreate(hnRenderGraph, passName);
  
-            clusterCullingLightMaskBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
+            lightDatasBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
+            clusterCullingLightMaskBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
 
 #if UNITY_EDITOR
             clusterCullingLightCS = AssetDatabase.LoadAssetAtPath<ComputeShader>(HNRenderPipelineGlobalSettings.HNRenderPipelinePath + CLUSTER_CULLING_CS_PATH);
@@ -42,17 +43,17 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
+                var graphObject = renderingData.GraphObject;
                 passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         MAX_CLUSTER_MASK_WORDS,
                         sizeof(uint)
                     ) { name = "Cluster Culling Light Mask Buffer" }
                 ));
-                renderingData.GraphData.computeBufferHandles.Add(passData.clusterCullingLightMaskBuffer);
+                graphObject.RegistComputeBufferHandle(passData.clusterCullingLightMaskBuffer);
 
                 // 读取传入的light datas buffer
-                var computeBufferHandles = renderingData.GraphData.computeBufferHandles;
-                passData.lightDatasBuffer = builder.ReadComputeBuffer(computeBufferHandles[lightDatasBufferIndex]);
+                passData.lightDatasBuffer = builder.ReadComputeBuffer(graphObject.GetComputeBufferHandle(lightDatasBufferSlot));
 
                 // 获取当前帧所有可见的light数量
                 catchedLightCount = Math.Min(renderingData.visibleLights.Length, MAX_LIGHT_ON_SCREEN);
@@ -105,8 +106,6 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ClusterCullingLightPassData data, RenderGraphContext ctx) =>
                     {
-                        ctx.cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingLight);
-
                         ctx.cmd.SetComputeBufferParam(data.clusterCullingLightCS, data.clusterCullingLightKernel, PropertyIDs.clusterCullingLightMaskBuffer, data.clusterCullingLightMaskBuffer);
                         ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams0, new Vector4(clusterZScaleOffset.x, clusterZScaleOffset.y, wordsPerCluster, camera.orthographic ? 1.0f : 0.0f));
                         ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, catchedLightCount));
@@ -129,15 +128,6 @@ namespace HN.HNRP
             
         }
 
-
-        [SerializeField]
-        public int lightDatasBufferIndex = -1;
-
-        [SerializeField]
-        public int clusterCullingLightMaskBufferIndex = -1;
-
-        [SerializeField]
-        public int clusterCullingLightParamsBufferIndex = -1;
 
         /// <summary>
         /// 计算当前帧三个方向的cluster数量
@@ -211,6 +201,14 @@ namespace HN.HNRP
             viewToClip = camera.projectionMatrix.inverse;
             clipToWorld = (camera.worldToCameraMatrix * camera.projectionMatrix).inverse;
         }
+
+
+        [SerializeField]
+        public ComputeBufferPassSlot lightDatasBufferSlot;
+
+        [SerializeField]
+        public ComputeBufferPassSlot clusterCullingLightMaskBufferSlot;
+
 
 
         [SerializeField]

@@ -10,7 +10,7 @@ using UnityEngine.Rendering.RendererUtils;
 namespace HN.HNRP
 {
     [Serializable]
-    public class ForwardOpaquePass : PassBase
+    public class DrawObjectPass : PassBase
     {
         public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
@@ -18,6 +18,7 @@ namespace HN.HNRP
 
             colorTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadWrite);
             depthTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadWrite);
+            rendererListSlot = new RendererListPassSlot(hnRenderGraph, PassSlotType.ReadOnly);
             lightDatasBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.ReadOnly);
             reflectionProbeAtlasSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadOnly);
             clusterCullingReflectionProbeMaskBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.ReadOnly);
@@ -32,7 +33,7 @@ namespace HN.HNRP
                 return;
             }
 
-            using (var builder = renderGraph.AddRenderPass<ForwardOpaquePassData>($"{name}({PassName})", out var passData))
+            using (var builder = renderGraph.AddRenderPass<DrawObjectPassData>($"{name}({PassName})", out var passData))
             {
                 builder.AllowRendererListCulling(false);
                 
@@ -65,7 +66,7 @@ namespace HN.HNRP
                 passData.rendererList = builder.UseRendererList(renderGraph.CreateRendererList(rendererListDesc));
 
                 builder.SetRenderFunc(
-                    (ForwardOpaquePassData data, RenderGraphContext ctx) =>
+                    (DrawObjectPassData data, RenderGraphContext ctx) =>
                     {
                         if(reflectionProbeAtlasSlot.IsConnected && clusterCullingReflectionProbeMaskBufferSlot.IsConnected && clusterCullingReflectionProbeDatasBufferSlot.IsConnected)
                         {
@@ -106,6 +107,9 @@ namespace HN.HNRP
         public TexturePassSlot depthTargetSlot;
 
         [SerializeField]
+        public RendererListPassSlot rendererListSlot;
+
+        [SerializeField]
         public ComputeBufferPassSlot lightDatasBufferSlot;
 
         [SerializeField]
@@ -121,10 +125,10 @@ namespace HN.HNRP
         public ComputeBufferPassSlot clusterCullingLightMaskBufferSlot;
 
 
-        public const string PassName = "Forward Opaque Pass";
+        public const string PassName = "Draw Object Pass";
 
 
-        public class ForwardOpaquePassData : PassData
+        public class DrawObjectPassData : PassData
         {
             public TextureHandle colorTarget;
             public TextureHandle depthTarget;

@@ -19,7 +19,7 @@ namespace HN.HNRP
         {
             base.OnCreate(hnRenderGraph, passName);
 
-            lightDatasBufferIndex = hnRenderGraph.RegistAndGetComputeBufferHandleIndex();
+            lightDatasBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
@@ -28,13 +28,14 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
+                var graphObject = renderingData.GraphObject;
                 passData.lightDatasBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN, 
                         UnsafeUtility.SizeOf<LightData>()
                     ){ name = "Light Datas Buffer" }
                 ));
-                renderingData.GraphData.computeBufferHandles.Add(passData.lightDatasBuffer);
+                graphObject.RegistComputeBufferHandle(passData.lightDatasBuffer);
 
                 int lightCount = math.min(renderingData.visibleLights.Length, HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
 
@@ -66,7 +67,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int lightDatasBufferIndex = -1;
+        public ComputeBufferPassSlot lightDatasBufferSlot;
 
         private BuildLightDataJob buildLightDataJob;
         private NativeArray<LightData> lightDatas;

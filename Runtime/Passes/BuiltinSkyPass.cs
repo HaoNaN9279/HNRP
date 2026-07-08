@@ -12,15 +12,29 @@ namespace HN.HNRP
     [Serializable]
     public class BuiltinSkyPass : PassBase
     {
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
+        {
+            base.OnCreate(hnRenderGraph, passName);
+
+            colorTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadWrite);
+            depthTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadWrite);
+        }
+
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
+            if(!colorTargetSlot.IsConnected || !depthTargetSlot.IsConnected)
+            {
+                return;
+            }
+
             using (var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>($"{name}({PassName})", out var passData))
             {
-                var textureHandles = renderingData.GraphData.textureHandles;
-                passData.colorTarget = builder.UseColorBuffer(textureHandles[colorTargetIndex], 0);
-                if (textureHandles[depthTargetIndex].IsValid())
+                var graphObject = renderingData.GraphObject;
+                passData.colorTarget = builder.UseColorBuffer(graphObject.GetTextureHandle(colorTargetSlot), 0);
+                var depthTargetHandle = graphObject.GetTextureHandle(depthTargetSlot);
+                if (depthTargetHandle.IsValid())
                 {
-                    passData.depthTarget = builder.UseDepthBuffer(textureHandles[depthTargetIndex], DepthAccess.Read);
+                    passData.depthTarget = builder.UseDepthBuffer(depthTargetHandle, DepthAccess.Read);
                 }
                 builder.AllowPassCulling(false);
 
@@ -42,10 +56,10 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int colorTargetIndex = -1;
+        public TexturePassSlot colorTargetSlot;
 
         [SerializeField]
-        public int depthTargetIndex = -1;
+        public TexturePassSlot depthTargetSlot;
 
         public const string PassName = "Builtin Sky Pass";
 

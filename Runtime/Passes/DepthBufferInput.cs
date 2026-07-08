@@ -14,18 +14,20 @@ namespace HN.HNRP
         public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
         {
             base.OnCreate(hnRenderGraph, passName);
-            depthTargetIndex = hnRenderGraph.RegistAndGetTextureHandleIndex();
+            
+            depthTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.WriteOnly);
         }
 
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
+            var graphObject = renderingData.GraphObject;
             TextureHandle outputDepthTarget = renderGraph.CreateTexture(new TextureDesc(textureScale, true, false)
             {
                 depthBufferBits = depthBits,
                 clearBuffer = clearBuffer,
                 name = name
             });
-            renderingData.GraphData.textureHandles.Add(outputDepthTarget);
+            graphObject.RegistTextureHandle(outputDepthTarget);
         }
 
         public override void Cleanup()
@@ -44,7 +46,7 @@ namespace HN.HNRP
         public bool clearBuffer = true;
 
         [SerializeField]
-        public int depthTargetIndex = -1;
+        public TexturePassSlot depthTargetSlot;
 
 
     }

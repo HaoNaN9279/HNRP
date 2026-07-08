@@ -12,6 +12,13 @@ namespace HN.HNRP
     [Serializable]
     public class RenderOutput : PassBase
     {
+        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
+        {
+            base.OnCreate(hnRenderGraph, passName);
+
+            colorTargetSlot = new TexturePassSlot(hnRenderGraph, PassSlotType.ReadOnly);
+        }
+
         public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
         {
             Material singleBlitMat = CoreUtils.CreateEngineMaterial(renderingData.runtimeResources.shaderResources.Blit);
@@ -20,10 +27,11 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
+                var graphObject = renderingData.GraphObject;
                 passData.blitMaterial = singleBlitMat;
                 passData.flip = renderingData.Camera.cameraType == CameraType.Game && renderingData.Camera.targetTexture == null;
                 passData.viewport = renderingData.CameraData.FinalViewport;
-                passData.inputTexture = builder.ReadTexture(renderingData.GraphData.textureHandles[colorTargetIndex]);
+                passData.inputTexture = builder.ReadTexture(graphObject.GetTextureHandle(colorTargetSlot));
                 TextureHandle backBuffer = renderGraph.ImportBackbuffer(renderingData.TargetId);
                 passData.renderTarget = builder.WriteTexture(backBuffer);
                 builder.SetRenderFunc(
@@ -52,7 +60,7 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int colorTargetIndex = -1;
+        public TexturePassSlot colorTargetSlot;
 
         private RTHandle backBufferHandle;
 
