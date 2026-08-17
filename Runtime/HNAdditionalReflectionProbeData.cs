@@ -42,9 +42,6 @@ namespace HN.HNRP
 
 
         [SerializeField]
-        public int renderGraphViewIndex = 0;
-
-        [SerializeField]
         private ReflectionProbe builtinReflectionProbe;
 
         [SerializeField]

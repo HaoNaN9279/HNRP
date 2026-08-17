@@ -1,32 +1,32 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+// <copyright file="ForwardOpaquePassEditor.cs" company="HN">
+// Copyright (c) HN. All rights reserved.
+// </copyright>
+
 using UnityEditor;
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace HN.HNRP.Editor
 {
-    [CanEditMultipleObjects]
-    [CustomEditor(typeof(ForwardOpaquePass))]
-    public class ForwardOpaquePassEditor : PassBaseEditor
+    /// <summary>
+    /// Inspector Editor for <see cref="ForwardOpaquePass"/>.
+    /// Displays PassName, IsEnabled, slot information, and RenderingLayerMask.
+    /// </summary>
+    public class ForwardOpaquePassEditor : PassEditor
     {
-        public override void OnInspectorGUI()
+        /// <summary>
+        /// Draws the Inspector GUI for the given <see cref="ForwardOpaquePass"/>.
+        /// </summary>
+        /// <param name="pass">The pass to inspect. Must not be null.</param>
+        public void DrawPass(ForwardOpaquePass pass)
         {
-            uint layer = serializedObject.FindProperty("renderingLayerMask").uintValue;
-            layer = (uint)EditorGUI.MaskField(EditorGUILayout.GetControlRect(), "Rendering Layer Mask", (int)layer, HNRenderPipelineGlobalSettings.Instance.PrefixedRenderingLayerNames);
+            DrawPassGUI(pass);
 
-            EditorGUILayout.Space();
-
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("lightDatasBufferIndex"), new GUIContent("Light Datas Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("reflectionProbeAtlasIndex"), new GUIContent("Reflection Probe Atlas Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingReflectionProbeMaskBufferIndex"), new GUIContent("Cluster Culling Reflection Probe Mask Buffer Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingReflectionProbeDatasBufferIndex"), new GUIContent("Cluster Culling Reflection Probe Datas Buffer Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingLightMaskBufferIndex"), new GUIContent("Cluster Culling Light Mask Bufer Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("clusterCullingLightParamsBufferIndex"), new GUIContent("Cluster Culling Light Params Buffer Index"));
-            EditorGUI.EndDisabledGroup();
+            if (pass != null)
+            {
+                EditorGUILayout.Space();
+                pass.RenderingLayerMask = (uint)EditorGUILayout.LongField(
+                    "Rendering Layer Mask", (long)pass.RenderingLayerMask);
+            }
         }
     }
 }

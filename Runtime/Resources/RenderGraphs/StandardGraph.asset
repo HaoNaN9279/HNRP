@@ -1,0 +1,105 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d6c020a9315464a88abf2dc506a57a3, type: 3}
+  m_Name: StandardGraph
+  m_EditorClassIdentifier: 
+  m_Passes:
+  - m_PassType: Build Light Data
+    m_InstanceName: buildLight
+    m_Config: {fileID: 0}
+  - m_PassType: Cluster Culling Probe
+    m_InstanceName: clusterProbe
+    m_Config: {fileID: 0}
+  - m_PassType: Cluster Culling Light
+    m_InstanceName: clusterLight
+    m_Config: {fileID: 0}
+  - m_PassType: Color Buffer Input
+    m_InstanceName: colorInput
+    m_Config: {fileID: 0}
+  - m_PassType: Depth Buffer Input
+    m_InstanceName: depthInput
+    m_Config: {fileID: 0}
+  - m_PassType: Forward Opaque
+    m_InstanceName: forwardOpaque
+    m_Config: {fileID: 0}
+  - m_PassType: Builtin Sky
+    m_InstanceName: sky
+    m_Config: {fileID: 0}
+  - m_PassType: Transparency
+    m_InstanceName: transparency
+    m_Config: {fileID: 0}
+  - m_PassType: Editor Wire Overlay
+    m_InstanceName: wireOverlay
+    m_Config: {fileID: 0}
+  - m_PassType: Render Output
+    m_InstanceName: finalBlit
+    m_Config: {fileID: 0}
+  m_Connections:
+  - m_SourcePass: buildLight
+    m_SourceSlot: lightDatasBuffer
+    m_TargetPass: clusterLight
+    m_TargetSlot: lightDatasBuffer
+  - m_SourcePass: buildLight
+    m_SourceSlot: lightDatasBuffer
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: LightDatas
+  - m_SourcePass: clusterProbe
+    m_SourceSlot: reflectionProbeAtlas
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: ReflectionProbeAtlas
+  - m_SourcePass: clusterProbe
+    m_SourceSlot: clusterCullingReflectionProbeMaskBuffer
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: ProbeMask
+  - m_SourcePass: clusterProbe
+    m_SourceSlot: clusterCullingReflectionProbeDatasBuffer
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: ProbeDatas
+  - m_SourcePass: clusterLight
+    m_SourceSlot: clusterCullingLightMaskBuffer
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: LightMask
+  - m_SourcePass: colorInput
+    m_SourceSlot: colorTargetSlot
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: depthInput
+    m_SourceSlot: DepthTarget
+    m_TargetPass: forwardOpaque
+    m_TargetSlot: DepthTarget
+  - m_SourcePass: forwardOpaque
+    m_SourceSlot: ColorTarget
+    m_TargetPass: sky
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: forwardOpaque
+    m_SourceSlot: DepthTarget
+    m_TargetPass: sky
+    m_TargetSlot: DepthTarget
+  - m_SourcePass: sky
+    m_SourceSlot: ColorTarget
+    m_TargetPass: transparency
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: sky
+    m_SourceSlot: DepthTarget
+    m_TargetPass: transparency
+    m_TargetSlot: DepthTarget
+  - m_SourcePass: transparency
+    m_SourceSlot: ColorTarget
+    m_TargetPass: wireOverlay
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: wireOverlay
+    m_SourceSlot: ColorTarget
+    m_TargetPass: finalBlit
+    m_TargetSlot: ColorTarget
+  m_Settings:
+    SHEvalMode: 1
+    AllowHDR: 1

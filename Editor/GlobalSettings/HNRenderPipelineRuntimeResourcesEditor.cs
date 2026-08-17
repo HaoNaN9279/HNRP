@@ -17,6 +17,10 @@ namespace HN.HNRP.Editor
             }
             shaderResourcesProperty = serializedObject.FindProperty("shaderResources");
             EditorGUILayout.PropertyField(shaderResourcesProperty);
+            clusterCullingLightCSProperty = serializedObject.FindProperty("clusterCullingLightCS");
+            EditorGUILayout.PropertyField(clusterCullingLightCSProperty);
+            clusterCullingReflectionProbeCSProperty = serializedObject.FindProperty("clusterCullingReflectionProbeCS");
+            EditorGUILayout.PropertyField(clusterCullingReflectionProbeCSProperty);
         }
 
 
@@ -30,5 +34,7 @@ namespace HN.HNRP.Editor
 
 
         private SerializedProperty shaderResourcesProperty;
+        private SerializedProperty clusterCullingLightCSProperty;
+        private SerializedProperty clusterCullingReflectionProbeCSProperty;
     }
 }

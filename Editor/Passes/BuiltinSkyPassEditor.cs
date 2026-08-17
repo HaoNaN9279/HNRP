@@ -1,23 +1,25 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+// <copyright file="BuiltinSkyPassEditor.cs" company="HN">
+// Copyright (c) HN. All rights reserved.
+// </copyright>
+
 using UnityEditor;
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace HN.HNRP.Editor
 {
-    [CanEditMultipleObjects]
-    [CustomEditor(typeof(BuiltinSkyPass))]
-    public class BuiltinSkyPassEditor : PassBaseEditor
+    /// <summary>
+    /// Inspector Editor for <see cref="BuiltinSkyPass"/>.
+    /// Displays PassName, IsEnabled, and slot information.
+    /// </summary>
+    public class BuiltinSkyPassEditor : PassEditor
     {
-        public override void OnInspectorGUI()
+        /// <summary>
+        /// Draws the Inspector GUI for the given <see cref="BuiltinSkyPass"/>.
+        /// </summary>
+        /// <param name="pass">The pass to inspect. Must not be null.</param>
+        public void DrawPass(BuiltinSkyPass pass)
         {
-            EditorGUILayout.Space();
-
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
-            EditorGUI.EndDisabledGroup();
+            DrawPassGUI(pass);
         }
     }
 }

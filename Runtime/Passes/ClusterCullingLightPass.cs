@@ -1,140 +1,317 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using UnityEngine.Experimental.Rendering;
-using UnityEngine.Rendering;
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using Unity.Collections;
-using Unity.Mathematics;
-using Unity.Collections.LowLevel.Unsafe;
+// <copyright file="ClusterCullingLightPass.cs" company="HN">
+// Copyright (c) HN. All rights reserved.
+// </copyright>
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
+using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    [Serializable]
-    public class ClusterCullingLightPass : PassBase
+    /// <summary>
+    /// Performs cluster-based light culling using a compute shader.
+    /// Reads the light data buffer produced by <see cref="BuildLightDataPass"/>,
+    /// dispatches the cluster culling compute shader, and outputs a light mask
+    /// buffer consumed by forward rendering passes.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>New Pass system</b> (ADR-002, ADR-011):
+    /// Inherits from <see cref="Pass"/> instead of the legacy <see cref="PassBase"/>.
+    /// The compute shader is accessed via <see cref="CameraContext.RuntimeResources"/>
+    /// instead of being loaded from the AssetDatabase at creation time.
+    /// Uses name-based <see cref="ComputeBufferSlot"/> for input/output connections.
+    /// </para>
+    /// <para>
+    /// <b>Inputs:</b>
+    /// <list type="bullet">
+    ///   <item><b>lightDatasBuffer</b> — the light data compute buffer from
+    ///   <see cref="BuildLightDataPass"/>.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Outputs:</b>
+    /// <list type="bullet">
+    ///   <item><b>clusterCullingLightMaskBuffer</b> — the cluster culling light
+    ///   mask buffer for forward rendering passes.</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    [Pass(PassNameConst)]
+    public sealed class ClusterCullingLightPass : Pass
     {
-        public override void OnCreate(HNRenderGraphBase hnRenderGraph, string passName)
-        {
-            base.OnCreate(hnRenderGraph, passName);
- 
-            lightDatasBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
-            clusterCullingLightMaskBufferSlot = new ComputeBufferPassSlot(hnRenderGraph, PassSlotType.WriteOnly);
+        /// <summary>
+        /// The constant pass name string used for registration and identification.
+        /// </summary>
+        public const string PassNameConst = "Cluster Culling Light";
 
-#if UNITY_EDITOR
-            clusterCullingLightCS = AssetDatabase.LoadAssetAtPath<ComputeShader>(HNRenderPipelineGlobalSettings.HNRenderPipelinePath + CLUSTER_CULLING_CS_PATH);
-#endif
+        // ── Slots ──
+
+        /// <summary>
+        /// Gets the input light data buffer slot.
+        /// Connected to the output of <see cref="BuildLightDataPass"/>.
+        /// </summary>
+        public ComputeBufferSlot? LightDatasBufferSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the output cluster culling light mask buffer slot.
+        /// Connected to the light mask input of forward rendering passes.
+        /// </summary>
+        public ComputeBufferSlot? ClusterCullingLightMaskBufferSlot { get; private set; }
+
+        // ── Camera context ──
+
+        private CameraContext? m_CameraContext;
+
+        // ── Constructor ──
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ClusterCullingLightPass"/> class.
+        /// </summary>
+        /// <param name="passName">
+        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// </param>
+        public ClusterCullingLightPass(string passName)
+            : base(passName)
+        {
         }
 
-        public override void Record(RenderGraph renderGraph, ref RenderingData renderingData)
+        // ── Lifecycle ──
+
+        /// <inheritdoc />
+        public override void SetupSlots()
         {
-            if(clusterCullingLightCS == null)
+            LightDatasBufferSlot = new ComputeBufferSlot(
+                "lightDatasBuffer", SlotDirection.Input);
+            ClusterCullingLightMaskBufferSlot = new ComputeBufferSlot(
+                "clusterCullingLightMaskBuffer", SlotDirection.Output);
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Stores the camera context so the compute shader and camera data can be
+        /// accessed during <see cref="Record"/>. The compute shader is resolved from
+        /// <see cref="CameraContext.RuntimeResources"/>.
+        /// </remarks>
+        public override void Initialize(CameraContext context)
+        {
+            m_CameraContext = context;
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Reads the light data buffer from the connected input slot, creates the
+        /// output cluster culling light mask buffer, configures and dispatches the
+        /// cluster culling compute shader, and publishes the output handle.
+        ///
+        /// The compute shader and camera matrices come from the camera context
+        /// set during <see cref="Initialize"/>.
+        /// </remarks>
+        public override void Record(RenderGraph renderGraph)
+        {
+            if (ClusterCullingLightMaskBufferSlot == null
+                || LightDatasBufferSlot == null)
             {
-                Debug.LogError("Cluster Culling Light Compute Shader is Null.");
                 return;
             }
 
-            using (var builder = renderGraph.AddRenderPass<ClusterCullingLightPassData>($"{name}({PassName})", out var passData))
+            if (m_CameraContext == null)
+            {
+                return;
+            }
+
+            ComputeShader clusterCullingLightCS =
+                m_CameraContext.RuntimeResources?.clusterCullingLightCS;
+            if (clusterCullingLightCS == null)
+            {
+                Debug.LogError(
+                    "Cluster Culling Light Compute Shader is null. " +
+                    "Ensure it is assigned in HNRenderPipelineRuntimeResources.");
+                return;
+            }
+
+            Camera camera = m_CameraContext.Camera;
+            if (camera == null)
+            {
+                return;
+            }
+
+            using (var builder = renderGraph.AddRenderPass<ClusterCullingLightPassData>(
+                PassName, out var passData))
             {
                 builder.AllowPassCulling(false);
 
-                var graphObject = renderingData.GraphObject;
-                passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        MAX_CLUSTER_MASK_WORDS,
-                        sizeof(uint)
-                    ) { name = "Cluster Culling Light Mask Buffer" }
-                ));
-                graphObject.RegistComputeBufferHandle(passData.clusterCullingLightMaskBuffer);
+                // ── Input: light data buffer ──
 
-                // 读取传入的light datas buffer
-                passData.lightDatasBuffer = builder.ReadComputeBuffer(graphObject.GetComputeBufferHandle(lightDatasBufferSlot));
-
-                // 获取当前帧所有可见的light数量
-                catchedLightCount = Math.Min(renderingData.visibleLights.Length, MAX_LIGHT_ON_SCREEN);
-                int directionalLightCount = 0, localLightCount = 0;
-                for(int i = 0; i < catchedLightCount; i++)
+                if (LightDatasBufferSlot?.IsConnected == true)
                 {
-                    var light = renderingData.visibleLights[i];
-                    if(light.lightType == LightType.Directional)
+                    passData.lightDatasBuffer = builder.ReadComputeBuffer(
+                        (ComputeBufferHandle)LightDatasBufferSlot.ReadHandle()!);
+                }
+
+                // ── Output: cluster culling light mask buffer ──
+
+                passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(
+                    renderGraph.CreateComputeBuffer(
+                        new ComputeBufferDesc(
+                            MAX_CLUSTER_MASK_WORDS,
+                            sizeof(uint))
+                        { name = "Cluster Culling Light Mask Buffer" }));
+
+                ClusterCullingLightMaskBufferSlot.CreateHandle();
+
+                // ── Prepare per-frame data ──
+
+                int maxLightOnScreen =
+                    HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
+                    + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
+                int catchedLightCount = Mathf.Min(
+                    m_CameraContext.VisibleLights.Length, maxLightOnScreen);
+
+                int directionalLightCount = 0;
+                int localLightCount = 0;
+                for (int i = 0; i < catchedLightCount; i++)
+                {
+                    var light = m_CameraContext.VisibleLights[i];
+                    if (light.lightType == LightType.Directional)
                     {
                         directionalLightCount++;
                     }
-                    if(light.lightType == LightType.Point || light.lightType == LightType.Spot)
+
+                    if (light.lightType == LightType.Point
+                        || light.lightType == LightType.Spot)
                     {
                         localLightCount++;
                     }
                 }
-                
-                if(directionalLightCount > 0)
+
+                if (directionalLightCount > 0)
+                {
                     directionalLightCount -= 1;
+                }
 
-                // 单个Cluster中可见光的最大数量
-                int itemsPerCluster = MAX_LIGHT_ON_SCREEN;
-
-                // 单个cluster中所需的words
-                int wordsPerCluster = (itemsPerCluster + 31) / 32 + 1/* 1 for header */;
-
-                Camera camera = renderingData.Camera;
-                HNAdditionalCameraData cameraData = renderingData.CameraData;
-                int2 screenResolution = math.int2(camera.pixelWidth, camera.pixelHeight);
-
-                // 计算当前帧三个方向的cluster数量
+                int2 screenResolution =
+                    math.int2(camera.pixelWidth, camera.pixelHeight);
                 int3 clusterSize = GetClusterSize(screenResolution);
+                int clusterCount =
+                    clusterSize.x * clusterSize.y * clusterSize.z;
+                float2 clusterZScaleOffset = GetClusterZScaleOffset(
+                    clusterSize,
+                    camera.orthographic,
+                    camera.nearClipPlane,
+                    camera.farClipPlane);
 
-                // 当前帧总cluster的数量
-                int clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
+                // Items per cluster = total visible lights on screen
+                int itemsPerCluster = maxLightOnScreen;
+                int wordsPerCluster =
+                    (itemsPerCluster + 31) / 32 + 1 /* 1 for header */;
 
-                // 计算cluster Z方向的scaleOffset
-                float2 clusterZScaleOffset = GetClusterZScaleOffset(clusterSize, camera.orthographic, camera.nearClipPlane, camera.farClipPlane);
-            
-                // 更新当前帧渲染需要的cluster数据
-                UpdateClusterCullingLightParams(passData, clusterSize, clusterZScaleOffset, wordsPerCluster, directionalLightCount, localLightCount);
+                // ── Configure pass data ──
 
-                // 获取计算cluster culling所需的矩阵
-                GetCameraMatrix(camera);
-
-                // 获取cluster所需的compute shader
                 passData.clusterCullingLightCS = clusterCullingLightCS;
-                passData.clusterCullingLightKernel = passData.clusterCullingLightCS.FindKernel(CLUSTER_CULLING_CS_KERNEL_NAME);
+                passData.clusterCullingLightKernel =
+                    clusterCullingLightCS.FindKernel(
+                        CLUSTER_CULLING_CS_KERNEL_NAME);
+
+                passData.clusterCullingLightParams.clusterSize =
+                    new Vector2(clusterSize.x, clusterSize.y);
+                passData.clusterCullingLightParams.clusterZScaleOffset =
+                    new Vector2(clusterZScaleOffset.x, clusterZScaleOffset.y);
+                passData.clusterCullingLightParams.wordsPerCluster =
+                    wordsPerCluster;
+                passData.clusterCullingLightParams.directionalLightCount =
+                    directionalLightCount;
+                passData.clusterCullingLightParams.localLightCount =
+                    localLightCount;
+                passData.clusterCullingLightParams.unused = 0;
+
+                // Camera matrices
+                Matrix4x4 clipToView = camera.projectionMatrix;
+                Matrix4x4 viewToClip = camera.projectionMatrix.inverse;
+                Matrix4x4 clipToWorld =
+                    (camera.worldToCameraMatrix * camera.projectionMatrix)
+                    .inverse;
+
+                // ── Render function ──
 
                 builder.SetRenderFunc(
                     (ClusterCullingLightPassData data, RenderGraphContext ctx) =>
                     {
-                        ctx.cmd.SetComputeBufferParam(data.clusterCullingLightCS, data.clusterCullingLightKernel, PropertyIDs.clusterCullingLightMaskBuffer, data.clusterCullingLightMaskBuffer);
-                        ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams0, new Vector4(clusterZScaleOffset.x, clusterZScaleOffset.y, wordsPerCluster, camera.orthographic ? 1.0f : 0.0f));
-                        ctx.cmd.SetComputeVectorParam(data.clusterCullingLightCS, PropertyIDs.cullingParams1, new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, catchedLightCount));
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingClipToViewMatrix, clipToView);
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingViewToClipMatrix, viewToClip);
-                        ctx.cmd.SetComputeMatrixParam(data.clusterCullingLightCS, PropertyIDs.cullingClipToWorldMatrix, clipToWorld);
-                        int threadGroup = (clusterCount + 63) / 64;
-                        int threadGroupY = (threadGroup + clusterSize.y - 1) / clusterSize.y;
-                        ctx.cmd.SetComputeBufferParam(data.clusterCullingLightCS, data.clusterCullingLightKernel, BuildLightDataPass.PropertyIDs.lightDatasBuffer, data.lightDatasBuffer);
-                        ctx.cmd.DispatchCompute(data.clusterCullingLightCS, data.clusterCullingLightKernel, clusterSize.y, threadGroupY, 1);
+                        ctx.cmd.SetComputeBufferParam(
+                            data.clusterCullingLightCS,
+                            data.clusterCullingLightKernel,
+                            PropertyIDs.clusterCullingLightMaskBuffer,
+                            data.clusterCullingLightMaskBuffer);
+                        ctx.cmd.SetComputeBufferParam(
+                            data.clusterCullingLightCS,
+                            data.clusterCullingLightKernel,
+                            BuildLightDataPass.PropertyIDs.LightDatasBuffer,
+                            data.lightDatasBuffer);
 
-                        ConstantBuffer.PushGlobal(ctx.cmd, data.clusterCullingLightParams, PropertyIDs.clusterCullingLightParamsBuffer);
-                    }
-                );
+                        ctx.cmd.SetComputeVectorParam(
+                            data.clusterCullingLightCS,
+                            PropertyIDs.cullingParams0,
+                            new Vector4(
+                                clusterZScaleOffset.x,
+                                clusterZScaleOffset.y,
+                                wordsPerCluster,
+                                camera.orthographic ? 1.0f : 0.0f));
+                        ctx.cmd.SetComputeVectorParam(
+                            data.clusterCullingLightCS,
+                            PropertyIDs.cullingParams1,
+                            new Vector4(
+                                clusterSize.x,
+                                clusterSize.y,
+                                clusterSize.z,
+                                catchedLightCount));
+
+                        ctx.cmd.SetComputeMatrixParam(
+                            data.clusterCullingLightCS,
+                            PropertyIDs.cullingClipToViewMatrix,
+                            clipToView);
+                        ctx.cmd.SetComputeMatrixParam(
+                            data.clusterCullingLightCS,
+                            PropertyIDs.cullingViewToClipMatrix,
+                            viewToClip);
+                        ctx.cmd.SetComputeMatrixParam(
+                            data.clusterCullingLightCS,
+                            PropertyIDs.cullingClipToWorldMatrix,
+                            clipToWorld);
+
+                        int threadGroup = (clusterCount + 63) / 64;
+                        int threadGroupY =
+                            (threadGroup + clusterSize.y - 1) / clusterSize.y;
+
+                        ctx.cmd.DispatchCompute(
+                            data.clusterCullingLightCS,
+                            data.clusterCullingLightKernel,
+                            clusterSize.y,
+                            threadGroupY,
+                            1);
+
+                        ConstantBuffer.PushGlobal(
+                            ctx.cmd,
+                            data.clusterCullingLightParams,
+                            PropertyIDs.clusterCullingLightParamsBuffer);
+                    });
             }
         }
 
+        /// <inheritdoc />
         public override void Cleanup()
         {
-            
+            // No disposable resources held by this pass.
         }
 
+        // ── Helpers ──
 
         /// <summary>
-        /// 计算当前帧三个方向的cluster数量
+        /// Computes the cluster grid dimensions for the current frame based on
+        /// screen resolution.
         /// </summary>
-        /// <param name="screenResolution"></param>
-        /// <returns></returns>
-        private int3 GetClusterSize(int2 screenResolution)
+        /// <param name="screenResolution">The screen resolution in pixels.</param>
+        /// <returns>The cluster size in X, Y, and Z dimensions.</returns>
+        private static int3 GetClusterSize(int2 screenResolution)
         {
             int2 clusterSizeXY = new int2(1, 1);
             int sliceCount = CLUSTER_MIN_Z_SLIZE;
@@ -142,137 +319,181 @@ namespace HN.HNRP
             do
             {
                 tileWidth <<= 1;
-                clusterSizeXY = (screenResolution + tileWidth - 1) / tileWidth;
-                int tileCountPerSlice = clusterSizeXY.x * clusterSizeXY.y;
-                sliceCount = MAX_CLUSTER_MASK_WORDS / tileCountPerSlice - 1;
+                clusterSizeXY =
+                    (screenResolution + tileWidth - 1) / tileWidth;
+                int tileCountPerSlice =
+                    clusterSizeXY.x * clusterSizeXY.y;
+                sliceCount =
+                    MAX_CLUSTER_MASK_WORDS / tileCountPerSlice - 1;
             }
-            while(sliceCount < CLUSTER_MIN_Z_SLIZE || sliceCount > CLUSTER_MAX_Z_SLICE);
+            while (sliceCount < CLUSTER_MIN_Z_SLIZE
+                   || sliceCount > CLUSTER_MAX_Z_SLICE);
             return new int3(clusterSizeXY.x, clusterSizeXY.y, sliceCount);
         }
 
         /// <summary>
-        /// 计算cluster Z方向的scaleoffset
+        /// Computes the Z-axis scale and offset for the cluster grid,
+        /// with different formulas for orthographic and perspective cameras.
         /// </summary>
-        /// <param name="clusterSize"></param>
-        /// <param name="isOrthographic"></param>
-        /// <param name="nearClipPlane"></param>
-        /// <param name="farClipPlane"></param>
-        /// <returns></returns>
-        private float2 GetClusterZScaleOffset(int3 clusterSize, bool isOrthographic, float nearClipPlane, float farClipPlane)
+        /// <param name="clusterSize">The cluster grid dimensions.</param>
+        /// <param name="isOrthographic">
+        /// Whether the camera is orthographic.</param>
+        /// <param name="nearClipPlane">The camera's near clip plane.</param>
+        /// <param name="farClipPlane">The camera's far clip plane.</param>
+        /// <returns>
+        /// A <see cref="float2"/> containing the Z scale (x) and offset (y).
+        /// </returns>
+        private static float2 GetClusterZScaleOffset(
+            int3 clusterSize,
+            bool isOrthographic,
+            float nearClipPlane,
+            float farClipPlane)
         {
-            float2 clusterZScaleOffset = new float2(0, 0);
-            if(isOrthographic) // 正交相机
+            float2 scaleOffset = new float2(0, 0);
+            if (isOrthographic)
             {
-                clusterZScaleOffset.x = (float)clusterSize.z / (farClipPlane - nearClipPlane);
-                clusterZScaleOffset.y = -nearClipPlane * clusterZScaleOffset.x;
+                scaleOffset.x =
+                    (float)clusterSize.z / (farClipPlane - nearClipPlane);
+                scaleOffset.y = -nearClipPlane * scaleOffset.x;
             }
-            else // 透视相机
+            else
             {
-                clusterZScaleOffset.x = (float)clusterSize.z / (math.log2(farClipPlane) - math.log2(nearClipPlane));
-                clusterZScaleOffset.y = -math.log2(nearClipPlane) * clusterZScaleOffset.x;
+                scaleOffset.x =
+                    (float)clusterSize.z
+                    / (math.log2(farClipPlane) - math.log2(nearClipPlane));
+                scaleOffset.y = -math.log2(nearClipPlane) * scaleOffset.x;
             }
-            return clusterZScaleOffset;
+
+            return scaleOffset;
         }
+
+        // ── Pass data ──
 
         /// <summary>
-        /// 更新当前帧渲染需要的cluster数据
+        /// Render graph pass data container for
+        /// <see cref="ClusterCullingLightPass"/>.
         /// </summary>
-        /// <param name="passData"></param>
-        /// <param name="clusterSize"></param>
-        /// <param name="clusterZScaleOffset"></param>
-        /// <param name="wordsPerCluster"></param>
-        private void UpdateClusterCullingLightParams(ClusterCullingLightPassData passData, int3 clusterSize, float2 clusterZScaleOffset, int wordsPerCluster, int directionalLightCount, int localLightCount)
+        private sealed class ClusterCullingLightPassData
         {
-            passData.clusterCullingLightParams.clusterSize = new Vector2(clusterSize.x, clusterSize.y);
-            passData.clusterCullingLightParams.clusterZScaleOffset = new Vector2(clusterZScaleOffset.x, clusterZScaleOffset.y);
-            passData.clusterCullingLightParams.wordsPerCluster = wordsPerCluster;
-            passData.clusterCullingLightParams.directionalLightCount = directionalLightCount;
-            passData.clusterCullingLightParams.localLightCount = localLightCount;
-            passData.clusterCullingLightParams.unused = 0;
-        }
-
-        /// <summary>
-        /// 获取计算cluster所需的矩阵
-        /// </summary>
-        /// <param name="camera"></param>
-        private void GetCameraMatrix(Camera camera)
-        {
-            clipToView = camera.projectionMatrix;
-            viewToClip = camera.projectionMatrix.inverse;
-            clipToWorld = (camera.worldToCameraMatrix * camera.projectionMatrix).inverse;
-        }
-
-
-        [SerializeField]
-        public ComputeBufferPassSlot lightDatasBufferSlot;
-
-        [SerializeField]
-        public ComputeBufferPassSlot clusterCullingLightMaskBufferSlot;
-
-
-
-        [SerializeField]
-        private ComputeShader clusterCullingLightCS;
-
-        private int catchedLightCount = 0;
-
-        private Matrix4x4 clipToView, viewToClip, clipToWorld;
-
-        // 当前帧需要处理的local light的数据
-        private NativeArray<VisibleLight> visibleLights;
-
-
-        public const string PassName = "Cluster Culling Light Pass";
-
-        private const string CLUSTER_CULLING_CS_PATH = "Runtime/ShaderLibrary/ComputeShaders/ClusterCullingLightCS.compute";
-        private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;
-        private const int MAX_LIGHT_ON_SCREEN = HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
-        private const int CLUSTER_MIN_Z_SLIZE = 16;
-        private const int CLUSTER_MAX_Z_SLICE = 128;
-        private const string CLUSTER_CULLING_CS_KERNEL_NAME = "ClusterCullingLightCS";
-
-
-        public class ClusterCullingLightPassData
-        {
-            // light datas
+            /// <summary>
+            /// The light data compute buffer handle (input from
+            /// <see cref="BuildLightDataPass"/>).
+            /// </summary>
             public ComputeBufferHandle lightDatasBuffer;
 
-            // cluster culling计算出的mask buffer
+            /// <summary>
+            /// The cluster culling light mask buffer handle (output).
+            /// </summary>
             public ComputeBufferHandle clusterCullingLightMaskBuffer;
 
-            // cluster culling light渲染所需的global数据
-            public ClusterCullingLightParams clusterCullingLightParams;
-
-            // 计算cluster culling的compute shader
+            /// <summary>
+            /// The cluster culling compute shader.
+            /// </summary>
             public ComputeShader clusterCullingLightCS;
 
-            // 计算cluster culling的compute shader的kernel
+            /// <summary>
+            /// The kernel index for the cluster culling dispatch.
+            /// </summary>
             public int clusterCullingLightKernel;
+
+            /// <summary>
+            /// Global constant buffer parameters for cluster culling light.
+            /// </summary>
+            public ClusterCullingLightParams clusterCullingLightParams;
         }
 
+        // ── Constants ──
 
-        unsafe public struct ClusterCullingLightParams
+        private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;
+        private const int CLUSTER_MIN_Z_SLIZE = 16;
+        private const int CLUSTER_MAX_Z_SLICE = 128;
+        private const string CLUSTER_CULLING_CS_KERNEL_NAME =
+            "ClusterCullingLightCS";
+
+        // ── Data structures ──
+
+        /// <summary>
+        /// GPU-side constant buffer layout for cluster culling light parameters.
+        /// Must match the layout declared in the compute shader.
+        /// </summary>
+        public unsafe struct ClusterCullingLightParams
         {
+            /// <summary>The cluster grid dimensions in X and Y.</summary>
             public Vector2 clusterSize;
+
+            /// <summary>
+            /// The Z-axis scale (x) and offset (y) for cluster depth slices.
+            /// </summary>
             public Vector2 clusterZScaleOffset;
+
+            /// <summary>Number of uint words per cluster mask.</summary>
             public int wordsPerCluster;
+
+            /// <summary>Number of directional lights (excluding main).</summary>
             public int directionalLightCount;
+
+            /// <summary>Number of point and spot lights.</summary>
             public int localLightCount;
+
+            /// <summary>Padding to maintain 16-byte alignment.</summary>
             public float unused;
         }
 
-
+        /// <summary>
+        /// Shader property identifiers used by this pass and its consumers.
+        /// </summary>
         public static class PropertyIDs
         {
-            public static readonly int clusterCullingLightMaskBuffer = Shader.PropertyToID("_ClusterCullingLightMaskBuffer");
-            public static readonly int clusterCullingLightParamsBuffer = Shader.PropertyToID("_ClusterCullingLightParamsBuffer");
-            // x:z scale y:z offset z:wordsPerCluster w:isOrthographic
-            public static readonly int cullingParams0 = Shader.PropertyToID("_ClusterCullingLightParams0");
-            // xyz:clusterSize w:probeCount
-            public static readonly int cullingParams1 = Shader.PropertyToID("_ClusterCullingLightParams1");
-            public static readonly int cullingClipToViewMatrix = Shader.PropertyToID("_ClusterCullingLightClipToView");
-            public static readonly int cullingViewToClipMatrix = Shader.PropertyToID("_ClusterCullingLightViewToClip");
-            public static readonly int cullingClipToWorldMatrix = Shader.PropertyToID("_ClusterCullingLightClipToWorld");
+            /// <summary>
+            /// Shader property ID for the cluster culling light mask buffer.
+            /// Value: <c>_ClusterCullingLightMaskBuffer</c>.
+            /// </summary>
+            public static readonly int clusterCullingLightMaskBuffer =
+                Shader.PropertyToID("_ClusterCullingLightMaskBuffer");
+
+            /// <summary>
+            /// Shader property ID for the cluster culling light params constant buffer.
+            /// Value: <c>_ClusterCullingLightParamsBuffer</c>.
+            /// </summary>
+            public static readonly int clusterCullingLightParamsBuffer =
+                Shader.PropertyToID("_ClusterCullingLightParamsBuffer");
+
+            /// <summary>
+            /// Shader property ID for culling params 0 (zScale, zOffset,
+            /// wordsPerCluster, isOrthographic).
+            /// Value: <c>_ClusterCullingLightParams0</c>.
+            /// </summary>
+            public static readonly int cullingParams0 =
+                Shader.PropertyToID("_ClusterCullingLightParams0");
+
+            /// <summary>
+            /// Shader property ID for culling params 1 (clusterSizeX, clusterSizeY,
+            /// clusterSizeZ, visibleLightCount).
+            /// Value: <c>_ClusterCullingLightParams1</c>.
+            /// </summary>
+            public static readonly int cullingParams1 =
+                Shader.PropertyToID("_ClusterCullingLightParams1");
+
+            /// <summary>
+            /// Shader property ID for the clip-to-view matrix.
+            /// Value: <c>_ClusterCullingLightClipToView</c>.
+            /// </summary>
+            public static readonly int cullingClipToViewMatrix =
+                Shader.PropertyToID("_ClusterCullingLightClipToView");
+
+            /// <summary>
+            /// Shader property ID for the view-to-clip matrix.
+            /// Value: <c>_ClusterCullingLightViewToClip</c>.
+            /// </summary>
+            public static readonly int cullingViewToClipMatrix =
+                Shader.PropertyToID("_ClusterCullingLightViewToClip");
+
+            /// <summary>
+            /// Shader property ID for the clip-to-world matrix.
+            /// Value: <c>_ClusterCullingLightClipToWorld</c>.
+            /// </summary>
+            public static readonly int cullingClipToWorldMatrix =
+                Shader.PropertyToID("_ClusterCullingLightClipToWorld");
         }
     }
 }

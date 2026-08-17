@@ -31,6 +31,19 @@ namespace HN.HNRP.Editor
                 onAddCallback = OnAddElement,
             };
 
+            cameraPipelineConfigs = serializedObject.FindProperty("m_CameraPipelineConfigs");
+
+            cameraPipelineConfigsList = new ReorderableList(serializedObject, cameraPipelineConfigs, true, true, true, true)
+            {
+                drawHeaderCallback = (Rect rect) =>
+                {
+                    EditorGUI.LabelField(rect, "Camera Pipeline Configs");
+                },
+                drawElementCallback = OnDrawCameraPipelineConfigElement,
+                onAddDropdownCallback = OnAddCameraPipelineConfigDropdown,
+                onRemoveCallback = OnRemoveCameraPipelineConfig,
+            };
+
             var runtimeResources = serializedObject.FindProperty("hnRenderPipelineRuntimeResources")?.objectReferenceValue as HNRenderPipelineRuntimeResources;
             UnityEditor.Editor.CreateCachedEditor(runtimeResources, null, ref runtimeResourcesEditor);
 
@@ -63,6 +76,60 @@ namespace HN.HNRP.Editor
             return index == 0 ? "Default" : $"Layer {index}";
         }
 
+        private void OnDrawCameraPipelineConfigElement(Rect rect, int index, bool isActive, bool isFocused)
+        {
+            rect.y += 2.5f;
+            SerializedProperty element = cameraPipelineConfigsList.serializedProperty.GetArrayElementAtIndex(index);
+            EditorGUI.PropertyField(
+                new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight),
+                element,
+                GUIContent.none);
+        }
+
+        private void OnAddCameraPipelineConfigDropdown(Rect buttonRect, ReorderableList list)
+        {
+            var menu = new GenericMenu();
+
+            var guids = AssetDatabase.FindAssets("t:CameraPipelineConfig");
+            if (guids.Length == 0)
+            {
+                menu.AddDisabledItem(new GUIContent("No CameraPipelineConfig assets found"));
+            }
+            else
+            {
+                foreach (var guid in guids)
+                {
+                    var path = AssetDatabase.GUIDToAssetPath(guid);
+                    var config = AssetDatabase.LoadAssetAtPath<CameraPipelineConfig>(path);
+                    menu.AddItem(
+                        new GUIContent(config.name),
+                        false,
+                        () => OnSelectCameraPipelineConfig(config));
+                }
+            }
+
+            menu.DropDown(buttonRect);
+        }
+
+        private void OnSelectCameraPipelineConfig(CameraPipelineConfig config)
+        {
+            int index = cameraPipelineConfigs.arraySize;
+            cameraPipelineConfigs.InsertArrayElementAtIndex(index);
+            var element = cameraPipelineConfigs.GetArrayElementAtIndex(index);
+            element.objectReferenceValue = config;
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private void OnRemoveCameraPipelineConfig(ReorderableList list)
+        {
+            int index = list.index;
+            if (index >= 0 && index < cameraPipelineConfigs.arraySize)
+            {
+                cameraPipelineConfigs.DeleteArrayElementAtIndex(index);
+                serializedObject.ApplyModifiedProperties();
+            }
+        }
+
 
         public SerializedObject serializedObject { get; }
         public SerializedProperty shaderVariantLogLevel { get; }
@@ -70,6 +137,9 @@ namespace HN.HNRP.Editor
 
         public SerializedProperty renderingLayerNames;
         public ReorderableList renderingLayerNameList;
+
+        public SerializedProperty cameraPipelineConfigs;
+        public ReorderableList cameraPipelineConfigsList;
 
         public UnityEditor.Editor runtimeResourcesEditor;
         public UnityEditor.Editor editorResourcesEditor;

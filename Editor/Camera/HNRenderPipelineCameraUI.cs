@@ -15,40 +15,12 @@ namespace HN.HNRP.Editor
         {
             return new CED.IDrawer[]
             {
-                RenderGraphViewSettings(),
                 ProjectionSettings(),
                 RenderingSettings(),
                 EnvironmentSettings(),
                 OutputSettings(),
             };
         }
-
-
-#region RenderGraphView
-        public static CED.IDrawer RenderGraphViewSettings()
-        {
-            return CED.FoldoutGroup(
-                Styles.renderGraphView,
-                Expandable.RenderGraphView,
-                expandedState,
-                FoldoutOption.Indent,
-                CED.Group(
-                    DrawRenderGraphView
-                    )
-            );
-        }
-
-
-        private static void DrawRenderGraphView(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
-        {
-            var asset = HNRenderPipeline.Asset;
-            if(asset == null)
-                return;
-            
-            var viewNames = asset.reflectionRenderGraphViewBlock.renderGraphViews.Keys.ToArray();
-            p.renderGraphViewIndex.intValue = EditorGUILayout.Popup("Render Graph View", p.renderGraphViewIndex.intValue, viewNames);
-        }
-#endregion
 
 
 #region Projection
@@ -134,7 +106,6 @@ namespace HN.HNRP.Editor
 
         public enum Expandable
         {
-            RenderGraphView = 1 << 0,
             Projection = 1 << 1,
             Output = 1 << 3,
             Rendering = 1 << 4,
@@ -149,7 +120,6 @@ namespace HN.HNRP.Editor
 
         public class Styles
         {
-            public static GUIContent renderGraphView = EditorGUIUtility.TrTextContent("Render Graph View", "Chose render graph view's name in HNRenderPipelineAsset runtime render graph views.");
         }
 
 

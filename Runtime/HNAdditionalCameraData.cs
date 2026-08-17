@@ -1,9 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Runtime.InteropServices;
-using Codice.Client.BaseCommands;
-using Codice.Client.Common.GameUI;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -126,10 +122,15 @@ namespace HN.HNRP
             }
         }
 
-        public int RenderGraphViewIndex
+        /// <summary>
+        /// Per-camera pipeline configuration override.
+        /// When set, takes priority over the default config defined in <see cref="HNRenderPipelineAsset"/>.
+        /// The selection chain is: <c>pipelineConfigOverride ?? defaultConfig ?? null</c> (skip camera).
+        /// </summary>
+        public CameraPipelineConfig PipelineConfigOverride
         {
-            get { return renderGraphViewIndex; }
-            set { renderGraphViewIndex = value; }
+            get => pipelineConfigOverride;
+            set => pipelineConfigOverride = value;
         }
 
         public bool Dithering
@@ -176,7 +177,7 @@ namespace HN.HNRP
         private Camera builtinCamera;
 
         [SerializeField]
-        private int renderGraphViewIndex = 0;
+        private CameraPipelineConfig pipelineConfigOverride;
 
         [SerializeField]
         private bool dithering = false;

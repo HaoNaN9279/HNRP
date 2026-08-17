@@ -1,0 +1,24 @@
+{
+    "name": "HN.HNRP.Tests.EditMode",
+    "rootNamespace": "HN.HNRP.Tests",
+    "references": [
+        "GUID:a9ef5b9e8ac376a40b07d6f4277e4f14",
+        "GUID:b75d3cd3037d383a8d1e2f9a26d73d8a",
+        "GUID:c742dbe462205e7478f6a51ea062789e",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

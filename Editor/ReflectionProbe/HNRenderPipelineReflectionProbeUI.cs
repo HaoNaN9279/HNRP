@@ -152,12 +152,6 @@ namespace HN.HNRP.Editor
 
         private static void DrawRenderSettings(HNRenderPipelineSerializedReflectionProbe p, UnityEditor.Editor owner)
         {
-            var asset = HNRenderPipeline.Asset;
-            if(asset == null)
-                return;
-
-            var viewNames = asset.reflectionRenderGraphViewBlock.renderGraphViews.Keys.ToArray();
-            p.renderGraphViewIndex.intValue = EditorGUILayout.Popup("Render Graph View", p.renderGraphViewIndex.intValue, viewNames);
             EditorGUILayout.PropertyField(p.importance, Styles.importanceText);
             EditorGUILayout.PropertyField(p.intensity, Styles.intensityText);
 

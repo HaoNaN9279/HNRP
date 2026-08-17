@@ -1,26 +1,32 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+// <copyright file="TransparencyPassEditor.cs" company="HN">
+// Copyright (c) HN. All rights reserved.
+// </copyright>
+
 using UnityEditor;
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace HN.HNRP.Editor
 {
-    [CanEditMultipleObjects]
-    [CustomEditor(typeof(TransparencyPass))]
-    public class TransparencyPassEditor : PassBaseEditor
+    /// <summary>
+    /// Inspector Editor for <see cref="TransparencyPass"/>.
+    /// Displays PassName, IsEnabled, slot information, and RenderingLayerMask.
+    /// </summary>
+    public class TransparencyPassEditor : PassEditor
     {
-        public override void OnInspectorGUI()
+        /// <summary>
+        /// Draws the Inspector GUI for the given <see cref="TransparencyPass"/>.
+        /// </summary>
+        /// <param name="pass">The pass to inspect. Must not be null.</param>
+        public void DrawPass(TransparencyPass pass)
         {
-            uint layer = serializedObject.FindProperty("renderingLayerMask").uintValue;
-            layer = (uint)EditorGUI.MaskField(EditorGUILayout.GetControlRect(), "Rendering Layer Mask", (int)layer, HNRenderPipelineGlobalSettings.Instance.PrefixedRenderingLayerNames);
-            
-            EditorGUILayout.Space();
+            DrawPassGUI(pass);
 
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("depthTargetIndex"), new GUIContent("Depth Target Index"));
-            EditorGUI.EndDisabledGroup();
+            if (pass != null)
+            {
+                EditorGUILayout.Space();
+                pass.RenderingLayerMask = (uint)EditorGUILayout.LongField(
+                    "Rendering Layer Mask", (long)pass.RenderingLayerMask);
+            }
         }
     }
 }

@@ -37,7 +37,6 @@ namespace HN.HNRP.Editor
             clearDepth = serializedAdditionalDataObject.FindProperty("clearDepth");
 
             //HNRP specific properties
-            renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
         }
 
         public void Apply()
@@ -76,7 +75,6 @@ namespace HN.HNRP.Editor
         public SerializedProperty antialiasing { get; }
 
         // HNRP specific properties
-        public SerializedProperty renderGraphViewIndex { get; }
 
     }
 }

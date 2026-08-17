@@ -1,22 +1,25 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+// <copyright file="EditorWireOverlayPassEditor.cs" company="HN">
+// Copyright (c) HN. All rights reserved.
+// </copyright>
+
 using UnityEditor;
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace HN.HNRP.Editor
 {
-    [CanEditMultipleObjects]
-    [CustomEditor(typeof(EditorWireOverlayPass))]
-    public class EditorWireOverlayPassEditor : PassBaseEditor
+    /// <summary>
+    /// Inspector Editor for <see cref="EditorWireOverlayPass"/>.
+    /// Displays PassName, IsEnabled, and slot information.
+    /// </summary>
+    public class EditorWireOverlayPassEditor : PassEditor
     {
-        public override void OnInspectorGUI()
+        /// <summary>
+        /// Draws the Inspector GUI for the given <see cref="EditorWireOverlayPass"/>.
+        /// </summary>
+        /// <param name="pass">The pass to inspect. Must not be null.</param>
+        public void DrawPass(EditorWireOverlayPass pass)
         {
-            EditorGUILayout.Space();
-
-            EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("colorTargetIndex"), new GUIContent("Color Target Index"));
-            EditorGUI.EndDisabledGroup();
+            DrawPassGUI(pass);
         }
     }
 }

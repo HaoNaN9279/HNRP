@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d6c020a9315464a88abf2dc506a57a3, type: 3}
+  m_Name: PreviewGraph
+  m_EditorClassIdentifier: 
+  m_Passes:
+  - m_PassType: Color Buffer Input
+    m_InstanceName: Color Target
+    m_Config: {fileID: 0}
+  - m_PassType: Depth Buffer Input
+    m_InstanceName: Depth Target
+    m_Config: {fileID: 0}
+  - m_PassType: Forward Opaque
+    m_InstanceName: Opaque
+    m_Config: {fileID: 0}
+  - m_PassType: Render Output
+    m_InstanceName: Final Blit
+    m_Config: {fileID: 0}
+  m_Connections:
+  - m_SourcePass: Color Target
+    m_SourceSlot: colorTargetSlot
+    m_TargetPass: Opaque
+    m_TargetSlot: colorTargetSlot
+  - m_SourcePass: Depth Target
+    m_SourceSlot: depthTargetSlot
+    m_TargetPass: Opaque
+    m_TargetSlot: depthTargetSlot
+  - m_SourcePass: Opaque
+    m_SourceSlot: colorTargetSlot
+    m_TargetPass: Final Blit
+    m_TargetSlot: colorTargetSlot
+  m_Settings:
+    SHEvalMode: 0
+    AllowHDR: 0

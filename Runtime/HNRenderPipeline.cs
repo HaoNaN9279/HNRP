@@ -1,68 +1,194 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using PlasticPipe.PlasticProtocol.Messages;
-using Unity.VisualScripting;
-using UnityEditor;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
+    /// <summary>
+    /// HNRP custom render pipeline implementation.
+    /// Uses <see cref="CameraRenderer"/> per camera with a shared <see cref="RenderGraph"/>
+    /// instance. Each camera selects its own <see cref="CameraPipelineConfig"/> via the
+    /// priority chain: <c>pipelineConfigOverride ?? defaultXxxConfig ?? null</c>.
+    /// </summary>
     public class HNRenderPipeline : RenderPipeline
     {
+        /// <summary>
+        /// Gets the pipeline asset that owns this pipeline instance.
+        /// Unlike the static <see cref="Asset"/> property (which reads from
+        /// <see cref="GraphicsSettings.currentRenderPipeline"/>), this instance
+        /// reference is set at construction time and works in EditMode tests.
+        /// </summary>
+        public HNRenderPipelineAsset InstanceAsset { get; }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="HNRenderPipeline"/> class.
+        /// </summary>
+        /// <param name="asset">The pipeline asset providing configuration.</param>
         public HNRenderPipeline(HNRenderPipelineAsset asset)
         {
+            InstanceAsset = asset;
+
             GraphicsSettings.lightsUseLinearIntensity = QualitySettings.activeColorSpace == ColorSpace.Linear;
             GraphicsSettings.lightsUseColorTemperature = true;
             GraphicsSettings.defaultRenderingLayerMask = defaultRenderingLayerMask;
             GraphicsSettings.useScriptableRenderPipelineBatching = true;
-            sceneViewRenderRequests = new List<RenderRequest>();
-            previewRenderRequests = new List<RenderRequest>();
-            reflectionRenderRequests = new List<RenderRequest>();
-            gameViewRenderRequests = new List<RenderRequest>();
 
-            Blitter.Initialize(Asset.runtimeResources.shaderResources.Blit, Asset.runtimeResources.shaderResources.BlitColorAndDepth);
+            try
+            {
+                Blitter.Initialize(
+                    asset.runtimeResources.shaderResources.Blit,
+                    asset.runtimeResources.shaderResources.BlitColorAndDepth);
+            }
+            catch (Exception)
+            {
+                // Blitter may already be initialized (e.g. by a previous test pipeline).
+                // This is safe to ignore.
+            }
 
             RTHandles.Initialize(Screen.width, Screen.height);
         }
 
+        /// <inheritdoc />
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
             Render(context, new List<Camera>(cameras));
         }
 
+        /// <inheritdoc />
         protected override void Render(ScriptableRenderContext context, List<Camera> cameras)
         {
             BeginContextRendering(context, cameras);
-            
+
 #if UNITY_EDITOR
-            if(globalSettings == null || HNRenderPipelineGlobalSettings.Instance == null)
+            if (globalSettings == null || HNRenderPipelineGlobalSettings.Instance == null)
             {
                 globalSettings = HNRenderPipelineGlobalSettings.Ensure();
-                if(globalSettings == null)
+                if (globalSettings == null)
                     return;
             }
 #endif
-            UpdateFrameCount();
 
-            PrepareRenderRequests(context, cameras);
+            foreach (Camera camera in cameras)
+            {
+                var cameraData = camera.GetHNRPAdditionalCameraData();
 
-            ExecuteRenderRequests(sceneViewRenderRequests);
-            ExecuteRenderRequests(previewRenderRequests);
-            ExecuteRenderRequests(reflectionRenderRequests);
-            ExecuteRenderRequests(gameViewRenderRequests);
+                // ── Select CameraPipelineConfig ──
+                CameraPipelineConfig pipelineConfig = SelectPipelineConfig(camera, cameraData);
+                if (pipelineConfig == null || pipelineConfig.RenderGraph == null)
+                    continue;
+
+                // ── Per-camera setup ──
+                RTHandles.SetReferenceSize(camera.pixelWidth, camera.pixelHeight);
+
+                if (camera.targetTexture != null)
+                {
+                    camera.targetTexture.IncrementUpdateCount();
+                }
+
+#if UNITY_EDITOR
+                if (camera.cameraType == CameraType.SceneView)
+                {
+                    ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+                }
+#endif
+
+                SetupCameraProperties(context, camera);
+
+                // ── Create CameraContext ──
+                var cameraContext = new CameraContext(camera, context)
+                {
+                    TargetId = camera.targetTexture != null
+                        ? new RenderTargetIdentifier(camera.targetTexture)
+                        : new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget),
+                    RuntimeResources = InstanceAsset.runtimeResources,
+                };
+
+                // ── Cull ──
+                if (camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParams))
+                {
+                    cameraContext.CullingResults = context.Cull(ref cullingParams);
+                }
+
+                // ── Create CameraRenderer, build from template, render ──
+                var cameraRenderer = new CameraRenderer(cameraContext);
+                cameraRenderer.Build(pipelineConfig.RenderGraph);
+
+                BeginCameraRendering(context, camera);
+                cameraRenderer.Render(renderGraph, context);
+                EndCameraRendering(context, camera);
+
+                // ── Cleanup per-camera context ──
+                cameraContext.Dispose();
+            }
+
+            // ── Execute all recorded render graph passes ──
+            renderGraph.EndFrame();
 
             context.Submit();
-
-            EndFrame();
 
             EndContextRendering(context, cameras);
         }
 
+        /// <summary>
+        /// Selects the <see cref="CameraPipelineConfig"/> for a camera using the priority chain:
+        /// <c>pipelineConfigOverride ?? defaultXxxConfig ?? null</c>.
+        /// </summary>
+        /// <param name="camera">The camera being rendered.</param>
+        /// <param name="cameraData">The camera's additional data component.</param>
+        /// <returns>
+        /// The selected <see cref="CameraPipelineConfig"/>, or <c>null</c> if no config
+        /// is available (camera will be skipped).
+        /// </returns>
+        public CameraPipelineConfig SelectPipelineConfig(Camera camera, HNAdditionalCameraData cameraData)
+        {
+            // Step 1: Check per-camera override
+            CameraPipelineConfig config = cameraData.PipelineConfigOverride;
+            if (config != null)
+                return config;
+
+            // Step 2: Fall back to default config based on camera type
+            return GetDefaultConfigForCameraType(camera.cameraType);
+        }
+
+        /// <summary>
+        /// Gets the default <see cref="CameraPipelineConfig"/> from <see cref="HNRenderPipelineAsset"/>
+        /// based on the camera type.
+        /// </summary>
+        /// <param name="cameraType">The camera's type.</param>
+        /// <returns>The default config for the given camera type, or <c>null</c>.</returns>
+        private CameraPipelineConfig GetDefaultConfigForCameraType(CameraType cameraType)
+        {
+            return cameraType switch
+            {
+                CameraType.Game => InstanceAsset.DefaultGameCameraConfig,
+#if UNITY_EDITOR
+                CameraType.SceneView => InstanceAsset.DefaultSceneViewCameraConfig,
+                CameraType.Preview => InstanceAsset.DefaultPreviewCameraConfig,
+#endif
+                CameraType.Reflection => InstanceAsset.DefaultReflectionCameraConfig,
+                _ => null,
+            };
+        }
+
+        /// <summary>
+        /// Sets up per-frame camera properties (VP matrix, etc.) on the render context.
+        /// </summary>
+        /// <param name="context">The scriptable render context.</param>
+        /// <param name="camera">The camera to set up.</param>
+        private static void SetupCameraProperties(ScriptableRenderContext context, Camera camera)
+        {
+            var cmd = CommandBufferPool.Get("CameraSetup");
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+            CommandBufferPool.Release(cmd);
+
+            context.SetupCameraProperties(camera);
+        }
+
+        /// <inheritdoc />
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
@@ -71,170 +197,32 @@ namespace HN.HNRP
 
             Graphics.SetRenderTarget(null);
 
-            CleanupRenderGraph();
+            renderGraph.Cleanup();
+            renderGraph = null;
+
             ConstantBuffer.ReleaseAll();
         }
 
-
-        private void UpdateFrameCount()
-        {
-            if (renderingData.FrameCount != Time.frameCount)
-            {
-                renderingData.FrameCount = Time.frameCount;
-            }
-        }
-
-        private void PrepareRenderRequests(ScriptableRenderContext context, List<Camera> cameras)
-        {
-            sceneViewRenderRequests.Clear();
-            previewRenderRequests.Clear();
-            reflectionRenderRequests.Clear();
-            gameViewRenderRequests.Clear();
-
-            foreach (Camera camera in cameras)
-            {
-                var cameraData = camera.GetHNRPAdditionalCameraData();
-
-                HNRenderGraphBase graphObject = GetRenderGraphObject(camera, cameraData);
-                if(graphObject == null)
-                    return;
-                if(camera.cameraType == CameraType.Reflection)
-                {
-                    Debug.Log($"Reflection RenderPipeline:{graphObject.name}");
-                }
-                CommandBuffer cmd = CommandBufferPool.Get($"RenderRequest_{camera.name}_cmd");
-                RenderTargetIdentifier targetId = camera.targetTexture ?? new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget);
-                // RenderTargetIdentifier targetId = camera.targetTexture != null ? new RenderTargetIdentifier(camera.targetTexture) : BuiltinRenderTextureType.CameraTarget;
-                if (camera.targetTexture != null)
-                {
-                    camera.targetTexture.IncrementUpdateCount();
-                }
-
-                renderingData.Camera = camera;
-                renderingData.CameraData = camera.GetHNRPAdditionalCameraData();
-                renderingData.Cmd = cmd;
-                renderingData.TargetId = targetId;
-                renderingData.runtimeResources = Asset.runtimeResources;
-                renderingData.GraphObject = graphObject;
-                AddRenderRequests(camera, context, renderGraph, ref renderingData);
-            }
-        }
-
-        private void ExecuteRenderRequests(List<RenderRequest> renderRequests)
-        {
-            foreach (var request in renderRequests)
-            {
-                request.RecordAndExecute();
-
-                EndCameraRendering(request.Context, renderingData.Camera);
-                request.Context.ExecuteCommandBuffer(renderingData.Cmd);
-                request.Context.Submit();
-            }
-
-        }
-
-        private void EndFrame()
-        {
-            renderGraph.EndFrame();
-        }
-
-
-        private void CleanupRenderGraph()
-        {
-            foreach(var request in sceneViewRenderRequests)
-            {
-                request.Cleanup();
-            }
-            foreach(var request in previewRenderRequests)
-            {
-                request.Cleanup();
-            }
-            foreach(var request in reflectionRenderRequests)
-            {
-                request.Cleanup();
-            }
-            foreach(var request in gameViewRenderRequests)
-            {
-                request.Cleanup();
-            }
-
-            renderGraph.Cleanup();
-            renderGraph = null;
-        }
-
-        private HNRenderGraphBase GetRenderGraphObject(Camera camera, HNAdditionalCameraData cameraData)
-        {
-            RenderGraphViewBlock block = null;
-            if(camera.cameraType == CameraType.Game)
-            {
-                block = Asset.gameViewRenderGraphViewBlock;
-            }
-            else if(camera.cameraType == CameraType.Reflection)
-            {
-                block = Asset.reflectionRenderGraphViewBlock;
-            }
-            else if(camera.cameraType == CameraType.SceneView)
-            {
-                block = Asset.sceneViewRenderGraphViewBlock;
-            }
-            else if(camera.cameraType == CameraType.Preview)
-            {
-                block = Asset.previewRenderGraphViewBlock;
-            }
-
-            if(block == null)
-            {
-                return null;
-            }
-            return block.GetRenderGraphObject(cameraData.RenderGraphViewIndex);
-        }
-
-        private void AddRenderRequests(Camera camera, ScriptableRenderContext context, RenderGraph renderGraph, ref RenderingData renderingData)
-        {
-            var renderRequest = new RenderRequest(context, renderGraph, ref renderingData);
-            
-            if(camera.cameraType == CameraType.SceneView)
-            {
-                sceneViewRenderRequests.Add(renderRequest);
-            }
-            else if(camera.cameraType == CameraType.Preview)
-            {
-                previewRenderRequests.Add(renderRequest);
-            }
-            else if(camera.cameraType == CameraType.Reflection)
-            {
-                reflectionRenderRequests.Add(renderRequest);
-            }
-            else if(camera.cameraType == CameraType.Game)
-            {
-                gameViewRenderRequests.Add(renderRequest);
-            }
-        }
-
-
+        /// <summary>
+        /// Gets the current pipeline asset. Convenience accessor.
+        /// </summary>
         public static HNRenderPipelineAsset Asset
         {
             get => GraphicsSettings.currentRenderPipeline as HNRenderPipelineAsset;
         }
 
+        /// <summary>
+        /// The shared <see cref="RenderGraph"/> instance used across all cameras.
+        /// All cameras record their passes into this graph; <see cref="RenderGraph.EndFrame"/>
+        /// compiles and executes them together.
+        /// </summary>
         internal RenderGraph renderGraph = new RenderGraph("HNRP");
 
+        /// <inheritdoc />
         public override RenderPipelineGlobalSettings defaultSettings => globalSettings;
-
 
         private HNRenderPipelineGlobalSettings globalSettings;
 
-        //TODO: pool
-        private List<RenderRequest> sceneViewRenderRequests;
-        private List<RenderRequest> previewRenderRequests;
-        private List<RenderRequest> reflectionRenderRequests;
-        private List<RenderRequest> gameViewRenderRequests;
-
-        private RenderingData renderingData = default;
-
-
-
         internal const int defaultRenderingLayerMask = 0x00000001;
     }
-
 }

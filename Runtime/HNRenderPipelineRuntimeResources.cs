@@ -22,6 +22,12 @@ namespace HN.HNRP
         public Texture emptyTexture;
         public ComputeBuffer emptyBuffer;
 
+        /// <summary>ComputeShader for cluster-based light culling.</summary>
+        public ComputeShader clusterCullingLightCS;
+
+        /// <summary>ComputeShader for cluster-based reflection probe culling.</summary>
+        public ComputeShader clusterCullingReflectionProbeCS;
+
 
         [Serializable, ReloadGroup]
         public class ShaderResources
