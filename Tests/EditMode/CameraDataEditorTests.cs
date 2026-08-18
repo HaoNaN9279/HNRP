@@ -13,7 +13,7 @@ namespace HN.HNRP.Tests
     /// <summary>
     /// Tests for <see cref="HNRenderPipelineAdditionalCameraDataEditor"/> and its
     /// underlying <see cref="HNAdditionalCameraData.PipelineConfigOverride"/> field.
-    /// Covers the editor UI dropdown behavior and the config selection priority chain.
+    /// Covers the editor UI ObjectField behavior and the render graph selection priority chain.
     /// </summary>
     public class CameraDataEditorTests
     {
@@ -78,7 +78,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_CanBeSetToAnyConfig()
         {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 config.name = "TestConfig";
@@ -96,7 +96,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_CanBeSetToNull_NoneOption()
         {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = config;
@@ -116,8 +116,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_CanSwitchBetweenConfigs()
         {
-            var configA = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var configB = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var configA = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var configB = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 configA.name = "ConfigA";
@@ -140,7 +140,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_PersistsAfterComponentCycle()
         {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = config;
@@ -160,133 +160,13 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region GlobalSettings Integration Tests
-
-        [Test]
-        public void GlobalSettings_CanContainMultipleConfigs_ForDropdown()
-        {
-            var settings = ScriptableObject.CreateInstance<HNRenderPipelineGlobalSettings>();
-            var configA = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var configB = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            try
-            {
-                configA.name = "Standard";
-                configB.name = "Preview";
-
-                settings.CameraPipelineConfigs.Add(configA);
-                settings.CameraPipelineConfigs.Add(configB);
-
-                Assert.That(settings.CameraPipelineConfigs.Count, Is.EqualTo(2),
-                    "GlobalSettings should contain multiple configs for dropdown.");
-                Assert.That(settings.CameraPipelineConfigs[0].name, Is.EqualTo("Standard"));
-                Assert.That(settings.CameraPipelineConfigs[1].name, Is.EqualTo("Preview"));
-            }
-            finally
-            {
-                Object.DestroyImmediate(settings);
-                Object.DestroyImmediate(configA);
-                Object.DestroyImmediate(configB);
-            }
-        }
-
-        [Test]
-        public void GlobalSettings_ConfigAtIndex_CanBeReferencedByOverride()
-        {
-            var settings = ScriptableObject.CreateInstance<HNRenderPipelineGlobalSettings>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            try
-            {
-                config.name = "MyConfig";
-                settings.CameraPipelineConfigs.Add(config);
-
-                // Simulate selecting from dropdown by referencing the config at index 0
-                var selectedConfig = settings.CameraPipelineConfigs[0];
-                m_CameraData.PipelineConfigOverride = selectedConfig;
-
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(config),
-                    "Override should reference the config at the selected dropdown index.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(settings);
-                Object.DestroyImmediate(config);
-            }
-        }
-
-        [Test]
-        public void GlobalSettings_EmptyList_DropdownShowsOnlyNone()
-        {
-            var settings = ScriptableObject.CreateInstance<HNRenderPipelineGlobalSettings>();
-            try
-            {
-                Assert.That(settings.CameraPipelineConfigs.Count, Is.EqualTo(0),
-                    "Empty list means dropdown shows only 'None'.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(settings);
-            }
-        }
-
-        [Test]
-        public void GlobalSettings_ConfigAddedAfterOverride_IsReflectedInDropdown()
-        {
-            var settings = ScriptableObject.CreateInstance<HNRenderPipelineGlobalSettings>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            try
-            {
-                // Initially empty
-                Assert.That(settings.CameraPipelineConfigs.Count, Is.EqualTo(0));
-
-                // Add a config — it should now appear in dropdown
-                settings.CameraPipelineConfigs.Add(config);
-                Assert.That(settings.CameraPipelineConfigs.Count, Is.EqualTo(1));
-
-                // Override can reference the newly added config
-                m_CameraData.PipelineConfigOverride = config;
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(config));
-            }
-            finally
-            {
-                Object.DestroyImmediate(settings);
-                Object.DestroyImmediate(config);
-            }
-        }
-
-        [Test]
-        public void GlobalSettings_ConfigRemoved_OverrideStillHoldsReference()
-        {
-            var settings = ScriptableObject.CreateInstance<HNRenderPipelineGlobalSettings>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            try
-            {
-                settings.CameraPipelineConfigs.Add(config);
-                m_CameraData.PipelineConfigOverride = config;
-
-                // Remove config from global settings list
-                settings.CameraPipelineConfigs.Remove(config);
-                Assert.That(settings.CameraPipelineConfigs.Count, Is.EqualTo(0));
-
-                // The override still holds the reference (not nullified)
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(config),
-                    "Removing from global list does not clear existing overrides.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(settings);
-                Object.DestroyImmediate(config);
-            }
-        }
-
-        #endregion
-
         #region Selection Priority Chain Tests
 
         [Test]
         public void SelectionPriority_OverrideTakesPriority_WhenSet()
         {
-            var overrideConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var defaultConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var overrideConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = overrideConfig;
@@ -308,7 +188,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void SelectionPriority_FallsBackToDefault_WhenOverrideIsNull()
         {
-            var defaultConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = null;
@@ -329,31 +209,12 @@ namespace HN.HNRP.Tests
         public void SelectionPriority_ReturnsNull_WhenBothAreNull()
         {
             m_CameraData.PipelineConfigOverride = null;
-            CameraPipelineConfig defaultConfig = null;
+            RenderGraphAsset defaultConfig = null;
 
             var selected = m_CameraData.PipelineConfigOverride ?? defaultConfig;
 
             Assert.That(selected, Is.Null,
                 "Should return null when both override and default are null.");
-        }
-
-        #endregion
-
-        #region Obsolete Attribute Tests
-
-        [Test]
-        public void RenderGraphViewIndex_HasObsoleteAttribute()
-        {
-            var property = typeof(HNAdditionalCameraData).GetProperty("RenderGraphViewIndex");
-            Assert.That(property, Is.Not.Null);
-
-            var obsoleteAttr = System.Attribute.GetCustomAttribute(
-                property, typeof(System.ObsoleteAttribute));
-
-            Assert.That(obsoleteAttr, Is.Not.Null,
-                "RenderGraphViewIndex should have [Obsolete] attribute.");
-            Assert.That(((System.ObsoleteAttribute)obsoleteAttr).Message,
-                Does.Contain("pipelineConfigOverride"));
         }
 
         #endregion

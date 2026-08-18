@@ -132,6 +132,17 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// Sets the resource handle for this slot. Output slots use this to publish
+        /// the real render graph handle (TextureHandle / ComputeBufferHandle) that
+        /// connected input slots read via <see cref="ReadHandle"/>.
+        /// </summary>
+        /// <param name="value">The real render graph resource handle.</param>
+        public void SetHandle(object value)
+        {
+            handle = value;
+        }
+
+        /// <summary>
         /// Connects this output slot to the given input slot.
         /// After connection, the input slot can call <see cref="ReadHandle"/> to retrieve
         /// this output's resource handle.

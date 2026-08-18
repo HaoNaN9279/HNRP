@@ -62,14 +62,12 @@ namespace HN.HNRP
     /// <see cref="CameraRenderer"/> holds the runtime pass instances for each camera.
     /// </para>
     /// <para>
-    /// Cameras do <b>not</b> reference <see cref="RenderGraphAsset"/> directly.
-    /// Instead, <see cref="CameraPipelineConfig"/> acts as the intermediary,
-    /// and all configs are managed through
-    /// <see cref="HNRenderPipelineGlobalSettings.cameraPipelineConfigs"/>.
+    /// Cameras reference <see cref="RenderGraphAsset"/> directly — either through
+    /// <see cref="HNAdditionalCameraData.pipelineConfigOverride"/> or through the
+    /// default render graph fields on <see cref="HNRenderPipelineAsset"/>
+    /// (e.g. <c>DefaultGameRenderGraph</c>).
     /// </para>
     /// </remarks>
-    /// <seealso cref="CameraPipelineConfig"/>
-    /// <seealso cref="CameraPipelineConfig.renderGraph"/>
     public class RenderGraphAsset : ScriptableObject
     {
         [SerializeField]
@@ -147,6 +145,12 @@ namespace HN.HNRP
                         $"that accepts a single string argument (the pass name).");
                     continue;
                 }
+
+                // Declare the pass's slots once at build time so that Phase 2
+                // (ConnectPassSlots) wires up the same slot instances that Record
+                // will use each frame. Per-frame SetupSlots calls (the old
+                // CameraRenderer behavior) recreated slots and broke connections.
+                pass.SetupSlots();
 
                 passMap[def.InstanceName] = pass;
             }
@@ -249,9 +253,10 @@ namespace HN.HNRP
         /// <param name="target">The target pass whose input slot is being connected.</param>
         /// <param name="targetSlot">The name of the input slot on the target pass.</param>
         /// <remarks>
-        /// (Todo 14): Actual slot-level wiring will be implemented when <see cref="Pass"/>
-        /// gains a named-slot API (e.g. <c>Pass.GetSlot(name)</c>). Currently this method
-        /// validates that both passes exist; full data-flow wiring is deferred.
+        /// Fails silently when directions don't match (e.g. legacy output→output
+        /// definitions) or when either named slot is missing. Successful connections
+        /// make the target input slot's <see cref="PassSlot.IsConnected"/> <c>true</c>
+        /// so the target pass reads the source's resource handle during <see cref="Pass.Record"/>.
         /// </remarks>
         private static void ConnectPassSlots(
             Pass source,
@@ -259,11 +264,9 @@ namespace HN.HNRP
             Pass target,
             string targetSlot)
         {
-            // Placeholder: wire up slots by name.
-            // When Pass exposes named slot collections, this method will:
-            //   1. Call source.GetOutputSlot(sourceSlot)
-            //   2. Call target.GetInputSlot(targetSlot)
-            //   3. Point the input slot's data source to the output slot
+            // Wires an output slot of source to an input slot of target by name.
+            // Fails silently when directions don't match (e.g. legacy output→output definitions).
+            source.TryConnect(sourceSlot, target, targetSlot);
         }
     }
 }

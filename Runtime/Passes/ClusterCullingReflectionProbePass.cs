@@ -89,10 +89,13 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             ReflectionProbeAtlasSlot = new TextureSlot("reflectionProbeAtlas", SlotDirection.Output);
+            RegisterSlot(ReflectionProbeAtlasSlot);
             ClusterCullingReflectionProbeMaskBufferSlot = new ComputeBufferSlot(
                 "clusterCullingReflectionProbeMaskBuffer", SlotDirection.Output);
+            RegisterSlot(ClusterCullingReflectionProbeMaskBufferSlot);
             ClusterCullingReflectionProbeDatasBufferSlot = new ComputeBufferSlot(
                 "clusterCullingReflectionProbeDatasBuffer", SlotDirection.Output);
+            RegisterSlot(ClusterCullingReflectionProbeDatasBufferSlot);
         }
 
         /// <inheritdoc />
@@ -161,32 +164,34 @@ namespace HN.HNRP
                     wrapMode = ReflectionProbeAtlasWrapMode,
                 };
 
-                passData.reflectionProbeAtlas = builder.WriteTexture(
-                    renderGraph.CreateTexture(atlasDesc));
+                TextureHandle atlasHandle = renderGraph.CreateTexture(atlasDesc);
+                passData.reflectionProbeAtlas = builder.WriteTexture(atlasHandle);
 
                 // ── Output: mask buffer ──
 
-                passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(
-                    renderGraph.CreateComputeBuffer(
-                        new ComputeBufferDesc(
-                            MaxClusterMaskWords,
-                            sizeof(uint))
-                        { name = "Cluster Culling Reflection Probe Mask Buffer" }));
+                ComputeBufferHandle maskHandle = renderGraph.CreateComputeBuffer(
+                    new ComputeBufferDesc(
+                        MaxClusterMaskWords,
+                        sizeof(uint))
+                    { name = "Cluster Culling Reflection Probe Mask Buffer" });
+
+                passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(maskHandle);
 
                 // ── Output: data buffer ──
 
-                passData.clusterCullingReflectionProbeDatasBuffer = builder.WriteComputeBuffer(
-                    renderGraph.CreateComputeBuffer(
-                        new ComputeBufferDesc(
-                            MaxReflectionProbesOnScreen,
-                            UnsafeUtility.SizeOf<ClusterCullingReflectionProbeDatas>())
-                        { name = "Cluster Culling Reflection Probe Datas Buffer" }));
+                ComputeBufferHandle datasHandle = renderGraph.CreateComputeBuffer(
+                    new ComputeBufferDesc(
+                        MaxReflectionProbesOnScreen,
+                        UnsafeUtility.SizeOf<ClusterCullingReflectionProbeDatas>())
+                    { name = "Cluster Culling Reflection Probe Datas Buffer" });
 
-                // ── Mark output slots as having handles ──
+                passData.clusterCullingReflectionProbeDatasBuffer = builder.WriteComputeBuffer(datasHandle);
 
-                ReflectionProbeAtlasSlot!.CreateHandle();
-                ClusterCullingReflectionProbeMaskBufferSlot!.CreateHandle();
-                ClusterCullingReflectionProbeDatasBufferSlot!.CreateHandle();
+                // ── Publish real render graph handles to output slots ──
+
+                ReflectionProbeAtlasSlot!.SetHandle(atlasHandle);
+                ClusterCullingReflectionProbeMaskBufferSlot!.SetHandle(maskHandle);
+                ClusterCullingReflectionProbeDatasBufferSlot!.SetHandle(datasHandle);
 
                 // ── Compute shader setup ──
 
@@ -221,7 +226,7 @@ namespace HN.HNRP
                         ctx.cmd.SetComputeBufferParam(
                             data.clusterCullingReflectionProbeCS,
                             data.clusterCullingKernel,
-                            PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
+                            PropertyIDs.reflectionProbeDatas4CSBuffer,
                             data.clusterCullingReflectionProbeDatasBuffer);
 
                         ctx.cmd.SetComputeVectorParam(

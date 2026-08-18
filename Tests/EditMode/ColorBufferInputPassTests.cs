@@ -151,7 +151,7 @@ namespace HN.HNRP.Tests
                 "IsEnabled should be false after setting to false.");
 
             // Simulate CameraRenderer.Render logic:
-            // enabled passes call SetupSlots → Initialize → Record
+            // enabled passes call Initialize → Record
             // disabled passes are skipped
             bool wouldRecord = pass.IsEnabled;
 

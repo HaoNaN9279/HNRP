@@ -9,227 +9,227 @@ namespace HN.HNRP.Tests
 {
     /// <summary>
     /// Tests for <see cref="HNRenderPipelineAsset"/> — verifies that
-    /// <see cref="CameraPipelineConfig"/> fields serialize and can be assigned
+    /// <see cref="RenderGraphAsset"/> fields serialize and can be assigned
     /// for each camera type (Game, SceneView, Preview, Reflection).
     /// </summary>
     public class HNRenderPipelineAssetTests
     {
         [Test]
-        public void DefaultGameCameraConfig_CanBeAssigned()
+        public void DefaultGameRenderGraph_CanBeAssigned()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                Assert.That(asset.DefaultGameCameraConfig, Is.Null,
-                    "New asset should have no default Game config.");
+                Assert.That(asset.DefaultGameRenderGraph, Is.Null,
+                    "New asset should have no default Game render graph.");
 
-                asset.DefaultGameCameraConfig = config;
+                asset.DefaultGameRenderGraph = renderGraph;
 
-                Assert.That(asset.DefaultGameCameraConfig, Is.SameAs(config),
-                    "DefaultGameCameraConfig should return the assigned config.");
-                Assert.That(asset.DefaultGameCameraConfig, Is.InstanceOf<CameraPipelineConfig>(),
-                    "DefaultGameCameraConfig should be a CameraPipelineConfig.");
+                Assert.That(asset.DefaultGameRenderGraph, Is.SameAs(renderGraph),
+                    "DefaultGameRenderGraph should return the assigned render graph.");
+                Assert.That(asset.DefaultGameRenderGraph, Is.InstanceOf<RenderGraphAsset>(),
+                    "DefaultGameRenderGraph should be a RenderGraphAsset.");
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultGameCameraConfig_CanBeCleared()
+        public void DefaultGameRenderGraph_CanBeCleared()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                asset.DefaultGameCameraConfig = config;
-                Assert.That(asset.DefaultGameCameraConfig, Is.Not.Null);
+                asset.DefaultGameRenderGraph = renderGraph;
+                Assert.That(asset.DefaultGameRenderGraph, Is.Not.Null);
 
-                asset.DefaultGameCameraConfig = null;
-                Assert.That(asset.DefaultGameCameraConfig, Is.Null,
-                    "DefaultGameCameraConfig should be clearable back to null.");
+                asset.DefaultGameRenderGraph = null;
+                Assert.That(asset.DefaultGameRenderGraph, Is.Null,
+                    "DefaultGameRenderGraph should be clearable back to null.");
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultReflectionCameraConfig_CanBeAssigned()
+        public void DefaultReflectionRenderGraph_CanBeAssigned()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.Null);
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.Null);
 
-                asset.DefaultReflectionCameraConfig = config;
+                asset.DefaultReflectionRenderGraph = renderGraph;
 
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.SameAs(config));
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.SameAs(renderGraph));
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultReflectionCameraConfig_CanBeCleared()
+        public void DefaultReflectionRenderGraph_CanBeCleared()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                asset.DefaultReflectionCameraConfig = config;
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.Not.Null);
+                asset.DefaultReflectionRenderGraph = renderGraph;
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.Not.Null);
 
-                asset.DefaultReflectionCameraConfig = null;
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.Null);
+                asset.DefaultReflectionRenderGraph = null;
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.Null);
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
 #if UNITY_EDITOR
         [Test]
-        public void DefaultSceneViewCameraConfig_CanBeAssigned()
+        public void DefaultSceneViewRenderGraph_CanBeAssigned()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.Null);
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.Null);
 
-                asset.DefaultSceneViewCameraConfig = config;
+                asset.DefaultSceneViewRenderGraph = renderGraph;
 
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.SameAs(config));
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.SameAs(renderGraph));
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultPreviewCameraConfig_CanBeAssigned()
+        public void DefaultPreviewRenderGraph_CanBeAssigned()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.Null);
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.Null);
 
-                asset.DefaultPreviewCameraConfig = config;
+                asset.DefaultPreviewRenderGraph = renderGraph;
 
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.SameAs(config));
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.SameAs(renderGraph));
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultSceneViewCameraConfig_CanBeCleared()
+        public void DefaultSceneViewRenderGraph_CanBeCleared()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                asset.DefaultSceneViewCameraConfig = config;
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.Not.Null);
+                asset.DefaultSceneViewRenderGraph = renderGraph;
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.Not.Null);
 
-                asset.DefaultSceneViewCameraConfig = null;
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.Null);
+                asset.DefaultSceneViewRenderGraph = null;
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.Null);
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 
         [Test]
-        public void DefaultPreviewCameraConfig_CanBeCleared()
+        public void DefaultPreviewRenderGraph_CanBeCleared()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var renderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                asset.DefaultPreviewCameraConfig = config;
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.Not.Null);
+                asset.DefaultPreviewRenderGraph = renderGraph;
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.Not.Null);
 
-                asset.DefaultPreviewCameraConfig = null;
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.Null);
+                asset.DefaultPreviewRenderGraph = null;
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.Null);
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(config);
+                Object.DestroyImmediate(renderGraph);
             }
         }
 #endif
 
         [Test]
-        public void Configs_AreIndependent()
+        public void RenderGraphs_AreIndependent()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var gameConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var reflectionConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var gameRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var reflectionRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             try
             {
-                asset.DefaultGameCameraConfig = gameConfig;
-                asset.DefaultReflectionCameraConfig = reflectionConfig;
+                asset.DefaultGameRenderGraph = gameRenderGraph;
+                asset.DefaultReflectionRenderGraph = reflectionRenderGraph;
 
-                Assert.That(asset.DefaultGameCameraConfig, Is.SameAs(gameConfig));
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.SameAs(reflectionConfig));
-                Assert.That(asset.DefaultGameCameraConfig, Is.Not.SameAs(reflectionConfig),
-                    "Game and Reflection configs should be independent.");
+                Assert.That(asset.DefaultGameRenderGraph, Is.SameAs(gameRenderGraph));
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.SameAs(reflectionRenderGraph));
+                Assert.That(asset.DefaultGameRenderGraph, Is.Not.SameAs(reflectionRenderGraph),
+                    "Game and Reflection render graphs should be independent.");
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(gameConfig);
-                Object.DestroyImmediate(reflectionConfig);
+                Object.DestroyImmediate(gameRenderGraph);
+                Object.DestroyImmediate(reflectionRenderGraph);
             }
         }
 
         [Test]
-        public void Asset_DefaultsToNullConfigs()
+        public void Asset_DefaultsToNullRenderGraphs()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
 
             try
             {
-                Assert.That(asset.DefaultGameCameraConfig, Is.Null,
-                    "DefaultGameCameraConfig should default to null.");
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.Null,
-                    "DefaultReflectionCameraConfig should default to null.");
+                Assert.That(asset.DefaultGameRenderGraph, Is.Null,
+                    "DefaultGameRenderGraph should default to null.");
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.Null,
+                    "DefaultReflectionRenderGraph should default to null.");
 #if UNITY_EDITOR
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.Null,
-                    "DefaultSceneViewCameraConfig should default to null.");
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.Null,
-                    "DefaultPreviewCameraConfig should default to null.");
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.Null,
+                    "DefaultSceneViewRenderGraph should default to null.");
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.Null,
+                    "DefaultPreviewRenderGraph should default to null.");
 #endif
             }
             finally
@@ -239,40 +239,40 @@ namespace HN.HNRP.Tests
         }
 
         [Test]
-        public void Asset_AllConfigs_CanBeAssignedTogether()
+        public void Asset_AllRenderGraphs_CanBeAssignedTogether()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            var gameConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var reflectionConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var gameRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var reflectionRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 #if UNITY_EDITOR
-            var sceneConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var previewConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var sceneRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var previewRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 #endif
 
             try
             {
-                asset.DefaultGameCameraConfig = gameConfig;
-                asset.DefaultReflectionCameraConfig = reflectionConfig;
+                asset.DefaultGameRenderGraph = gameRenderGraph;
+                asset.DefaultReflectionRenderGraph = reflectionRenderGraph;
 #if UNITY_EDITOR
-                asset.DefaultSceneViewCameraConfig = sceneConfig;
-                asset.DefaultPreviewCameraConfig = previewConfig;
+                asset.DefaultSceneViewRenderGraph = sceneRenderGraph;
+                asset.DefaultPreviewRenderGraph = previewRenderGraph;
 #endif
 
-                Assert.That(asset.DefaultGameCameraConfig, Is.SameAs(gameConfig));
-                Assert.That(asset.DefaultReflectionCameraConfig, Is.SameAs(reflectionConfig));
+                Assert.That(asset.DefaultGameRenderGraph, Is.SameAs(gameRenderGraph));
+                Assert.That(asset.DefaultReflectionRenderGraph, Is.SameAs(reflectionRenderGraph));
 #if UNITY_EDITOR
-                Assert.That(asset.DefaultSceneViewCameraConfig, Is.SameAs(sceneConfig));
-                Assert.That(asset.DefaultPreviewCameraConfig, Is.SameAs(previewConfig));
+                Assert.That(asset.DefaultSceneViewRenderGraph, Is.SameAs(sceneRenderGraph));
+                Assert.That(asset.DefaultPreviewRenderGraph, Is.SameAs(previewRenderGraph));
 #endif
             }
             finally
             {
                 Object.DestroyImmediate(asset);
-                Object.DestroyImmediate(gameConfig);
-                Object.DestroyImmediate(reflectionConfig);
+                Object.DestroyImmediate(gameRenderGraph);
+                Object.DestroyImmediate(reflectionRenderGraph);
 #if UNITY_EDITOR
-                Object.DestroyImmediate(sceneConfig);
-                Object.DestroyImmediate(previewConfig);
+                Object.DestroyImmediate(sceneRenderGraph);
+                Object.DestroyImmediate(previewRenderGraph);
 #endif
             }
         }

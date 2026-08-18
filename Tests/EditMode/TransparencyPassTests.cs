@@ -19,7 +19,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="Pass.SetupSlots"/> is called,
-        /// both slots are non-null with correct names and directions.
+        /// both input slots are non-null with correct names and directions.
         /// </summary>
         [Test]
         public void SetupSlots_DeclaresBothSlots()
@@ -28,19 +28,19 @@ namespace HN.HNRP.Tests
 
             pass.SetupSlots();
 
-            // ── Output texture slot: ColorTarget ──
+            // ── Input texture slot: ColorTarget ──
 
             Assert.That(pass.ColorTargetSlot, Is.Not.Null,
                 "ColorTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.ColorTargetSlot!.SlotName, Is.EqualTo("ColorTarget"));
-            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
 
-            // ── Output texture slot: DepthTarget ──
+            // ── Input texture slot: DepthTarget ──
 
             Assert.That(pass.DepthTargetSlot, Is.Not.Null,
                 "DepthTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.DepthTargetSlot!.SlotName, Is.EqualTo("DepthTarget"));
-            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
         }
 
         /// <summary>

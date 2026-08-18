@@ -84,22 +84,22 @@ MonoBehaviour:
     m_SourceSlot: DepthTarget
     m_TargetPass: sky
     m_TargetSlot: DepthTarget
-  - m_SourcePass: sky
+  - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTarget
     m_TargetPass: transparency
     m_TargetSlot: ColorTarget
-  - m_SourcePass: sky
+  - m_SourcePass: forwardOpaque
     m_SourceSlot: DepthTarget
     m_TargetPass: transparency
     m_TargetSlot: DepthTarget
-  - m_SourcePass: transparency
+  - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTarget
     m_TargetPass: wireOverlay
     m_TargetSlot: ColorTarget
-  - m_SourcePass: wireOverlay
+  - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTarget
     m_TargetPass: finalBlit
     m_TargetSlot: ColorTarget
   m_Settings:
-    SHEvalMode: 1
+    SHEvalMode: 2
     AllowHDR: 1

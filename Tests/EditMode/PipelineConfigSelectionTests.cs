@@ -37,7 +37,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_CanBeSetAndRetrieved()
         {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = config;
@@ -52,7 +52,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void PipelineConfigOverride_CanBeCleared()
         {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = config;
@@ -70,8 +70,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void SelectionPriority_OverrideTakesPriority_WhenSet()
         {
-            var overrideConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var defaultConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var overrideConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = overrideConfig;
@@ -92,7 +92,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void SelectionPriority_FallsBackToDefault_WhenOverrideIsNull()
         {
-            var defaultConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
             try
             {
                 m_CameraData.PipelineConfigOverride = null;
@@ -112,7 +112,7 @@ namespace HN.HNRP.Tests
         public void SelectionPriority_ReturnsNull_WhenBothAreNull()
         {
             m_CameraData.PipelineConfigOverride = null;
-            CameraPipelineConfig defaultConfig = null;
+            RenderGraphAsset defaultConfig = null;
 
             // Simulate the selection chain: pipelineConfigOverride ?? defaultConfig ?? null
             var selected = m_CameraData.PipelineConfigOverride ?? defaultConfig;

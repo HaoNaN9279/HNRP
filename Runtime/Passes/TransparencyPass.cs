@@ -1,7 +1,5 @@
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
 using UnityEngine.Rendering.RendererUtils;
 
 namespace HN.HNRP
@@ -12,11 +10,15 @@ namespace HN.HNRP
     /// <see cref="TransparencyPass"/> (<c>PassBase</c>).
     /// </summary>
     /// <remarks>
-    /// <para>Outputs:</para>
+    /// <para>Inputs (connected from upstream, e.g. <c>ForwardOpaquePass</c>):</para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer written by transparent draw calls.</item>
     ///   <item><b>DepthTarget</b> — the depth buffer read/written by transparent draw calls.</item>
     /// </list>
+    /// <para>
+    /// Uses the shared texture model: the color/depth targets are allocated by the
+    /// upstream chain head pass and this pass renders into the same buffers.
+    /// </para>
     /// </remarks>
     [Pass("Transparency")]
     public sealed class TransparencyPass : Pass
@@ -66,8 +68,10 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Output);
-            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Output);
+            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Input);
+            RegisterSlot(ColorTargetSlot);
+            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
+            RegisterSlot(DepthTargetSlot);
         }
 
         /// <inheritdoc />
@@ -81,6 +85,10 @@ namespace HN.HNRP
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// Reads the upstream color and depth targets (shared texture model — allocated
+        /// by <c>ForwardOpaquePass</c>) and draws the transparent renderer list into them.
+        /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
             if (ColorTargetSlot == null || DepthTargetSlot == null)
@@ -93,35 +101,23 @@ namespace HN.HNRP
                 return;
             }
 
+            if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
+            {
+                return;
+            }
+
             using var builder = renderGraph.AddRenderPass<TransparencyPassData>(
                 PassName, out var passData);
 
             builder.AllowRendererListCulling(false);
 
-            // ── Output slots: create and register color / depth targets ──
+            // ── Input slots: use upstream color / depth targets (shared texture model) ──
 
-            var colorDesc = new TextureDesc(Vector2.one, true, false)
-            {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = false,
-                name = $"{PassName}_ColorTarget",
-            };
-
-            var depthDesc = new TextureDesc(Vector2.one, true, false)
-            {
-                depthBufferBits = DepthBits.Depth32,
-                clearBuffer = false,
-                name = $"{PassName}_DepthTarget",
-            };
-
-            TextureHandle colorTarget = renderGraph.CreateTexture(colorDesc);
-            TextureHandle depthTarget = renderGraph.CreateTexture(depthDesc);
+            TextureHandle colorTarget = (TextureHandle)ColorTargetSlot.ReadHandle()!;
+            TextureHandle depthTarget = (TextureHandle)DepthTargetSlot.ReadHandle()!;
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
-
-            ColorTargetSlot.CreateHandle();
-            DepthTargetSlot.CreateHandle();
 
             // ── Renderer list: transparent objects ──
 

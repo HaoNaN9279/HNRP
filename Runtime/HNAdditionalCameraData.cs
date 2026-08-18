@@ -123,11 +123,11 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Per-camera pipeline configuration override.
-        /// When set, takes priority over the default config defined in <see cref="HNRenderPipelineAsset"/>.
-        /// The selection chain is: <c>pipelineConfigOverride ?? defaultConfig ?? null</c> (skip camera).
+        /// Per-camera render graph override.
+        /// When set, takes priority over the default render graph defined in <see cref="HNRenderPipelineAsset"/>.
+        /// The selection chain is: <c>pipelineConfigOverride ?? defaultXxxRenderGraph ?? null</c> (skip camera).
         /// </summary>
-        public CameraPipelineConfig PipelineConfigOverride
+        public RenderGraphAsset PipelineConfigOverride
         {
             get => pipelineConfigOverride;
             set => pipelineConfigOverride = value;
@@ -177,7 +177,7 @@ namespace HN.HNRP
         private Camera builtinCamera;
 
         [SerializeField]
-        private CameraPipelineConfig pipelineConfigOverride;
+        private RenderGraphAsset pipelineConfigOverride;
 
         [SerializeField]
         private bool dithering = false;

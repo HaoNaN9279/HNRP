@@ -105,12 +105,19 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Output);
+            RegisterSlot(ColorTargetSlot);
             DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Output);
+            RegisterSlot(DepthTargetSlot);
             LightDatasSlot = new ComputeBufferSlot("LightDatas", SlotDirection.Input);
+            RegisterSlot(LightDatasSlot);
             ReflectionProbeAtlasSlot = new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
+            RegisterSlot(ReflectionProbeAtlasSlot);
             ProbeMaskSlot = new ComputeBufferSlot("ProbeMask", SlotDirection.Input);
+            RegisterSlot(ProbeMaskSlot);
             ProbeDatasSlot = new ComputeBufferSlot("ProbeDatas", SlotDirection.Input);
+            RegisterSlot(ProbeDatasSlot);
             LightMaskSlot = new ComputeBufferSlot("LightMask", SlotDirection.Input);
+            RegisterSlot(LightMaskSlot);
         }
 
         /// <inheritdoc />
@@ -143,18 +150,25 @@ namespace HN.HNRP
             builder.AllowRendererListCulling(false);
 
             // ── Output slots: create and register color / depth targets ──
-
-            var colorDesc = new TextureDesc(Vector2.one, true, false)
+            // Explicit size (not RTHandle scale) so window resizes allocate a
+            // correctly-sized target instead of reusing a stale pooled texture.
+            var colorDesc = new TextureDesc(
+                cameraContext.Camera.pixelWidth,
+                cameraContext.Camera.pixelHeight,
+                false, false)
             {
                 colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = false,
+                clearBuffer = true,
                 name = $"{PassName}_ColorTarget",
             };
 
-            var depthDesc = new TextureDesc(Vector2.one, true, false)
+            var depthDesc = new TextureDesc(
+                cameraContext.Camera.pixelWidth,
+                cameraContext.Camera.pixelHeight,
+                false, false)
             {
                 depthBufferBits = DepthBits.Depth32,
-                clearBuffer = false,
+                clearBuffer = true,
                 name = $"{PassName}_DepthTarget",
             };
 
@@ -164,8 +178,8 @@ namespace HN.HNRP
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
-            ColorTargetSlot.CreateHandle();
-            DepthTargetSlot.CreateHandle();
+            ColorTargetSlot.SetHandle(colorTarget);
+            DepthTargetSlot.SetHandle(depthTarget);
 
             // ── Input slot: light data buffer ──
 

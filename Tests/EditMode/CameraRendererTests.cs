@@ -325,6 +325,11 @@ namespace HN.HNRP.Tests
                 var passA = renderer.AddPass<TestPass>("PassA");
                 var passB = renderer.AddPass<TestPass>("PassB");
 
+                // Simulate build-time topology setup: slots are declared once
+                // (Render does NOT call SetupSlots per frame anymore).
+                passA.SetupSlots();
+                passB.SetupSlots();
+
                 // Disable PassB.
                 renderer.SetPassEnabled("PassB", false);
 
@@ -336,15 +341,11 @@ namespace HN.HNRP.Tests
                 // Render: PassB should be skipped.
                 renderer.Render(null, default);
 
-                Assert.That(passA.SetupSlotsCalled, Is.True,
-                    "Enabled pass should have SetupSlots called.");
                 Assert.That(passA.InitializeCalled, Is.True,
                     "Enabled pass should have Initialize called.");
                 Assert.That(passA.RecordCalled, Is.True,
                     "Enabled pass should have Record called.");
 
-                Assert.That(passB.SetupSlotsCalled, Is.False,
-                    "Disabled pass should NOT have SetupSlots called.");
                 Assert.That(passB.InitializeCalled, Is.False,
                     "Disabled pass should NOT have Initialize called.");
                 Assert.That(passB.RecordCalled, Is.False,

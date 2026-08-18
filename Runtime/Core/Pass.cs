@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace HN.HNRP
@@ -36,6 +37,12 @@ namespace HN.HNRP
         public bool IsEnabled { get; set; } = true;
 
         /// <summary>
+        /// Registry of this pass's slots declared in <see cref="SetupSlots"/>,
+        /// keyed by <see cref="PassSlot.SlotName"/>.
+        /// </summary>
+        private readonly Dictionary<string, PassSlot> m_Slots = new();
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="Pass"/> class.
         /// </summary>
         /// <param name="passName">
@@ -56,6 +63,41 @@ namespace HN.HNRP
         /// <c>ComputeBufferSlot</c>, <c>RendererListSlot</c>.
         /// </remarks>
         public abstract void SetupSlots();
+
+        /// <summary>
+        /// Registers a slot declared in <see cref="SetupSlots"/>.
+        /// Same-name registration overwrites the existing entry.
+        /// </summary>
+        /// <param name="slot">The slot to register. Must not be <c>null</c>.</param>
+        protected void RegisterSlot(PassSlot slot) => m_Slots[slot.SlotName] = slot;
+
+        /// <summary>
+        /// Gets a slot by name, or <c>null</c> if no slot with that name is registered.
+        /// </summary>
+        /// <param name="name">The name of the slot to look up.</param>
+        /// <returns>The registered <see cref="PassSlot"/>, or <c>null</c> if not found.</returns>
+        public PassSlot GetSlot(string name) => m_Slots.TryGetValue(name, out var slot) ? slot : null;
+
+        /// <summary>
+        /// Connects this pass's output slot (<paramref name="sourceSlotName"/>) to
+        /// target pass's input slot (<paramref name="targetSlotName"/>).
+        /// </summary>
+        /// <param name="sourceSlotName">The name of this pass's output slot.</param>
+        /// <param name="target">The target pass whose input slot receives the connection.</param>
+        /// <param name="targetSlotName">The name of the target pass's input slot.</param>
+        /// <returns>
+        /// <c>true</c> if the connection was established; <c>false</c> if either slot
+        /// is missing or directions don't match (output→input required).
+        /// </returns>
+        public bool TryConnect(string sourceSlotName, Pass target, string targetSlotName)
+        {
+            if (!m_Slots.TryGetValue(sourceSlotName, out var sourceSlot)) return false;
+            if (!target.m_Slots.TryGetValue(targetSlotName, out var targetSlot)) return false;
+            if (sourceSlot.Direction != SlotDirection.Output) return false;
+            if (targetSlot.Direction != SlotDirection.Input) return false;
+            sourceSlot.Connect(targetSlot);
+            return true;
+        }
 
         /// <summary>
         /// Initializes this pass with camera-specific rendering context.

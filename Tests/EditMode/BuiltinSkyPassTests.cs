@@ -20,28 +20,28 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="Pass.SetupSlots"/> is called,
-        /// both output slots are non-null with correct names and directions.
+        /// both input slots are non-null with correct names and directions.
         /// </summary>
         [Test]
-        public void SetupSlots_DeclaresBothOutputSlots()
+        public void SetupSlots_DeclaresBothInputSlots()
         {
             var pass = new BuiltinSkyPass("TestBuiltinSky");
 
             pass.SetupSlots();
 
-            // ── ColorTarget output slot ──
+            // ── ColorTarget input slot ──
 
             Assert.That(pass.ColorTargetSlot, Is.Not.Null,
                 "ColorTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.ColorTargetSlot!.SlotName, Is.EqualTo("ColorTarget"));
-            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
 
-            // ── DepthTarget output slot ──
+            // ── DepthTarget input slot ──
 
             Assert.That(pass.DepthTargetSlot, Is.Not.Null,
                 "DepthTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.DepthTargetSlot!.SlotName, Is.EqualTo("DepthTarget"));
-            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
         }
 
         /// <summary>
@@ -62,7 +62,7 @@ namespace HN.HNRP.Tests
         #region Slot Types
 
         /// <summary>
-        /// Both output slots are <see cref="TextureSlot"/> instances.
+        /// Both input slots are <see cref="TextureSlot"/> instances.
         /// </summary>
         [Test]
         public void SetupSlots_SlotsAreTextureSlots()

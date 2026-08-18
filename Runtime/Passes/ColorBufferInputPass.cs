@@ -83,6 +83,7 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             ColorTargetSlot = new TextureSlot("colorTargetSlot", SlotDirection.Output);
+            RegisterSlot(ColorTargetSlot);
         }
 
         /// <inheritdoc />
@@ -111,7 +112,7 @@ namespace HN.HNRP
                 PassName, out var passData))
             {
                 TextureHandle outputColorTarget = renderGraph.CreateTexture(
-                    new TextureDesc(TextureScale, true, false)
+                    new TextureDesc(TextureScale, false, false)
                     {
                         colorFormat = ColorFormat,
                         clearBuffer = ClearBuffer,
@@ -121,8 +122,8 @@ namespace HN.HNRP
 
                 passData.colorTarget = builder.UseColorBuffer(outputColorTarget, 0);
 
-                // Create a handle on the output slot so downstream passes can read it.
-                ColorTargetSlot.CreateHandle();
+                // Publish the real render graph handle so downstream passes can read it.
+                ColorTargetSlot.SetHandle(outputColorTarget);
 
                 builder.SetRenderFunc(
                     (ColorBufferInputPassData data, RenderGraphContext ctx) =>

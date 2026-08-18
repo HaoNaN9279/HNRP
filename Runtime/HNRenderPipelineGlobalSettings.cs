@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 #if UNITY_EDITOR
@@ -208,31 +207,6 @@ namespace HN.HNRP
 
         private const string DEFAULT_LAYER_NAME = "Default";
         private const string UNUSED_LAYER_PREFIX = "Unused Layer";
-        #endregion
-
-
-        #region CameraPipelineConfigs
-
-        /// <summary>
-        /// The list of <see cref="CameraPipelineConfig"/> assets available to cameras in the pipeline.
-        /// Managed via the Inspector or through
-        /// <see cref="SerializedHNRenderPipelineGlobalSettings"/> in the Editor.
-        /// </summary>
-        /// <remarks>
-        /// Cameras select a config through the priority chain defined in ADR-006:
-        /// <c>HNAdditionalCameraData.pipelineConfigOverride</c>
-        /// ?? <c>HNRenderPipelineAsset.defaultXxxConfig</c>
-        /// ?? null (skip camera).
-        /// </remarks>
-        public List<CameraPipelineConfig> CameraPipelineConfigs
-        {
-            get => m_CameraPipelineConfigs;
-            internal set => m_CameraPipelineConfigs = value;
-        }
-
-        [SerializeField]
-        private List<CameraPipelineConfig> m_CameraPipelineConfigs = new List<CameraPipelineConfig>();
-
         #endregion
 
 

@@ -308,10 +308,15 @@ namespace HN.HNRP
         /// <remarks>
         /// <para><b>Execution order per pass:</b></para>
         /// <list type="number">
-        ///   <item><see cref="Pass.SetupSlots"/> — declare input/output slots</item>
         ///   <item><see cref="Pass.Initialize"/> — load resources using camera context</item>
         ///   <item><see cref="Pass.Record"/> — record render graph commands</item>
         /// </list>
+        /// <para>
+        /// <see cref="Pass.SetupSlots"/> is intentionally <b>not</b> called here:
+        /// slots are declared once during <see cref="Build(RenderGraphAsset)"/>
+        /// (via <c>RenderGraphAsset.Build</c>) so that slot connections established
+        /// at build time reference the same instances used every frame.
+        /// </para>
         /// <para>
         /// After all enabled passes execute, <see cref="Pass.Cleanup"/> is called
         /// on <b>every</b> pass (including disabled ones) to release any held resources.
@@ -333,7 +338,6 @@ namespace HN.HNRP
                     continue;
                 }
 
-                pass.SetupSlots();
                 pass.Initialize(Context);
                 pass.Record(renderGraph);
             }

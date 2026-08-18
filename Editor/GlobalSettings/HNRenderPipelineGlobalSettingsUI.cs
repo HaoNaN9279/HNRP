@@ -31,13 +31,6 @@ namespace HN.HNRP.Editor
             CED.Group((serialized, owner) => EditorGUILayout.Space())
         );
 
-        internal static readonly CED.IDrawer CameraPipelineConfigsSection = CED.Group(
-            CED.Group((serialized, owner) => CoreEditorUtils.DrawSectionHeader(Styles.cameraPipelineConfigsLabel)),
-            CED.Group((serialized, owner) => EditorGUILayout.Space()),
-            CED.Group(DrawCameraPipelineConfigs),
-            CED.Group((serialized, owner) => EditorGUILayout.Space())
-        );
-
 
         internal static void DrawRenderingLayerNames(SerializedHNRenderPipelineGlobalSettings serialized, UnityEditor.Editor owner)
         {
@@ -84,19 +77,9 @@ namespace HN.HNRP.Editor
             }
         }
 
-        internal static void DrawCameraPipelineConfigs(SerializedHNRenderPipelineGlobalSettings serialized, UnityEditor.Editor owner)
-        {
-            using (new EditorGUI.IndentLevelScope())
-            {
-                serialized.cameraPipelineConfigsList.DoLayoutList();
-            }
-        }
-
 
         public static readonly CED.IDrawer Inspector = CED.Group(
             RenderingLayerNamesSection,
-            CED.Group((serialized, owner) => EditorGUILayout.Space()),
-            CameraPipelineConfigsSection,
             CED.Group((serialized, owner) => EditorGUILayout.Space()),
             RuntimeResourcesSection,
             CED.Group((serialized, owner) => EditorGUILayout.Space()),
@@ -108,7 +91,6 @@ namespace HN.HNRP.Editor
         internal class Styles
         {
             public static readonly GUIContent renderingLayersLabel = EditorGUIUtility.TrTextContent("Rendering Layers", "The list of rendering layer names.");
-            public static readonly GUIContent cameraPipelineConfigsLabel = EditorGUIUtility.TrTextContent("Camera Pipeline Configs", "Camera pipeline configurations available to cameras.");
             public static readonly GUIContent runtimeResourcesLabel = EditorGUIUtility.TrTextContent("Runtime Resources", "Runtime Resources");
             public static readonly GUIContent editorResourcesLabel = EditorGUIUtility.TrTextContent("Editor Resources", "Editor Resources");
         }

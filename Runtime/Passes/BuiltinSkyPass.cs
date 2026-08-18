@@ -4,10 +4,8 @@
 
 using System;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.RendererUtils;
+
 
 namespace HN.HNRP
 {
@@ -17,12 +15,14 @@ namespace HN.HNRP
     /// <see cref="BuiltinSkyPass"/> (<c>PassBase</c>).
     /// </summary>
     /// <remarks>
-    /// <para>Outputs:</para>
+    /// <para>Inputs (connected from upstream, e.g. <c>ForwardOpaquePass</c>):</para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer into which the skybox is rendered.</item>
     ///   <item><b>DepthTarget</b> — the depth buffer used for skybox depth writes.</item>
     /// </list>
     /// <para>
+    /// Uses the shared texture model: the color/depth targets are allocated by the
+    /// upstream chain head pass and this pass renders into the same buffers.
     /// The render function calls <c>ctx.renderContext.CreateSkyboxRendererList</c>
     /// followed by <c>ctx.cmd.DrawRendererList</c>, which renders the Unity skybox
     /// material assigned to the active camera. This is the same logic as the
@@ -74,8 +74,10 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Output);
-            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Output);
+            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Input);
+            RegisterSlot(ColorTargetSlot);
+            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
+            RegisterSlot(DepthTargetSlot);
         }
 
         /// <inheritdoc />
@@ -90,10 +92,9 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Creates color and depth textures, writes them via
-        /// <c>builder.UseColorBuffer</c> and <c>builder.UseDepthBuffer</c>,
-        /// and sets a render function that draws the skybox using
-        /// <c>ctx.renderContext.CreateSkyboxRendererList</c> — identical
+        /// Reads the upstream color and depth targets (shared texture model — allocated
+        /// by <c>ForwardOpaquePass</c>) and sets a render function that draws the
+        /// skybox using <c>ctx.renderContext.CreateSkyboxRendererList</c> — identical
         /// logic to the legacy <see cref="BuiltinSkyPass.Record"/>.
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
@@ -108,35 +109,23 @@ namespace HN.HNRP
                 return;
             }
 
+            if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
+            {
+                return;
+            }
+
             using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
                 PassName, out var passData);
 
             builder.AllowPassCulling(false);
 
-            // ── Output slots: create and register color / depth targets ──
+            // ── Input slots: use upstream color / depth targets (shared texture model) ──
 
-            var colorDesc = new TextureDesc(Vector2.one, true, false)
-            {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = false,
-                name = $"{PassName}_ColorTarget",
-            };
-
-            var depthDesc = new TextureDesc(Vector2.one, true, false)
-            {
-                depthBufferBits = DepthBits.Depth32,
-                clearBuffer = false,
-                name = $"{PassName}_DepthTarget",
-            };
-
-            TextureHandle colorTarget = renderGraph.CreateTexture(colorDesc);
-            TextureHandle depthTarget = renderGraph.CreateTexture(depthDesc);
+            TextureHandle colorTarget = (TextureHandle)ColorTargetSlot.ReadHandle()!;
+            TextureHandle depthTarget = (TextureHandle)DepthTargetSlot.ReadHandle()!;
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
-
-            ColorTargetSlot.CreateHandle();
-            DepthTargetSlot.CreateHandle();
 
             // ── Render function: draw skybox (same logic as legacy BuiltinSkyPass) ──
 
@@ -144,7 +133,7 @@ namespace HN.HNRP
             builder.SetRenderFunc(
                 (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                 {
-                    RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(camera);
+                    UnityEngine.Rendering.RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(camera);
                     ctx.cmd.DrawRendererList(rendererList);
                 });
         }

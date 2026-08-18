@@ -83,8 +83,10 @@ namespace HN.HNRP
         {
             LightDatasBufferSlot = new ComputeBufferSlot(
                 "lightDatasBuffer", SlotDirection.Input);
+            RegisterSlot(LightDatasBufferSlot);
             ClusterCullingLightMaskBufferSlot = new ComputeBufferSlot(
                 "clusterCullingLightMaskBuffer", SlotDirection.Output);
+            RegisterSlot(ClusterCullingLightMaskBufferSlot);
         }
 
         /// <inheritdoc />
@@ -151,14 +153,15 @@ namespace HN.HNRP
 
                 // ── Output: cluster culling light mask buffer ──
 
-                passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(
-                    renderGraph.CreateComputeBuffer(
-                        new ComputeBufferDesc(
-                            MAX_CLUSTER_MASK_WORDS,
-                            sizeof(uint))
-                        { name = "Cluster Culling Light Mask Buffer" }));
+                ComputeBufferHandle lightMaskBuffer = renderGraph.CreateComputeBuffer(
+                    new ComputeBufferDesc(
+                        MAX_CLUSTER_MASK_WORDS,
+                        sizeof(uint))
+                    { name = "Cluster Culling Light Mask Buffer" });
 
-                ClusterCullingLightMaskBufferSlot.CreateHandle();
+                passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(lightMaskBuffer);
+
+                ClusterCullingLightMaskBufferSlot.SetHandle(lightMaskBuffer);
 
                 // ── Prepare per-frame data ──
 

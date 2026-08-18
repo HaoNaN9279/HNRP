@@ -19,11 +19,16 @@ namespace HN.HNRP.Tests
     {
         #region Test Pass Stubs
 
-        // ── Stub pass classes registered with matching [Pass] names ──
+        // ── Stub pass classes registered manually with matching display names ──
         // These are minimal implementations so Build() can resolve pass types
         // from PassRegistry without requiring the full pass implementations.
+        // They carry no [Pass] attribute: attribute-based registration would let
+        // the reflection scan in PassRegistry.RegisterAll() overwrite the real
+        // passes with these stubs (Stub registry pollution).
+        // RegisterStubPasses() re-registers them per-test, and TearDown() calls
+        // PassRegistry.RegisterAll() to restore the clean registry (real passes
+        // only) before the next test.
 
-        [Pass("Build Light Data")]
         private sealed class StubBuildLightData : Pass
         {
             public StubBuildLightData(string name) : base(name) { }
@@ -36,7 +41,6 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Cluster Culling Probe")]
         private sealed class StubClusterProbe : Pass
         {
             public StubClusterProbe(string name) : base(name) { }
@@ -51,7 +55,6 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Cluster Culling Light")]
         private sealed class StubClusterLight : Pass
         {
             public StubClusterLight(string name) : base(name) { }
@@ -65,7 +68,6 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Color Buffer Input")]
         private sealed class StubColorInput : Pass
         {
             public StubColorInput(string name) : base(name) { }
@@ -78,7 +80,6 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Depth Buffer Input")]
         private sealed class StubDepthInput : Pass
         {
             public StubDepthInput(string name) : base(name) { }
@@ -91,7 +92,6 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Forward Opaque")]
         private sealed class StubForwardOpaque : Pass
         {
             public StubForwardOpaque(string name) : base(name) { }
@@ -110,48 +110,44 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Builtin Sky")]
         private sealed class StubSky : Pass
         {
             public StubSky(string name) : base(name) { }
             public override void SetupSlots()
             {
-                new TextureSlot("ColorTarget", SlotDirection.Output);
-                new TextureSlot("DepthTarget", SlotDirection.Output);
+                new TextureSlot("ColorTarget", SlotDirection.Input);
+                new TextureSlot("DepthTarget", SlotDirection.Input);
             }
 
             public override void Initialize(CameraContext context) { }
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Transparency")]
         private sealed class StubTransparency : Pass
         {
             public StubTransparency(string name) : base(name) { }
             public override void SetupSlots()
             {
-                new TextureSlot("ColorTarget", SlotDirection.Output);
-                new TextureSlot("DepthTarget", SlotDirection.Output);
+                new TextureSlot("ColorTarget", SlotDirection.Input);
+                new TextureSlot("DepthTarget", SlotDirection.Input);
             }
 
             public override void Initialize(CameraContext context) { }
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Editor Wire Overlay")]
         private sealed class StubWireOverlay : Pass
         {
             public StubWireOverlay(string name) : base(name) { }
             public override void SetupSlots()
             {
-                new TextureSlot("ColorTarget", SlotDirection.Output);
+                new TextureSlot("ColorTarget", SlotDirection.Input);
             }
 
             public override void Initialize(CameraContext context) { }
             public override void Record(RenderGraph renderGraph) { }
         }
 
-        [Pass("Render Output")]
         private sealed class StubRenderOutput : Pass
         {
             public StubRenderOutput(string name) : base(name) { }
@@ -169,10 +165,35 @@ namespace HN.HNRP.Tests
         #region Setup / Teardown
 
         /// <summary>
-        /// Registers all stub pass types before each test.
+        /// Builds the clean registry (real passes only), then registers all stub
+        /// pass types under their matching display names before each test.
         /// </summary>
         [SetUp]
         public void SetUp()
+        {
+            PassRegistry.RegisterAll();
+            RegisterStubPasses();
+        }
+
+        private static void RegisterStubPasses()
+        {
+            PassRegistry.Register("Build Light Data", typeof(StubBuildLightData));
+            PassRegistry.Register("Cluster Culling Probe", typeof(StubClusterProbe));
+            PassRegistry.Register("Cluster Culling Light", typeof(StubClusterLight));
+            PassRegistry.Register("Color Buffer Input", typeof(StubColorInput));
+            PassRegistry.Register("Depth Buffer Input", typeof(StubDepthInput));
+            PassRegistry.Register("Forward Opaque", typeof(StubForwardOpaque));
+            PassRegistry.Register("Builtin Sky", typeof(StubSky));
+            PassRegistry.Register("Transparency", typeof(StubTransparency));
+            PassRegistry.Register("Editor Wire Overlay", typeof(StubWireOverlay));
+            PassRegistry.Register("Render Output", typeof(StubRenderOutput));
+        }
+
+        /// <summary>
+        /// Restores the clean registry (real passes only) after each test.
+        /// </summary>
+        [TearDown]
+        public void TearDown()
         {
             PassRegistry.RegisterAll();
         }

@@ -51,6 +51,7 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             colorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Input);
+            RegisterSlot(colorTargetSlot);
         }
 
         /// <inheritdoc />
@@ -84,8 +85,14 @@ namespace HN.HNRP
                 PassName, out var passData);
             builder.AllowPassCulling(false);
 
-            passData.inputTexture = builder.UseColorBuffer(backBuffer, 0);
-            passData.flip = Flip;
+            passData.inputTexture = builder.ReadTexture(
+                (TextureHandle)colorTargetSlot.ReadHandle()!);
+            passData.backBuffer = builder.UseColorBuffer(backBuffer, 0);
+            // Game cameras render into the backbuffer, whose UV origin differs
+            // from the render-graph texture — flip the blit. SceneView/Preview
+            // render into their own targets and must not flip.
+            passData.flip = Flip
+                || cameraContext.Camera.cameraType == CameraType.Game;
 
             builder.SetRenderFunc(
                 (RenderOutputData data, RenderGraphContext ctx) =>
@@ -99,7 +106,7 @@ namespace HN.HNRP
                         ctx.cmd,
                         propertyBlock,
                         data.inputTexture,
-                        data.inputTexture,
+                        data.backBuffer,
                         scaleBias,
                         0,
                         true);
@@ -115,6 +122,11 @@ namespace HN.HNRP
             /// The input color texture to blit to the backbuffer.
             /// </summary>
             public TextureHandle inputTexture;
+
+            /// <summary>
+            /// The camera backbuffer that receives the blit output.
+            /// </summary>
+            public TextureHandle backBuffer;
 
             /// <summary>
             /// Whether to vertically flip the output.

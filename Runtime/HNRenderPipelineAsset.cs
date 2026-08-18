@@ -17,18 +17,18 @@ namespace HN.HNRP
         }
 
         [SerializeField]
-        public CameraPipelineConfig DefaultGameCameraConfig;
+        public RenderGraphAsset DefaultGameRenderGraph;
 
 #if UNITY_EDITOR
         [SerializeField]
-        public CameraPipelineConfig DefaultSceneViewCameraConfig;
+        public RenderGraphAsset DefaultSceneViewRenderGraph;
 
         [SerializeField]
-        public CameraPipelineConfig DefaultPreviewCameraConfig;
+        public RenderGraphAsset DefaultPreviewRenderGraph;
 #endif
 
         [SerializeField]
-        public CameraPipelineConfig DefaultReflectionCameraConfig;
+        public RenderGraphAsset DefaultReflectionRenderGraph;
 
         public override string[] renderingLayerMaskNames => globalSettings.RenderingLayerNames;
         public override string[] prefixedRenderingLayerMaskNames => globalSettings.PrefixedRenderingLayerNames;

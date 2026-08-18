@@ -20,7 +20,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="Pass.SetupSlots"/> is called,
-        /// the color target output slot is non-null with correct name and direction.
+        /// the color target input slot is non-null with correct name and direction.
         /// </summary>
         [Test]
         public void SetupSlots_DeclaresColorTargetSlot()
@@ -29,12 +29,12 @@ namespace HN.HNRP.Tests
 
             pass.SetupSlots();
 
-            // ── ColorTarget output slot ──
+            // ── ColorTarget input slot ──
 
             Assert.That(pass.ColorTargetSlot, Is.Not.Null,
                 "ColorTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.ColorTargetSlot!.SlotName, Is.EqualTo("ColorTarget"));
-            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
         }
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace HN.HNRP.Tests
         #region Slot Types
 
         /// <summary>
-        /// The output slot is a <see cref="TextureSlot"/> instance.
+        /// The input slot is a <see cref="TextureSlot"/> instance.
         /// </summary>
         [Test]
         public void SetupSlots_SlotIsTextureSlot()

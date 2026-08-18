@@ -1,7 +1,5 @@
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
@@ -11,10 +9,14 @@ namespace HN.HNRP
     /// <see cref="EditorWireOverlayPass"/> (<c>PassBase</c>).
     /// </summary>
     /// <remarks>
-    /// <para>Outputs:</para>
+    /// <para>Inputs (connected from upstream, e.g. <c>ForwardOpaquePass</c>):</para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer into which the wire overlay is drawn.</item>
     /// </list>
+    /// <para>
+    /// Uses the shared texture model: the color target is allocated by the upstream
+    /// chain head pass and this pass renders into the same buffer.
+    /// </para>
     /// <para>
     /// This pass is only active in the Unity Editor and only for Scene View cameras.
     /// The entire <see cref="Record"/> implementation is wrapped in <c>#if UNITY_EDITOR</c>.
@@ -61,7 +63,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Output);
+            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Input);
+            RegisterSlot(ColorTargetSlot);
         }
 
         /// <inheritdoc />
@@ -77,8 +80,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         /// <remarks>
         /// <para>
-        /// Creates a color texture and writes it via <c>builder.UseColorBuffer</c>,
-        /// then sets a render function that draws the Editor wire overlay using
+        /// Reads the upstream color target (shared texture model — allocated by
+        /// <c>ForwardOpaquePass</c>) and draws the Editor wire overlay using
         /// <c>ctx.renderContext.DrawWireOverlay(camera)</c> — identical logic to
         /// the legacy <see cref="EditorWireOverlayPass.Record"/>.
         /// </para>
@@ -106,25 +109,21 @@ namespace HN.HNRP
                 return;
             }
 
+            if (!ColorTargetSlot.IsConnected)
+            {
+                return;
+            }
+
             using var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>(
                 PassName, out var passData);
 
             builder.AllowPassCulling(false);
 
-            // ── Output slot: create and register color target ──
+            // ── Input slot: use upstream color target (shared texture model) ──
 
-            var colorDesc = new TextureDesc(Vector2.one, true, false)
-            {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = false,
-                name = $"{PassName}_ColorTarget",
-            };
-
-            TextureHandle colorTarget = renderGraph.CreateTexture(colorDesc);
+            TextureHandle colorTarget = (TextureHandle)ColorTargetSlot.ReadHandle()!;
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
-
-            ColorTargetSlot.CreateHandle();
 
             // ── Render function: draw wire overlay (same logic as legacy EditorWireOverlayPass) ──
 

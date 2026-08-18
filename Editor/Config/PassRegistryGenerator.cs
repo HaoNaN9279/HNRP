@@ -29,7 +29,7 @@ namespace HN.HNRP.Editor
         /// <summary>
         /// Relative path from the project root to the generated file.
         /// </summary>
-        private const string GeneratedFilePath = "Assets/../Runtime/Core/Generated/PassRegistryGenerated.cs";
+        private const string GeneratedFilePath = "Assets/HNRP/Runtime/Core/Generated/PassRegistryGenerated.cs";
 
         /// <summary>
         /// Assembly name prefixes that are skipped during scanning (Unity internals, system libs).
@@ -39,6 +39,9 @@ namespace HN.HNRP.Editor
             "System", "System.", "Microsoft.", "mscorlib", "netstandard",
             "Unity", "UnityEngine", "UnityEditor", "Unity.",
             "Mono.", "nunit.", "Newtonsoft.", "ExCSS",
+            // Test assemblies must never leak into the generated registration table,
+            // otherwise Player builds fail to compile (reference to test-only types).
+            "HN.HNRP.Tests",
         };
 
         /// <summary>

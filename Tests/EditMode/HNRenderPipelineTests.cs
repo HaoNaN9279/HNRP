@@ -8,9 +8,10 @@ using HN.HNRP;
 namespace HN.HNRP.Tests
 {
     /// <summary>
-    /// Tests for <see cref="HNRenderPipeline"/> camera rendering and config selection logic.
+    /// Tests for <see cref="HNRenderPipeline"/> camera rendering and render graph
+    /// selection logic.
     /// Verifies that <see cref="CameraRenderer"/> is created per camera, each camera's
-    /// renderer is independent, and <see cref="CameraPipelineConfig"/> selection maps
+    /// renderer is independent, and <see cref="RenderGraphAsset"/> selection maps
     /// correctly by <see cref="CameraType"/>.
     /// </summary>
     public sealed class HNRenderPipelineTests
@@ -84,18 +85,6 @@ namespace HN.HNRP.Tests
             return asset;
         }
 
-        /// <summary>
-        /// Creates a <see cref="CameraPipelineConfig"/> with a given render graph template.
-        /// </summary>
-        /// <param name="template">The render graph asset to assign.</param>
-        /// <returns>A new CameraPipelineConfig pointing to the template.</returns>
-        private static CameraPipelineConfig CreateConfig(RenderGraphAsset template)
-        {
-            var config = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            config.RenderGraph = template;
-            return config;
-        }
-
         #endregion
 
         #region Setup / Teardown
@@ -114,7 +103,7 @@ namespace HN.HNRP.Tests
         #region Render_UsesCameraRenderer
 
         /// <summary>
-        /// Verifies that for each camera that has a valid <see cref="CameraPipelineConfig"/>,
+        /// Verifies that for each camera that has a valid <see cref="RenderGraphAsset"/>,
         /// a <see cref="CameraRenderer"/> is created and its passes are populated from the
         /// template. This is tested by simulating the per-camera renderer creation loop
         /// (without the full <c>Render</c> context).
@@ -122,11 +111,9 @@ namespace HN.HNRP.Tests
         [Test]
         public void Render_UsesCameraRenderer()
         {
-            // ── Arrange: create two cameras with different configs ──
+            // ── Arrange: create two cameras with different render graphs ──
             var template1 = CreateTemplate("Camera1_OpaquePass");
             var template2 = CreateTemplate("Camera2_TransparentPass");
-            var config1 = CreateConfig(template1);
-            var config2 = CreateConfig(template2);
 
             var go1 = new GameObject("Camera1");
             var go2 = new GameObject("Camera2");
@@ -137,8 +124,8 @@ namespace HN.HNRP.Tests
 
             var data1 = go1.AddComponent<HNAdditionalCameraData>();
             var data2 = go2.AddComponent<HNAdditionalCameraData>();
-            data1.PipelineConfigOverride = config1;
-            data2.PipelineConfigOverride = config2;
+            data1.PipelineConfigOverride = template1;
+            data2.PipelineConfigOverride = template2;
 
             try
             {
@@ -149,8 +136,8 @@ namespace HN.HNRP.Tests
                 var renderer1 = new CameraRenderer(ctx1);
                 var renderer2 = new CameraRenderer(ctx2);
 
-                renderer1.Build(config1.RenderGraph);
-                renderer2.Build(config2.RenderGraph);
+                renderer1.Build(template1);
+                renderer2.Build(template2);
 
                 // ── Assert: each camera got its own renderer with correct passes ──
                 Assert.That(renderer1, Is.Not.Null,
@@ -177,8 +164,6 @@ namespace HN.HNRP.Tests
             {
                 UnityEngine.Object.DestroyImmediate(go1);
                 UnityEngine.Object.DestroyImmediate(go2);
-                UnityEngine.Object.DestroyImmediate(config1);
-                UnityEngine.Object.DestroyImmediate(config2);
                 UnityEngine.Object.DestroyImmediate(template1);
                 UnityEngine.Object.DestroyImmediate(template2);
             }
@@ -189,16 +174,15 @@ namespace HN.HNRP.Tests
         #region EachCamera_HasIndependentRenderer
 
         /// <summary>
-        /// Verifies that when two cameras share the same <see cref="CameraPipelineConfig"/>
+        /// Verifies that when two cameras share the same <see cref="RenderGraphAsset"/>
         /// template, each gets its own independent <see cref="CameraRenderer"/> instance.
         /// Modifying passes on one renderer does not affect the other.
         /// </summary>
         [Test]
         public void EachCamera_HasIndependentRenderer()
         {
-            // ── Arrange: two cameras sharing the same config ──
+            // ── Arrange: two cameras sharing the same render graph ──
             var template = CreateTemplate("SharedPass");
-            var config = CreateConfig(template);
 
             var go1 = new GameObject("CameraA");
             var go2 = new GameObject("CameraB");
@@ -206,8 +190,8 @@ namespace HN.HNRP.Tests
             var camera2 = go2.AddComponent<Camera>();
             var data1 = go1.AddComponent<HNAdditionalCameraData>();
             var data2 = go2.AddComponent<HNAdditionalCameraData>();
-            data1.PipelineConfigOverride = config;
-            data2.PipelineConfigOverride = config;
+            data1.PipelineConfigOverride = template;
+            data2.PipelineConfigOverride = template;
 
             try
             {
@@ -217,8 +201,8 @@ namespace HN.HNRP.Tests
                 var renderer1 = new CameraRenderer(ctx1);
                 var renderer2 = new CameraRenderer(ctx2);
 
-                renderer1.Build(config.RenderGraph);
-                renderer2.Build(config.RenderGraph);
+                renderer1.Build(template);
+                renderer2.Build(template);
 
                 // ── Act: modify renderer1's passes ──
                 renderer1.AddPass<TestPass>("ExtraPassOnCameraA");
@@ -245,31 +229,30 @@ namespace HN.HNRP.Tests
             {
                 UnityEngine.Object.DestroyImmediate(go1);
                 UnityEngine.Object.DestroyImmediate(go2);
-                UnityEngine.Object.DestroyImmediate(config);
                 UnityEngine.Object.DestroyImmediate(template);
             }
         }
 
         #endregion
 
-        #region ConfigSelection_ByCameraType
+        #region RenderGraphSelection_ByCameraType
 
         /// <summary>
         /// Verifies that <see cref="HNRenderPipeline.SelectPipelineConfig"/> selects
-        /// the correct default <see cref="CameraPipelineConfig"/> based on the camera's
+        /// the correct default <see cref="RenderGraphAsset"/> based on the camera's
         /// <see cref="CameraType"/> when no per-camera override is set.
         /// </summary>
         [Test]
-        public void ConfigSelection_ByCameraType_GameCamera_UsesDefaultGameConfig()
+        public void RenderGraphSelection_ByCameraType_GameCamera_UsesDefaultGameRenderGraph()
         {
-            var defaultGameConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var defaultSceneConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultGameRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var defaultSceneRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            asset.DefaultGameCameraConfig = defaultGameConfig;
-            asset.DefaultSceneViewCameraConfig = defaultSceneConfig;
-            asset.DefaultPreviewCameraConfig = null;
-            asset.DefaultReflectionCameraConfig = null;
+            asset.DefaultGameRenderGraph = defaultGameRenderGraph;
+            asset.DefaultSceneViewRenderGraph = defaultSceneRenderGraph;
+            asset.DefaultPreviewRenderGraph = null;
+            asset.DefaultReflectionRenderGraph = null;
 
             var pipeline = new HNRenderPipeline(asset);
 
@@ -284,35 +267,35 @@ namespace HN.HNRP.Tests
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Not.Null,
-                    "A config should be selected for a Game camera with a default set.");
-                Assert.That(selected, Is.SameAs(defaultGameConfig),
-                    "Should select defaultGameCameraConfig for CameraType.Game.");
-                Assert.That(selected, Is.Not.SameAs(defaultSceneConfig),
-                    "Should NOT select the SceneView config for a Game camera.");
+                    "A render graph should be selected for a Game camera with a default set.");
+                Assert.That(selected, Is.SameAs(defaultGameRenderGraph),
+                    "Should select defaultGameRenderGraph for CameraType.Game.");
+                Assert.That(selected, Is.Not.SameAs(defaultSceneRenderGraph),
+                    "Should NOT select the SceneView render graph for a Game camera.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(defaultGameConfig);
-                UnityEngine.Object.DestroyImmediate(defaultSceneConfig);
+                UnityEngine.Object.DestroyImmediate(defaultGameRenderGraph);
+                UnityEngine.Object.DestroyImmediate(defaultSceneRenderGraph);
             }
         }
 
         /// <summary>
-        /// Verifies that a SceneView camera selects <c>DefaultSceneViewCameraConfig</c>.
+        /// Verifies that a SceneView camera selects <c>DefaultSceneViewRenderGraph</c>.
         /// </summary>
         [Test]
-        public void ConfigSelection_ByCameraType_SceneViewCamera_UsesDefaultSceneViewConfig()
+        public void RenderGraphSelection_ByCameraType_SceneViewCamera_UsesDefaultSceneViewRenderGraph()
         {
-            var defaultSceneConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var defaultPreviewConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultSceneRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var defaultPreviewRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            asset.DefaultGameCameraConfig = null;
-            asset.DefaultSceneViewCameraConfig = defaultSceneConfig;
-            asset.DefaultPreviewCameraConfig = defaultPreviewConfig;
-            asset.DefaultReflectionCameraConfig = null;
+            asset.DefaultGameRenderGraph = null;
+            asset.DefaultSceneViewRenderGraph = defaultSceneRenderGraph;
+            asset.DefaultPreviewRenderGraph = defaultPreviewRenderGraph;
+            asset.DefaultReflectionRenderGraph = null;
 
             var pipeline = new HNRenderPipeline(asset);
 
@@ -326,28 +309,28 @@ namespace HN.HNRP.Tests
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Not.Null);
-                Assert.That(selected, Is.SameAs(defaultSceneConfig),
-                    "Should select defaultSceneViewCameraConfig for CameraType.SceneView.");
+                Assert.That(selected, Is.SameAs(defaultSceneRenderGraph),
+                    "Should select defaultSceneViewRenderGraph for CameraType.SceneView.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(defaultSceneConfig);
-                UnityEngine.Object.DestroyImmediate(defaultPreviewConfig);
+                UnityEngine.Object.DestroyImmediate(defaultSceneRenderGraph);
+                UnityEngine.Object.DestroyImmediate(defaultPreviewRenderGraph);
             }
         }
 
         /// <summary>
-        /// Verifies that a Preview camera selects <c>DefaultPreviewCameraConfig</c>.
+        /// Verifies that a Preview camera selects <c>DefaultPreviewRenderGraph</c>.
         /// </summary>
         [Test]
-        public void ConfigSelection_ByCameraType_PreviewCamera_UsesDefaultPreviewConfig()
+        public void RenderGraphSelection_ByCameraType_PreviewCamera_UsesDefaultPreviewRenderGraph()
         {
-            var defaultPreviewConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultPreviewRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            asset.DefaultPreviewCameraConfig = defaultPreviewConfig;
+            asset.DefaultPreviewRenderGraph = defaultPreviewRenderGraph;
 
             var pipeline = new HNRenderPipeline(asset);
 
@@ -361,27 +344,27 @@ namespace HN.HNRP.Tests
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Not.Null);
-                Assert.That(selected, Is.SameAs(defaultPreviewConfig),
-                    "Should select defaultPreviewCameraConfig for CameraType.Preview.");
+                Assert.That(selected, Is.SameAs(defaultPreviewRenderGraph),
+                    "Should select defaultPreviewRenderGraph for CameraType.Preview.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(defaultPreviewConfig);
+                UnityEngine.Object.DestroyImmediate(defaultPreviewRenderGraph);
             }
         }
 
         /// <summary>
-        /// Verifies that a Reflection camera selects <c>DefaultReflectionCameraConfig</c>.
+        /// Verifies that a Reflection camera selects <c>DefaultReflectionRenderGraph</c>.
         /// </summary>
         [Test]
-        public void ConfigSelection_ByCameraType_ReflectionCamera_UsesDefaultReflectionConfig()
+        public void RenderGraphSelection_ByCameraType_ReflectionCamera_UsesDefaultReflectionRenderGraph()
         {
-            var defaultReflectionConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultReflectionRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            asset.DefaultReflectionCameraConfig = defaultReflectionConfig;
+            asset.DefaultReflectionRenderGraph = defaultReflectionRenderGraph;
 
             var pipeline = new HNRenderPipeline(asset);
 
@@ -395,23 +378,23 @@ namespace HN.HNRP.Tests
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Not.Null);
-                Assert.That(selected, Is.SameAs(defaultReflectionConfig),
-                    "Should select defaultReflectionCameraConfig for CameraType.Reflection.");
+                Assert.That(selected, Is.SameAs(defaultReflectionRenderGraph),
+                    "Should select defaultReflectionRenderGraph for CameraType.Reflection.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(defaultReflectionConfig);
+                UnityEngine.Object.DestroyImmediate(defaultReflectionRenderGraph);
             }
         }
 
         /// <summary>
-        /// Verifies that a camera without any matching config returns <c>null</c>
+        /// Verifies that a camera without any matching render graph returns <c>null</c>
         /// and would be skipped during rendering.
         /// </summary>
         [Test]
-        public void ConfigSelection_NoMatchingConfig_ReturnsNull()
+        public void RenderGraphSelection_NoMatchingRenderGraph_ReturnsNull()
         {
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
             // All defaults are null.
@@ -427,7 +410,7 @@ namespace HN.HNRP.Tests
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Null,
-                    "Should return null when no default config is assigned.");
+                    "Should return null when no default render graph is assigned.");
             }
             finally
             {
@@ -438,16 +421,16 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// Verifies that <c>pipelineConfigOverride</c> takes priority over the
-        /// default config.
+        /// default render graph.
         /// </summary>
         [Test]
-        public void ConfigSelection_OverrideHasPriority_OverDefault()
+        public void RenderGraphSelection_OverrideHasPriority_OverDefault()
         {
-            var defaultConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
-            var overrideConfig = ScriptableObject.CreateInstance<CameraPipelineConfig>();
+            var defaultRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            var overrideRenderGraph = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
             var asset = ScriptableObject.CreateInstance<HNRenderPipelineAsset>();
-            asset.DefaultGameCameraConfig = defaultConfig;
+            asset.DefaultGameRenderGraph = defaultRenderGraph;
 
             var pipeline = new HNRenderPipeline(asset);
 
@@ -455,24 +438,24 @@ namespace HN.HNRP.Tests
             var camera = go.AddComponent<Camera>();
             camera.cameraType = CameraType.Game;
             var data = go.AddComponent<HNAdditionalCameraData>();
-            data.PipelineConfigOverride = overrideConfig;
+            data.PipelineConfigOverride = overrideRenderGraph;
 
             try
             {
                 var selected = pipeline.SelectPipelineConfig(camera, data);
 
                 Assert.That(selected, Is.Not.Null);
-                Assert.That(selected, Is.SameAs(overrideConfig),
+                Assert.That(selected, Is.SameAs(overrideRenderGraph),
                     "Override should be selected even when a default exists.");
-                Assert.That(selected, Is.Not.SameAs(defaultConfig),
+                Assert.That(selected, Is.Not.SameAs(defaultRenderGraph),
                     "Default should be ignored when override is set.");
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(defaultConfig);
-                UnityEngine.Object.DestroyImmediate(overrideConfig);
+                UnityEngine.Object.DestroyImmediate(defaultRenderGraph);
+                UnityEngine.Object.DestroyImmediate(overrideRenderGraph);
             }
         }
 

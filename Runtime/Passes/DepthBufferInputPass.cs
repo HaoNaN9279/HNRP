@@ -59,6 +59,7 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             depthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Output);
+            RegisterSlot(depthTargetSlot);
         }
 
         /// <inheritdoc />
@@ -75,7 +76,7 @@ namespace HN.HNRP
                 return;
             }
 
-            var depthDesc = new TextureDesc(TextureScale, true, false)
+            var depthDesc = new TextureDesc(TextureScale, false, false)
             {
                 depthBufferBits = DepthBits,
                 clearBuffer = ClearBuffer,
@@ -83,7 +84,7 @@ namespace HN.HNRP
             };
 
             var depthTarget = renderGraph.CreateTexture(depthDesc);
-            depthTargetSlot.CreateHandle();
+            depthTargetSlot.SetHandle(depthTarget);
 
             using var builder = renderGraph.AddRenderPass<DepthBufferInputData>(PassName, out var passData);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);

@@ -80,6 +80,7 @@ namespace HN.HNRP
         public override void SetupSlots()
         {
             LightDatasBufferSlot = new ComputeBufferSlot("lightDatasBuffer", SlotDirection.Output);
+            RegisterSlot(LightDatasBufferSlot);
         }
 
         /// <inheritdoc />
@@ -112,16 +113,17 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                passData.lightDatasBuffer = builder.WriteComputeBuffer(
-                    renderGraph.CreateComputeBuffer(
-                        new ComputeBufferDesc(
-                            m_MaxLightCount,
-                            UnsafeUtility.SizeOf<LightData>())
-                        { name = "Light Datas Buffer" }));
+                ComputeBufferHandle lightDatasBuffer = renderGraph.CreateComputeBuffer(
+                    new ComputeBufferDesc(
+                        m_MaxLightCount,
+                        UnsafeUtility.SizeOf<LightData>())
+                    { name = "Light Datas Buffer" });
 
-                // Mark the output slot as having a handle so downstream
-                // passes can discover and connect to it.
-                LightDatasBufferSlot.CreateHandle();
+                passData.lightDatasBuffer = builder.WriteComputeBuffer(lightDatasBuffer);
+
+                // Publish the real render graph handle so downstream
+                // passes can read it via ReadHandle().
+                LightDatasBufferSlot.SetHandle(lightDatasBuffer);
 
                 m_LightDatas = new NativeArray<LightData>(m_LightCount, Allocator.TempJob);
 
