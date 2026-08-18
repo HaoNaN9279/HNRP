@@ -1,6 +1,0 @@
-{
-  "$schema": "https://oh-my-openagent.com/config.json",
-  "agent_definitions": [
-    "agents/"
-  ]
-}
