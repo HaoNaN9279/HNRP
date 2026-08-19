@@ -44,22 +44,4 @@ namespace HN.HNRP
         /// </summary>
         Transparent,
     }
-
-    /// <summary>
-    /// The direction of a <see cref="ResourceConnection"/> edge.
-    /// </summary>
-    public enum ResourceConnectionDirection
-    {
-        /// <summary>
-        /// The resource node flows into a pass input slot
-        /// (<see cref="ResourceNode.ConsumerSlots"/>).
-        /// </summary>
-        ResourceToPass,
-
-        /// <summary>
-        /// A pass output slot produces this resource
-        /// (<see cref="ResourceNode.ProducerSlot"/>).
-        /// </summary>
-        PassToResource,
-    }
 }

@@ -18,55 +18,23 @@ namespace HN.HNRP.Tests
     /// <see cref="RendererListResourceNode"/>, and the
     /// <see cref="PassSlot.ConnectResource"/> / <see cref="PassSlot{T}.ReadHandle"/>
     /// resource branch. Pure unit tests — no <see cref="RenderGraph"/> is executed.
+    /// External-texture import is covered through
+    /// <see cref="HNRenderPipelineRuntimeResources.GetExternalTexture"/> and the
+    /// missing-texture fallback of <see cref="TextureResourceNode.Resolve"/>.
     /// </summary>
     public sealed class ResourceNodeTests
     {
-        #region Test Pass Subclasses
+        #region Test Helpers
 
         /// <summary>
-        /// A minimal producer pass that registers one texture output slot and one
-        /// compute buffer output slot. Used to verify that a resource node with a
-        /// producer reads its handle from the producer slot.
+        /// Creates a test <see cref="Camera"/> attached to a new
+        /// <see cref="GameObject"/>. The caller is responsible for destroying the
+        /// GameObject.
         /// </summary>
-        private sealed class FakeProducerPass : Pass
+        private static Camera CreateTestCamera()
         {
-            /// <summary>
-            /// The registered texture output slot.
-            /// </summary>
-            public TextureSlot TextureOutput { get; private set; }
-
-            /// <summary>
-            /// The registered compute buffer output slot.
-            /// </summary>
-            public ComputeBufferSlot BufferOutput { get; private set; }
-
-            /// <summary>
-            /// Initializes a new instance with the given name.
-            /// </summary>
-            /// <param name="name">The pass instance name.</param>
-            public FakeProducerPass(string name)
-                : base(name)
-            {
-            }
-
-            /// <inheritdoc />
-            public override void SetupSlots()
-            {
-                TextureOutput = new TextureSlot("TexOut", SlotDirection.Output);
-                RegisterSlot(TextureOutput);
-                BufferOutput = new ComputeBufferSlot("BufOut", SlotDirection.Output);
-                RegisterSlot(BufferOutput);
-            }
-
-            /// <inheritdoc />
-            public override void Initialize(CameraContext context)
-            {
-            }
-
-            /// <inheritdoc />
-            public override void Record(RenderGraph renderGraph)
-            {
-            }
+            var go = new GameObject("ResourceNodeTestsCamera");
+            return go.AddComponent<Camera>();
         }
 
         #endregion
@@ -107,7 +75,9 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="ResourceConnection"/> is a plain serializable data holder;
-        /// all four fields can be assigned and read back.
+        /// its three name fields can be assigned and read back. There is no
+        /// direction field — a connection always means the named resource feeds
+        /// the named pass input slot.
         /// </summary>
         [Test]
         public void ResourceConnection_AssignableFields()
@@ -117,16 +87,11 @@ namespace HN.HNRP.Tests
                 ResourceName = "ColorBuffer",
                 PassName = "forwardOpaque",
                 SlotName = "ColorTarget",
-                Direction = ResourceConnectionDirection.ResourceToPass,
             };
 
             Assert.That(conn.ResourceName, Is.EqualTo("ColorBuffer"));
             Assert.That(conn.PassName, Is.EqualTo("forwardOpaque"));
             Assert.That(conn.SlotName, Is.EqualTo("ColorTarget"));
-            Assert.That(conn.Direction, Is.EqualTo(ResourceConnectionDirection.ResourceToPass));
-
-            conn.Direction = ResourceConnectionDirection.PassToResource;
-            Assert.That(conn.Direction, Is.EqualTo(ResourceConnectionDirection.PassToResource));
         }
 
         #endregion
@@ -134,55 +99,17 @@ namespace HN.HNRP.Tests
         #region TextureResourceNode
 
         /// <summary>
-        /// Without a producer and before <see cref="TextureResourceNode.Resolve"/>,
-        /// <see cref="TextureResourceNode.GetHandle"/> returns the default
-        /// (invalid) <see cref="TextureHandle"/>.
+        /// Before <see cref="TextureResourceNode.Resolve"/>, GetHandle returns
+        /// the default (invalid) <see cref="TextureHandle"/> — the handle is only
+        /// assigned during Resolve (allocation or external import).
         /// </summary>
         [Test]
-        public void TextureResourceNode_GetHandle_WithoutProducer_ReturnsDefault()
+        public void TextureResourceNode_GetHandle_Unresolved_ReturnsDefault()
         {
             var node = new TextureResourceNode();
 
-            Assert.That(node.HasProducer, Is.False);
             Assert.That(node.GetHandle(), Is.EqualTo(default(TextureHandle)),
-                "An unresolved, producer-less texture node should expose a default handle.");
-        }
-
-        /// <summary>
-        /// <see cref="TextureResourceNode.HasProducer"/> reflects whether a
-        /// producer slot has been assigned.
-        /// </summary>
-        [Test]
-        public void TextureResourceNode_HasProducer_TracksProducerSlot()
-        {
-            var producer = new FakeProducerPass("Producer");
-            producer.SetupSlots();
-
-            var node = new TextureResourceNode();
-            Assert.That(node.HasProducer, Is.False);
-
-            node.ProducerSlot = producer.TextureOutput;
-            Assert.That(node.HasProducer, Is.True);
-        }
-
-        /// <summary>
-        /// A <see cref="TextureResourceNode"/> with a producer reads its handle
-        /// directly from the producer's output slot.
-        /// </summary>
-        [Test]
-        public void TextureResourceNode_GetHandle_WithProducer_ReadsProducerSlot()
-        {
-            var producer = new FakeProducerPass("Producer");
-            producer.SetupSlots();
-
-            var value = default(TextureHandle);
-            producer.TextureOutput.SetHandle(value);
-
-            var node = new TextureResourceNode { ProducerSlot = producer.TextureOutput };
-
-            Assert.That(node.HasProducer, Is.True);
-            Assert.That(node.GetHandle(), Is.EqualTo(value),
-                "A produced texture node should read the handle set on its producer slot.");
+                "An unresolved texture node should expose a default handle.");
         }
 
         #endregion
@@ -190,36 +117,17 @@ namespace HN.HNRP.Tests
         #region ComputeBufferResourceNode
 
         /// <summary>
-        /// Without a producer, <see cref="ComputeBufferResourceNode.GetHandle"/>
-        /// returns the default (invalid) <see cref="ComputeBufferHandle"/>.
+        /// Before <see cref="ComputeBufferResourceNode.Resolve"/>, GetHandle
+        /// returns the default (invalid) <see cref="ComputeBufferHandle"/> — the
+        /// handle is only assigned during Resolve.
         /// </summary>
         [Test]
-        public void ComputeBufferResourceNode_GetHandle_WithoutProducer_ReturnsDefault()
+        public void ComputeBufferResourceNode_GetHandle_Unresolved_ReturnsDefault()
         {
             var node = new ComputeBufferResourceNode();
 
-            Assert.That(node.HasProducer, Is.False);
-            Assert.That(node.GetHandle(), Is.EqualTo(default(ComputeBufferHandle)));
-        }
-
-        /// <summary>
-        /// A <see cref="ComputeBufferResourceNode"/> with a producer reads its
-        /// handle directly from the producer's output slot.
-        /// </summary>
-        [Test]
-        public void ComputeBufferResourceNode_GetHandle_WithProducer_ReadsProducerSlot()
-        {
-            var producer = new FakeProducerPass("Producer");
-            producer.SetupSlots();
-
-            var value = default(ComputeBufferHandle);
-            producer.BufferOutput.SetHandle(value);
-
-            var node = new ComputeBufferResourceNode { ProducerSlot = producer.BufferOutput };
-
-            Assert.That(node.HasProducer, Is.True);
-            Assert.That(node.GetHandle(), Is.EqualTo(value),
-                "A produced compute buffer node should read the handle set on its producer slot.");
+            Assert.That(node.GetHandle(), Is.EqualTo(default(ComputeBufferHandle)),
+                "An unresolved compute buffer node should expose a default handle.");
         }
 
         #endregion
@@ -237,6 +145,96 @@ namespace HN.HNRP.Tests
             var node = new RendererListResourceNode();
 
             Assert.That(node.GetHandle(), Is.EqualTo(default(RendererListHandle)));
+        }
+
+        #endregion
+
+        #region External Texture Import
+
+        /// <summary>
+        /// <see cref="HNRenderPipelineRuntimeResources.GetExternalTexture"/>
+        /// resolves the well-known <c>"emptyTexture"</c> name to the pipeline's
+        /// empty texture (see <see cref="HNRenderPipelineRuntimeResources.emptyTexture"/>).
+        /// </summary>
+        [Test]
+        public void RuntimeResources_GetExternalTexture_KnownName_ReturnsTexture()
+        {
+            var resources = ScriptableObject.CreateInstance<HNRenderPipelineRuntimeResources>();
+            try
+            {
+                Texture tex = resources.GetExternalTexture("emptyTexture");
+
+                Assert.That(tex, Is.Not.Null,
+                    "GetExternalTexture(\"emptyTexture\") should return the pipeline empty texture.");
+                Assert.That(tex, Is.SameAs(Texture2D.blackTexture),
+                    "emptyTexture should be Texture2D.blackTexture.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(resources);
+            }
+        }
+
+        /// <summary>
+        /// <see cref="HNRenderPipelineRuntimeResources.GetExternalTexture"/>
+        /// returns <c>null</c> for unknown texture names.
+        /// </summary>
+        [Test]
+        public void RuntimeResources_GetExternalTexture_UnknownName_ReturnsNull()
+        {
+            var resources = ScriptableObject.CreateInstance<HNRenderPipelineRuntimeResources>();
+            try
+            {
+                Assert.That(resources.GetExternalTexture("doesNotExist"), Is.Null,
+                    "An unknown external texture name should resolve to null.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(resources);
+            }
+        }
+
+        /// <summary>
+        /// A <see cref="TextureResourceNode"/> whose external texture is missing
+        /// keeps its default handle: Resolve logs a warning and returns without
+        /// touching the render graph (the handle stays invalid, matching the
+        /// documented fallback).
+        /// </summary>
+        [Test]
+        public void TextureResourceNode_Resolve_ExternalTextureMissing_KeepsDefaultHandle()
+        {
+            var node = new TextureResourceNode
+            {
+                ResourceName = "UnknownExternalTex",
+                Definition = new ResourceDefinition
+                {
+                    ResourceName = "UnknownExternalTex",
+                    ResourceKind = ResourceKind.Texture,
+                    ExternalTextureName = "doesNotExist",
+                },
+            };
+
+            var resources = ScriptableObject.CreateInstance<HNRenderPipelineRuntimeResources>();
+            var camera = CreateTestCamera();
+            try
+            {
+                var ctx = new CameraContext(camera, new ScriptableRenderContext())
+                {
+                    RuntimeResources = resources,
+                };
+
+                Assert.DoesNotThrow(() => node.Resolve(renderGraph: null, ctx),
+                    "Resolve with a missing external texture should not throw.");
+                Assert.That(node.GetHandle(), Is.EqualTo(default(TextureHandle)),
+                    "A node whose external texture is missing should keep the default handle.");
+
+                ctx.Dispose();
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(camera.gameObject);
+                UnityEngine.Object.DestroyImmediate(resources);
+            }
         }
 
         #endregion
@@ -307,12 +305,14 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="PassSlot{T}.ReadHandle"/> reads through the connected
-        /// resource node branch: with a producer-less node it returns the node's
-        /// current handle instead of throwing (a pass-to-pass connection was
-        /// never made).
+        /// resource node branch: an input connected to a resource node returns
+        /// the node's current handle instead of throwing (a pass-to-pass
+        /// connection was never made). The resource node owns its handle — it is
+        /// assigned by <see cref="TextureResourceNode.Resolve"/>, not by a
+        /// producer slot.
         /// </summary>
         [Test]
-        public void ReadHandle_ConnectedResource_WithoutProducer_ReturnsNodeHandle()
+        public void ReadHandle_ConnectedResource_ReturnsNodeHandle()
         {
             var input = new TextureSlot("TexIn", SlotDirection.Input);
             var node = new TextureResourceNode();
@@ -320,29 +320,7 @@ namespace HN.HNRP.Tests
 
             Assert.DoesNotThrow(() => input.ReadHandle());
             Assert.That(input.ReadHandle(), Is.EqualTo(default(TextureHandle)),
-                "An input connected to a producer-less node should read the node's handle.");
-        }
-
-        /// <summary>
-        /// <see cref="PassSlot{T}.ReadHandle"/> with a connected resource node
-        /// that has a producer returns the producer slot's handle (bypassing the
-        /// pass-to-pass <c>connectedOutput</c> chain).
-        /// </summary>
-        [Test]
-        public void ReadHandle_ConnectedResource_WithProducer_ReturnsProducerHandle()
-        {
-            var producer = new FakeProducerPass("Producer");
-            producer.SetupSlots();
-
-            var value = default(TextureHandle);
-            producer.TextureOutput.SetHandle(value);
-
-            var node = new TextureResourceNode { ProducerSlot = producer.TextureOutput };
-            var input = new TextureSlot("TexIn", SlotDirection.Input);
-            input.ConnectResource(node);
-
-            Assert.That(input.ReadHandle(), Is.EqualTo(value),
-                "The input should read the produced handle through the resource node.");
+                "An input connected to a resource node should read the node's handle.");
         }
 
         #endregion

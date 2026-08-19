@@ -116,49 +116,9 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Minimal pass with a registered texture output slot.
-        /// Registered as <c>"TestTextureProducer"</c>. Used to verify resource-node
-        /// based topology (producer before consumer).
-        /// </summary>
-        [Pass("TestTextureProducer")]
-        private sealed class TestTextureProducerPass : Pass
-        {
-            /// <summary>
-            /// Gets the registered texture output slot.
-            /// </summary>
-            public TextureSlot Output { get; private set; }
-
-            /// <summary>
-            /// Initializes a new instance with the given name.
-            /// </summary>
-            /// <param name="name">The pass instance name.</param>
-            public TestTextureProducerPass(string name)
-                : base(name)
-            {
-            }
-
-            /// <inheritdoc />
-            public override void SetupSlots()
-            {
-                Output = new TextureSlot("Out", SlotDirection.Output);
-                RegisterSlot(Output);
-            }
-
-            /// <inheritdoc />
-            public override void Initialize(CameraContext context)
-            {
-            }
-
-            /// <inheritdoc />
-            public override void Record(RenderGraph renderGraph)
-            {
-            }
-        }
-
-        /// <summary>
         /// Minimal pass with a registered texture input slot.
         /// Registered as <c>"TestTextureConsumer"</c>. Used to verify resource-node
-        /// based topology (producer before consumer).
+        /// based topology (consumers of the same resource are chained in order).
         /// </summary>
         [Pass("TestTextureConsumer")]
         private sealed class TestTextureConsumerPass : Pass
@@ -464,7 +424,6 @@ namespace HN.HNRP.Tests
                 ResourceName = "GhostResource",
                 PassName = "OnlyPass",
                 SlotName = "In",
-                Direction = ResourceConnectionDirection.ResourceToPass,
             });
 
             Assert.DoesNotThrow(() => asset.Build(renderer: null),
@@ -478,20 +437,22 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Topological Order via Resource Nodes
+        #region Build — Resource Connections & Topological Order
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> orders passes so producers run
-        /// before consumers. A resource node produced by pass <c>A</c> and
-        /// consumed by pass <c>B</c> forces <c>A</c> before <c>B</c>, and the
-        /// consumer's input slot becomes connected through the node.
+        /// <see cref="RenderGraphAsset.Build"/> connects every valid
+        /// <see cref="ResourceConnection"/> as a resource → pass input slot
+        /// edge (the producer direction was removed). The consumer's input slot
+        /// becomes connected, its <see cref="PassSlot.ConnectedResource"/> points
+        /// at the materialized node, and the node tracks both consumers. Passes
+        /// sharing a resource are chained in definition order.
         /// </summary>
         [Test]
-        public void Build_TopologicalOrder_ProducerBeforeConsumer()
+        public void Build_ResourceConnection_ConnectsConsumerSlotsToNode()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestTextureProducer", "Producer"));
-            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "Consumer"));
+            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "FirstConsumer"));
+            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "SecondConsumer"));
 
             asset.Resources.Add(new ResourceDefinition
             {
@@ -502,37 +463,50 @@ namespace HN.HNRP.Tests
             asset.ResourceConnections.Add(new ResourceConnection
             {
                 ResourceName = "SharedTex",
-                PassName = "Producer",
-                SlotName = "Out",
-                Direction = ResourceConnectionDirection.PassToResource,
+                PassName = "FirstConsumer",
+                SlotName = "In",
             });
             asset.ResourceConnections.Add(new ResourceConnection
             {
                 ResourceName = "SharedTex",
-                PassName = "Consumer",
+                PassName = "SecondConsumer",
                 SlotName = "In",
-                Direction = ResourceConnectionDirection.ResourceToPass,
             });
 
             List<Pass> result = asset.Build(renderer: null);
 
             Assert.That(result.Count, Is.EqualTo(2),
-                "Both passes should be built and enabled.");
+                "Both consumers should be built and enabled.");
 
-            int producerIndex = result.FindIndex(p => p.PassName == "Producer");
-            int consumerIndex = result.FindIndex(p => p.PassName == "Consumer");
+            int firstIndex = result.FindIndex(p => p.PassName == "FirstConsumer");
+            int secondIndex = result.FindIndex(p => p.PassName == "SecondConsumer");
 
-            Assert.That(producerIndex, Is.GreaterThanOrEqualTo(0),
-                "Producer pass should be present.");
-            Assert.That(consumerIndex, Is.GreaterThanOrEqualTo(0),
-                "Consumer pass should be present.");
-            Assert.That(producerIndex, Is.LessThan(consumerIndex),
-                "Producer pass must be ordered before the consumer pass.");
+            Assert.That(firstIndex, Is.GreaterThanOrEqualTo(0),
+                "FirstConsumer pass should be present.");
+            Assert.That(secondIndex, Is.GreaterThanOrEqualTo(0),
+                "SecondConsumer pass should be present.");
+            Assert.That(firstIndex, Is.LessThan(secondIndex),
+                "Passes sharing a resource must be chained in definition order.");
 
-            var consumer = result[consumerIndex] as TestTextureConsumerPass;
-            Assert.That(consumer, Is.Not.Null);
-            Assert.That(consumer!.Input.IsConnected, Is.True,
-                "The consumer's input slot should be connected through the resource node.");
+            var first = result[firstIndex] as TestTextureConsumerPass;
+            var second = result[secondIndex] as TestTextureConsumerPass;
+            Assert.That(first, Is.Not.Null);
+            Assert.That(second, Is.Not.Null);
+
+            Assert.That(first!.Input.IsConnected, Is.True,
+                "The first consumer's input slot should be connected through the resource node.");
+            Assert.That(second!.Input.IsConnected, Is.True,
+                "The second consumer's input slot should be connected through the resource node.");
+
+            Assert.That(first.Input.ConnectedResource, Is.Not.Null,
+                "The consumer's input slot should reference the connected resource node.");
+            Assert.That(first.Input.ConnectedResource, Is.SameAs(second.Input.ConnectedResource),
+                "Both consumer slots should share the same materialized resource node.");
+            Assert.That(first.Input.ConnectedResource!.ResourceName, Is.EqualTo("SharedTex"),
+                "The connected node should be the SharedTex resource node.");
+
+            Assert.That(first.Input.ConnectedResource!.ConsumerSlots.Count, Is.EqualTo(2),
+                "The resource node should track both connected consumer slots.");
 
             Object.DestroyImmediate(asset);
         }

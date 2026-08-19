@@ -28,6 +28,13 @@ namespace HN.HNRP
         /// <summary>ComputeShader for cluster-based reflection probe culling.</summary>
         public ComputeShader clusterCullingReflectionProbeCS;
 
+        /// <summary>按名称获取外部导入纹理（供资源节点导入）。</summary>
+        public Texture GetExternalTexture(string name)
+        {
+            if (name == "emptyTexture") return emptyTexture;
+            return null;
+        }
+
 
         [Serializable, ReloadGroup]
         public class ShaderResources

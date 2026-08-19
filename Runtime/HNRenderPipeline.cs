@@ -86,6 +86,8 @@ namespace HN.HNRP
                 globalSettings = HNRenderPipelineGlobalSettings.Ensure();
                 if (globalSettings == null)
                     return;
+                
+                RenderGraphTemplates.EnsureAll();
             }
 #endif
 

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.RendererUtils;
 
 namespace HN.HNRP
@@ -13,22 +14,22 @@ namespace HN.HNRP
     /// <summary>
     /// Runtime counterpart of a <see cref="ResourceDefinition"/>.
     /// Represents a render graph resource (texture, compute buffer, or renderer list)
-    /// that passes reference by name.
+    /// referenced by name.
     /// </summary>
     /// <remarks>
-    /// <para><b>Producer / consumer model:</b></para>
+    /// <para><b>Resource model:</b></para>
     /// <list type="bullet">
-    ///   <item>A resource may have at most one <see cref="ProducerSlot"/> — an output
-    ///   slot of a producer pass (wired via
-    ///   <see cref="ResourceConnectionDirection.PassToResource"/>). When present, the
-    ///   resource handle is read from that slot at consumer record time
-    ///   (<see cref="GetHandle"/>), so the producer pass must be recorded first
-    ///   (guaranteed by topological sort at build time).</item>
-    ///   <item>Without a producer, the resource is allocated once per frame by
-    ///   <see cref="Resolve"/> (called at the start of
-    ///   <see cref="CameraRenderer.Render"/>).</item>
-    ///   <item><see cref="ConsumerSlots"/> are the input slots that read this
-    ///   resource. They are used to derive execution-order dependencies.</item>
+    ///   <item>A resource has only outputs. It is allocated at the start of the
+    ///   pass chain by <see cref="Resolve"/> and every pass that reads or writes
+    ///   it wires the resource into one of its input slots. Intermediate data
+    ///   produced by a pass flows through <see cref="SlotConnection"/>, not
+    ///   through resource nodes.</item>
+    ///   <item><see cref="ConsumerSlots"/> are the pass input slots that read or
+    ///   write this resource. They are used to derive execution-order
+    ///   dependencies.</item>
+    ///   <item>A texture resource may instead be imported from an external
+    ///   runtime texture (see <see cref="ResourceDefinition.ExternalTextureName"/>)
+    ///   rather than allocated per-frame.</item>
     /// </list>
     /// </remarks>
     public abstract class ResourceNode
@@ -50,13 +51,6 @@ namespace HN.HNRP
         public ResourceDefinition Definition;
 
         /// <summary>
-        /// The producer pass output slot (<see cref="SlotDirection.Output"/>),
-        /// or <c>null</c> when this resource has no producer (allocated by
-        /// <see cref="Resolve"/>).
-        /// </summary>
-        public PassSlot ProducerSlot;
-
-        /// <summary>
         /// The consumer pass input slots that read this resource.
         /// </summary>
         public List<PassSlot> ConsumerSlots = new();
@@ -75,9 +69,9 @@ namespace HN.HNRP
 
         /// <summary>
         /// Resolves the resource handle for the current frame.
-        /// Called once at the start of <see cref="CameraRenderer.Render"/> for
-        /// resources without a producer. The base implementation is a no-op;
-        /// concrete subclasses allocate their render graph resource here.
+        /// Called once at the start of <see cref="CameraRenderer.Render"/>.
+        /// The base implementation is a no-op; concrete subclasses allocate or
+        /// import their render graph resource here.
         /// </summary>
         /// <param name="renderGraph">The render graph to allocate the resource in.</param>
         /// <param name="ctx">The per-camera rendering context.</param>
@@ -94,23 +88,45 @@ namespace HN.HNRP
         private TextureHandle m_Handle;
 
         /// <summary>
-        /// Gets a value indicating whether this resource is produced by a pass
-        /// (<see cref="ResourceNode.ProducerSlot"/> != <c>null</c>).
+        /// Cached RTHandle wrapper around the imported external texture.
+        /// Allocated once and reused every frame (the external texture is a
+        /// pipeline-owned singleton, e.g. <c>emptyTexture</c>).
         /// </summary>
-        public bool HasProducer => ProducerSlot != null;
+        private RTHandle m_ImportedRTHandle;
 
         /// <inheritdoc />
         public override object GetHandle()
         {
-            return HasProducer
-                ? ((TextureSlot)ProducerSlot).ReadHandle()
-                : m_Handle;
+            return m_Handle;
         }
 
         /// <inheritdoc />
         public override void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
-            if (HasProducer || ctx.Camera == null)
+            // External texture import: the texture comes from the pipeline's
+            // runtime resources rather than being allocated per-frame.
+            if (!string.IsNullOrEmpty(Definition.ExternalTextureName))
+            {
+                Texture tex = ctx.RuntimeResources?.GetExternalTexture(Definition.ExternalTextureName);
+                if (tex != null)
+                {
+                    if (m_ImportedRTHandle == null)
+                    {
+                        m_ImportedRTHandle = RTHandles.Alloc(tex);
+                    }
+
+                    m_Handle = renderGraph.ImportTexture(m_ImportedRTHandle);
+                    return;
+                }
+
+                Debug.LogWarning(
+                    $"TextureResourceNode.Resolve: External texture " +
+                    $"'{Definition.ExternalTextureName}' for resource '{ResourceName}' was not " +
+                    $"found in the pipeline runtime resources. Leaving the default handle.");
+                return;
+            }
+
+            if (ctx.Camera == null)
             {
                 return;
             }
@@ -138,28 +154,15 @@ namespace HN.HNRP
     {
         private ComputeBufferHandle m_Handle;
 
-        /// <summary>
-        /// Gets a value indicating whether this resource is produced by a pass
-        /// (<see cref="ResourceNode.ProducerSlot"/> != <c>null</c>).
-        /// </summary>
-        public bool HasProducer => ProducerSlot != null;
-
         /// <inheritdoc />
         public override object GetHandle()
         {
-            return HasProducer
-                ? ((ComputeBufferSlot)ProducerSlot).ReadHandle()
-                : m_Handle;
+            return m_Handle;
         }
 
         /// <inheritdoc />
         public override void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
-            if (HasProducer)
-            {
-                return;
-            }
-
             m_Handle = renderGraph.CreateComputeBuffer(
                 new ComputeBufferDesc(Definition.BufferCount, Definition.BufferStride)
                 {

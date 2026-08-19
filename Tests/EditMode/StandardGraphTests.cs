@@ -14,15 +14,16 @@ namespace HN.HNRP.Tests
     /// <summary>
     /// Tests for <c>Runtime/Resources/RenderGraphs/StandardGraph.asset</c>.
     /// Verifies the asset loads correctly, <see cref="RenderGraphAsset.Build"/>
-    /// instantiates the expected pass set, resource nodes are materialized,
-    /// key resource slots are connected, and execution order respects the
-    /// topological (producer-before-consumer) order.
+    /// instantiates the expected pass set, materializes the four resource nodes
+    /// (color / depth buffers and both renderer lists), connects the key slots
+    /// (resource nodes plus slot-connection chains for lighting / probe data),
+    /// and orders passes topologically.
     /// </summary>
     public sealed class StandardGraphTests
     {
         /// <summary>
         /// The expected instance names of the passes in StandardGraph, in
-        /// topological (producer-before-consumer) order.
+        /// topological (dependency) order.
         /// </summary>
         private static readonly string[] ExpectedPassNames =
         {
@@ -106,8 +107,10 @@ namespace HN.HNRP.Tests
         /// <see cref="ResourceDefinition"/> entries into runtime
         /// <see cref="ResourceNode"/> instances exposed through
         /// <see cref="RenderGraphAsset.ResourceNodes"/>. StandardGraph declares
-        /// nine resources — the color / depth buffers, the lighting compute
-        /// buffers, and both opaque / transparent renderer lists.
+        /// four resources — the color / depth buffers and both opaque /
+        /// transparent renderer lists. Lighting / probe data (LightDatas,
+        /// LightMask, ProbeMask, ProbeDatas, ReflectionProbeAtlas) flows through
+        /// <see cref="SlotConnection"/> entries, not resource nodes.
         /// </summary>
         [Test]
         public void Build_MaterializesResourceNodes()
@@ -120,13 +123,12 @@ namespace HN.HNRP.Tests
 
             Assert.That(nodes, Is.Not.Null,
                 "ResourceNodes should be non-null after Build.");
-            Assert.That(nodes.Count, Is.EqualTo(9),
-                "Build should materialize the nine StandardGraph resource nodes.");
+            Assert.That(nodes.Count, Is.EqualTo(4),
+                "Build should materialize the four StandardGraph resource nodes.");
 
             string[] expectedNames =
             {
-                "ColorBuffer", "DepthBuffer", "LightDatas", "LightMask",
-                "ReflectionProbeAtlas", "ProbeMask", "ProbeDatas",
+                "ColorBuffer", "DepthBuffer",
                 "OpaqueRendererList", "TransparentRendererList",
             };
 
@@ -135,6 +137,9 @@ namespace HN.HNRP.Tests
                 Assert.That(nodes.Any(n => n.ResourceName == name), Is.True,
                     $"A '{name}' resource node should be present.");
             }
+
+            Assert.That(nodes.Any(n => n.ResourceName == "LightDatas"), Is.False,
+                "LightDatas should not be a resource node — it flows through a slot connection.");
         }
 
         #endregion
@@ -143,11 +148,13 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="RenderGraphAsset.Build"/>, the key input slots of
-        /// every rendering pass are connected under the new chained model:
-        /// resource nodes feed the first consumer only, and downstream passes
-        /// receive the same buffer through <see cref="SlotConnection"/>
-        /// pass-to-pass chains (e.g. <c>forwardOpaque.ColorTargetOutput</c> →
-        /// <c>sky.ColorTarget</c> → <c>transparency.ColorTarget</c>).
+        /// every rendering pass are connected. Under the simplified resource
+        /// model only color / depth / renderer-list slots connect through
+        /// resource nodes; lighting / probe data flows through
+        /// <see cref="SlotConnection"/> pass-to-pass chains (e.g.
+        /// <c>buildLight.lightDatasBuffer</c> → <c>forwardOpaque.LightDatas</c>),
+        /// and the color target chains forwardOpaque → sky → transparency →
+        /// wireOverlay / finalBlit.
         /// </summary>
         [Test]
         public void Build_ConnectsKeyPassSlots()
@@ -166,7 +173,8 @@ namespace HN.HNRP.Tests
                 return pass!;
             }
 
-            // ── forwardOpaque: all eight inputs connected (resource nodes) ──
+            // ── forwardOpaque: color/depth/renderer-list from resource nodes,
+            //    lighting/probe data from slot connections ──
 
             var forwardOpaque = (DrawObjectPass)FindPass("forwardOpaque");
             Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.True,
@@ -176,13 +184,13 @@ namespace HN.HNRP.Tests
             Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
-                "forwardOpaque.ReflectionProbeAtlas should be connected through a resource node.");
+                "forwardOpaque.ReflectionProbeAtlas should be connected through a slot connection from clusterProbe.");
             Assert.That(forwardOpaque.ProbeMaskSlot!.IsConnected, Is.True,
-                "forwardOpaque.ProbeMask should be connected through a resource node.");
+                "forwardOpaque.ProbeMask should be connected through a slot connection from clusterProbe.");
             Assert.That(forwardOpaque.ProbeDatasSlot!.IsConnected, Is.True,
-                "forwardOpaque.ProbeDatas should be connected through a resource node.");
+                "forwardOpaque.ProbeDatas should be connected through a slot connection from clusterProbe.");
             Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
-                "forwardOpaque.LightMask should be connected through a resource node.");
+                "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
             Assert.That(forwardOpaque.RendererListSlot!.IsConnected, Is.True,
                 "forwardOpaque.RendererList should be connected through a resource node.");
 
@@ -194,7 +202,8 @@ namespace HN.HNRP.Tests
             Assert.That(sky.DepthTargetSlot!.IsConnected, Is.True,
                 "sky.DepthTarget should be connected through forwardOpaque.DepthTargetOutput.");
 
-            // ── transparency: all eight inputs connected (chained where possible) ──
+            // ── transparency: color/depth chained from sky, renderer list from a
+            //    resource node, lighting/probe data from slot connections ──
 
             var transparency = (DrawObjectPass)FindPass("transparency");
             Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
@@ -233,13 +242,12 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="RenderGraphAsset.Build"/> returns passes in topological
-        /// order (producers before consumers). The chained model adds explicit
-        /// pass-to-pass edges along the color / depth target chain, so
-        /// <c>forwardOpaque</c> must run before <c>sky</c>, which runs before
-        /// <c>transparency</c>, which runs before <c>wireOverlay</c>, which
-        /// runs before <c>finalBlit</c>; <c>buildLight</c> produces the
-        /// LightDatas resource consumed by <c>clusterLight</c>, so it must run
-        /// first too.
+        /// order. The chained model adds explicit pass-to-pass edges along the
+        /// color / depth target chain, so <c>forwardOpaque</c> must run before
+        /// <c>sky</c>, which runs before <c>transparency</c>, which runs before
+        /// <c>wireOverlay</c>, which runs before <c>finalBlit</c>;
+        /// <c>buildLight</c> feeds LightDatas to <c>clusterLight</c> through a
+        /// slot connection, so it must run first too.
         /// </summary>
         [Test]
         public void Build_OrdersPassesTopologically()
@@ -268,16 +276,16 @@ namespace HN.HNRP.Tests
                 "finalBlit should be present.");
 
             Assert.That(IndexOf("buildLight"), Is.LessThan(IndexOf("clusterLight")),
-                "buildLight (LightDatas producer) must be ordered before clusterLight.");
+                "buildLight (feeds LightDatas via slot connection) must be ordered before clusterLight.");
 
             Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("sky")),
-                "forwardOpaque (color/depth producer) must be ordered before sky.");
+                "forwardOpaque (upstream color/depth pass) must be ordered before sky.");
             Assert.That(IndexOf("sky"), Is.LessThan(IndexOf("transparency")),
-                "sky (color/depth producer) must be ordered before transparency.");
+                "sky (upstream color/depth pass) must be ordered before transparency.");
             Assert.That(IndexOf("transparency"), Is.LessThan(IndexOf("wireOverlay")),
-                "transparency (color producer) must be ordered before wireOverlay.");
+                "transparency (upstream color pass) must be ordered before wireOverlay.");
             Assert.That(IndexOf("wireOverlay"), Is.LessThan(IndexOf("finalBlit")),
-                "wireOverlay (color producer) must be ordered before finalBlit.");
+                "wireOverlay (upstream color pass) must be ordered before finalBlit.");
 
             Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("transparency")),
                 "forwardOpaque must be ordered before transparency (stable definition order).");

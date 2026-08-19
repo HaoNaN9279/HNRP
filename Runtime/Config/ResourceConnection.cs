@@ -9,13 +9,14 @@ namespace HN.HNRP
 {
     /// <summary>
     /// Serializable asset-level connection between a <see cref="ResourceDefinition"/>
-    /// (by name) and a pass slot.
+    /// (by name) and a pass input slot.
     /// </summary>
     /// <remarks>
-    /// <list type="bullet">
-    ///   <item><see cref="ResourceConnectionDirection.ResourceToPass"/> — the resource node feeds the named pass input slot (adds the slot to <see cref="ResourceNode.ConsumerSlots"/>).</item>
-    ///   <item><see cref="ResourceConnectionDirection.PassToResource"/> — the named pass output slot produces the resource (sets <see cref="ResourceNode.ProducerSlot"/>).</item>
-    /// </list>
+    /// A resource only ever feeds pass input slots: the named pass input slot
+    /// reads or writes the resource handle during <see cref="Pass.Record"/> (the
+    /// slot is added to <see cref="ResourceNode.ConsumerSlots"/>). Resources have
+    /// no producer pass — intermediate data produced by a pass flows through
+    /// <see cref="SlotConnection"/> instead.
     /// </remarks>
     [Serializable]
     public class ResourceConnection
@@ -34,10 +35,5 @@ namespace HN.HNRP
         /// The slot name on the pass this connection attaches to.
         /// </summary>
         public string SlotName;
-
-        /// <summary>
-        /// The direction of the connection edge.
-        /// </summary>
-        public ResourceConnectionDirection Direction;
     }
 }

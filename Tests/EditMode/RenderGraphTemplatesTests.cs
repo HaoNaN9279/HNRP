@@ -18,7 +18,7 @@ namespace HN.HNRP.Tests
     /// <see cref="RenderGraphTemplate.Ensure"/> returns a persistent
     /// (AssetDatabase-backed) <see cref="RenderGraphAsset"/>, caches a single
     /// instance per template, and populates exactly the expected definitions
-    /// for the Standard and Preview graphs.
+    /// for the Standard, Reflection, and Preview graphs.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -67,6 +67,22 @@ namespace HN.HNRP.Tests
                 "Preview template Ensure() should return the same cached asset on repeated calls.");
         }
 
+        /// <summary>
+        /// <see cref="RenderGraphTemplates.Reflection"/>.Ensure() returns a
+        /// non-null asset, and repeated calls return the same cached instance.
+        /// </summary>
+        [Test]
+        public void ReflectionTemplate_Ensure_ReturnsNonNullAndUnique()
+        {
+            RenderGraphAsset first = RenderGraphTemplates.Reflection.Ensure();
+            RenderGraphAsset second = RenderGraphTemplates.Reflection.Ensure();
+
+            Assert.That(first, Is.Not.Null,
+                "Reflection template Ensure() should return a non-null render graph asset.");
+            Assert.That(second, Is.SameAs(first),
+                "Reflection template Ensure() should return the same cached asset on repeated calls.");
+        }
+
         #endregion
 
         #region Ensure — Definition Content
@@ -74,8 +90,10 @@ namespace HN.HNRP.Tests
         /// <summary>
         /// The Standard template declares the full 8-pass pipeline (buildLight /
         /// clusterProbe / clusterLight / forwardOpaque / sky / transparency /
-        /// wireOverlay / finalBlit), 9 resources, the chained slot connections,
-        /// and PerPixel HDR settings.
+        /// wireOverlay / finalBlit), 4 resource nodes (color / depth buffers and
+        /// the two renderer lists), the chained slot connections, and PerPixel
+        /// HDR settings. Intermediate lighting / probe data is transferred
+        /// through <see cref="SlotConnection"/> entries, not resource nodes.
         /// </summary>
         [Test]
         public void StandardTemplate_HasExpectedDefinition()
@@ -84,12 +102,12 @@ namespace HN.HNRP.Tests
 
             Assert.That(asset.Passes.Count, Is.EqualTo(8),
                 "Standard template should declare exactly 8 passes.");
-            Assert.That(asset.Connections.Count, Is.EqualTo(12),
-                "Standard template should declare exactly 12 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(9),
-                "Standard template should declare exactly 9 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(14),
-                "Standard template should declare exactly 14 resource connections.");
+            Assert.That(asset.Connections.Count, Is.EqualTo(18),
+                "Standard template should declare exactly 18 slot connections.");
+            Assert.That(asset.Resources.Count, Is.EqualTo(4),
+                "Standard template should declare exactly 4 resources.");
+            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(4),
+                "Standard template should declare exactly 4 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
@@ -102,11 +120,15 @@ namespace HN.HNRP.Tests
                     $"Standard template should declare a '{passName}' pass.");
             }
 
-            foreach (string resourceName in new[] { "ColorBuffer", "LightDatas", "OpaqueRendererList" })
+            foreach (string resourceName in new[]
+                { "ColorBuffer", "DepthBuffer", "OpaqueRendererList", "TransparentRendererList" })
             {
                 Assert.That(asset.Resources.Any(r => r.ResourceName == resourceName), Is.True,
                     $"Standard template should declare a '{resourceName}' resource.");
             }
+
+            Assert.That(asset.Resources.Any(r => r.ResourceName == "LightDatas"), Is.False,
+                "LightDatas should flow through SlotConnection, not a resource node.");
 
             Assert.That(
                 asset.Connections.Any(c =>
@@ -156,22 +178,82 @@ namespace HN.HNRP.Tests
             }
         }
 
+        /// <summary>
+        /// The Reflection template declares the 7-pass reflection pipeline, 7
+        /// resources, and 8 resource connections. It imports the pipeline's
+        /// <c>emptyTexture</c> as an <c>EmptyTexture</c> resource node whose
+        /// <see cref="ResourceDefinition.ExternalTextureName"/> is
+        /// <c>"emptyTexture"</c>, and wires it into both forwardOpaque and
+        /// transparency via their <c>ReflectionProbeAtlas</c> input slots.
+        /// </summary>
+        [Test]
+        public void ReflectionTemplate_HasExpectedDefinition()
+        {
+            RenderGraphAsset asset = RenderGraphTemplates.Reflection.Ensure();
+
+            Assert.That(asset.Passes.Count, Is.EqualTo(7),
+                "Reflection template should declare exactly 7 passes.");
+            Assert.That(asset.Connections.Count, Is.EqualTo(11),
+                "Reflection template should declare exactly 11 slot connections.");
+            Assert.That(asset.Resources.Count, Is.EqualTo(7),
+                "Reflection template should declare exactly 7 resources.");
+            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(8),
+                "Reflection template should declare exactly 8 resource connections.");
+
+            Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
+                "Reflection template should use PerPixel SH evaluation.");
+            Assert.That(asset.Settings.AllowHDR, Is.True,
+                "Reflection template should allow HDR render targets.");
+
+            foreach (string passName in new[] { "buildLight", "forwardOpaque", "transparency", "finalBlit" })
+            {
+                Assert.That(asset.Passes.Any(p => p.InstanceName == passName), Is.True,
+                    $"Reflection template should declare a '{passName}' pass.");
+            }
+
+            // The EmptyTexture resource is imported from the pipeline's runtime
+            // resources rather than allocated.
+            ResourceDefinition? emptyTexture = asset.Resources.Find(r => r.ResourceName == "EmptyTexture");
+            Assert.That(emptyTexture, Is.Not.Null,
+                "Reflection template should declare an 'EmptyTexture' resource.");
+            Assert.That(emptyTexture!.ResourceKind, Is.EqualTo(ResourceKind.Texture),
+                "EmptyTexture should be a texture resource.");
+            Assert.That(emptyTexture.ExternalTextureName, Is.EqualTo("emptyTexture"),
+                "EmptyTexture should import the external 'emptyTexture' from the pipeline runtime resources.");
+
+            foreach (string passName in new[] { "forwardOpaque", "transparency" })
+            {
+                Assert.That(
+                    asset.ResourceConnections.Any(rc =>
+                        rc.ResourceName == "EmptyTexture"
+                        && rc.PassName == passName
+                        && rc.SlotName == "ReflectionProbeAtlas"),
+                    Is.True,
+                    $"Reflection template should connect EmptyTexture to {passName}.ReflectionProbeAtlas.");
+            }
+        }
+
         #endregion
 
         #region Ensure — Distinctness
 
         /// <summary>
-        /// The Standard and Preview templates resolve to two distinct persistent
-        /// assets — they must not share a cached instance.
+        /// The Standard, Reflection, and Preview templates resolve to distinct
+        /// persistent assets — they must not share a cached instance.
         /// </summary>
         [Test]
         public void StandardAndPreview_AreDistinct()
         {
             RenderGraphAsset standard = RenderGraphTemplates.Standard.Ensure();
             RenderGraphAsset preview = RenderGraphTemplates.Preview.Ensure();
+            RenderGraphAsset reflection = RenderGraphTemplates.Reflection.Ensure();
 
             Assert.That(standard, Is.Not.SameAs(preview),
                 "Standard and Preview templates should resolve to distinct render graph assets.");
+            Assert.That(reflection, Is.Not.SameAs(standard),
+                "Reflection and Standard templates should resolve to distinct render graph assets.");
+            Assert.That(reflection, Is.Not.SameAs(preview),
+                "Reflection and Preview templates should resolve to distinct render graph assets.");
         }
 
         #endregion

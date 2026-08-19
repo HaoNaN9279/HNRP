@@ -32,6 +32,7 @@ MonoBehaviour:
     TextureScale: {x: 1, y: 1}
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    ExternalTextureName: 
     BufferCount: 0
     BufferStride: 0
     ListKind: 0
@@ -43,6 +44,7 @@ MonoBehaviour:
     TextureScale: {x: 1, y: 1}
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    ExternalTextureName: 
     BufferCount: 0
     BufferStride: 0
     ListKind: 0
@@ -54,6 +56,7 @@ MonoBehaviour:
     TextureScale: {x: 1, y: 1}
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    ExternalTextureName: 
     BufferCount: 0
     BufferStride: 0
     ListKind: 0
@@ -62,15 +65,12 @@ MonoBehaviour:
   - ResourceName: ColorBuffer
     PassName: opaque
     SlotName: ColorTarget
-    Direction: 0
   - ResourceName: DepthBuffer
     PassName: opaque
     SlotName: DepthTarget
-    Direction: 0
   - ResourceName: OpaqueRendererList
     PassName: opaque
     SlotName: RendererList
-    Direction: 0
   m_Settings:
     SHEvalMode: 0
     AllowHDR: 0

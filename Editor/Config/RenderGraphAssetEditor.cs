@@ -467,7 +467,6 @@ namespace HN.HNRP.Editor
             }
 
             SerializedProperty resourceProp = element.FindPropertyRelative("ResourceName");
-            SerializedProperty directionProp = element.FindPropertyRelative("Direction");
             SerializedProperty passProp = element.FindPropertyRelative("PassName");
             SerializedProperty slotProp = element.FindPropertyRelative("SlotName");
 
@@ -479,14 +478,12 @@ namespace HN.HNRP.Editor
             float col1X = rect.x + labelWidth + padding;
             float col2X = col1X + fieldWidth + labelWidth + (padding * 2f);
 
-            // Row 1: Resource + Direction
+            // Row 1: Resource (full width)
             var resourceLabelRect = new Rect(rect.x, rect.y + padding, labelWidth, singleLine);
-            var resourceRect = new Rect(col1X, rect.y + padding, fieldWidth, singleLine);
-            var directionRect = new Rect(col2X, rect.y + padding, fieldWidth, singleLine);
+            var resourceRect = new Rect(col1X, rect.y + padding, rect.width - labelWidth - padding, singleLine);
 
             EditorGUI.LabelField(resourceLabelRect, "Resource");
             EditorGUI.PropertyField(resourceRect, resourceProp, GUIContent.none);
-            EditorGUI.PropertyField(directionRect, directionProp, GUIContent.none);
 
             // Row 2: Pass + Slot
             var passLabelRect = new Rect(rect.x, rect.y + singleLine + padding, labelWidth, singleLine);
@@ -513,7 +510,6 @@ namespace HN.HNRP.Editor
             if (element != null)
             {
                 element.FindPropertyRelative("ResourceName").stringValue = string.Empty;
-                element.FindPropertyRelative("Direction").enumValueIndex = 0;
                 element.FindPropertyRelative("PassName").stringValue = string.Empty;
                 element.FindPropertyRelative("SlotName").stringValue = string.Empty;
             }

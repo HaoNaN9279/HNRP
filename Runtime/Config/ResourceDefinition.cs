@@ -11,13 +11,12 @@ namespace HN.HNRP
 {
     /// <summary>
     /// Serializable asset-level definition of a render graph resource node.
-    /// Describes how the runtime resource is allocated when it has no producer
-    /// pass (see <see cref="ResourceNode.Resolve"/>).
+    /// Describes how the runtime resource is allocated (or imported) each frame.
     /// </summary>
     /// <remarks>
     /// Only the fields relevant to <see cref="ResourceKind"/> are used:
     /// <list type="bullet">
-    ///   <item><b>Texture</b> — <see cref="ColorFormat"/>, <see cref="DepthBits"/>, <see cref="TextureScale"/>, <see cref="ClearBuffer"/>, <see cref="ClearColor"/>.</item>
+    ///   <item><b>Texture</b> — <see cref="ColorFormat"/>, <see cref="DepthBits"/>, <see cref="TextureScale"/>, <see cref="ClearBuffer"/>, <see cref="ClearColor"/>, or <see cref="ExternalTextureName"/> for externally imported textures.</item>
     ///   <item><b>ComputeBuffer</b> — <see cref="BufferCount"/>, <see cref="BufferStride"/>.</item>
     ///   <item><b>RendererList</b> — <see cref="ListKind"/>, <see cref="RenderingLayerMask"/>.</item>
     /// </list>
@@ -68,6 +67,14 @@ namespace HN.HNRP
         /// The clear color used when <see cref="ClearBuffer"/> is <c>true</c>.
         /// </summary>
         public Color ClearColor = Color.black;
+
+        /// <summary>
+        /// External texture name (e.g. "emptyTexture"). When non-empty the
+        /// texture resource is imported at runtime from
+        /// <see cref="HNRenderPipelineRuntimeResources"/> instead of allocating a
+        /// new RenderTexture sized by the camera.
+        /// </summary>
+        public string ExternalTextureName;
 
         // ── ComputeBuffer (only when ResourceKind == ComputeBuffer) ──
 

@@ -10,14 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d6c020a9315464a88abf2dc506a57a3, type: 3}
-  m_Name: StandardGraph
+  m_Name: ReflectionGraph
   m_EditorClassIdentifier: 
   m_Passes:
   - m_PassType: Build Light Data
     m_InstanceName: buildLight
-    m_Config: {fileID: 0}
-  - m_PassType: Cluster Culling Probe
-    m_InstanceName: clusterProbe
     m_Config: {fileID: 0}
   - m_PassType: Cluster Culling Light
     m_InstanceName: clusterLight
@@ -70,18 +67,6 @@ MonoBehaviour:
     m_SourceSlot: lightDatasBuffer
     m_TargetPass: transparency
     m_TargetSlot: LightDatas
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: reflectionProbeAtlas
-    m_TargetPass: transparency
-    m_TargetSlot: ReflectionProbeAtlas
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: clusterCullingReflectionProbeMaskBuffer
-    m_TargetPass: transparency
-    m_TargetSlot: ProbeMask
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: clusterCullingReflectionProbeDatasBuffer
-    m_TargetPass: transparency
-    m_TargetSlot: ProbeDatas
   - m_SourcePass: clusterLight
     m_SourceSlot: clusterCullingLightMaskBuffer
     m_TargetPass: transparency
@@ -90,26 +75,10 @@ MonoBehaviour:
     m_SourceSlot: lightDatasBuffer
     m_TargetPass: clusterLight
     m_TargetSlot: lightDatasBuffer
-  - m_SourcePass: buildLight
-    m_SourceSlot: lightDatasBuffer
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: LightDatas
   - m_SourcePass: clusterLight
     m_SourceSlot: clusterCullingLightMaskBuffer
     m_TargetPass: forwardOpaque
     m_TargetSlot: LightMask
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: reflectionProbeAtlas
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: ReflectionProbeAtlas
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: clusterCullingReflectionProbeMaskBuffer
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: ProbeMask
-  - m_SourcePass: clusterProbe
-    m_SourceSlot: clusterCullingReflectionProbeDatasBuffer
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: ProbeDatas
   m_Resources:
   - ResourceName: ColorBuffer
     ResourceKind: 0

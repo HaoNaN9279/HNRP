@@ -299,36 +299,26 @@ namespace HN.HNRP
                     continue;
                 }
 
-                if (rc.Direction == ResourceConnectionDirection.ResourceToPass)
+                try
                 {
-                    try
-                    {
-                        slot.ConnectResource(node);
-                        node.ConsumerSlots.Add(slot);
-                    }
-                    catch (ArgumentException ex)
-                    {
-                        Debug.LogWarning(
-                            $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
-                            $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
-                    }
+                    slot.ConnectResource(node);
+                    node.ConsumerSlots.Add(slot);
                 }
-                else
+                catch (ArgumentException ex)
                 {
-                    if (slot.Direction != SlotDirection.Output)
-                    {
-                        Debug.LogWarning(
-                            $"RenderGraphAsset.Build: PassToResource connection for resource " +
-                            $"'{rc.ResourceName}' must reference an Output slot; slot " +
-                            $"'{rc.SlotName}' on pass '{rc.PassName}' is {slot.Direction}.");
-                        continue;
-                    }
-
-                    node.ProducerSlot = slot;
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
+                        $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
+                        $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
                 }
             }
 
-            // ── Phase 3: Topologically sort passes (producers before consumers) ──
+            // ── Phase 3: Topologically sort passes (dependency order) ──
             return TopologicalSort(passMap);
         }
 
@@ -366,8 +356,8 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Topologically sorts all built passes so producers are recorded before
-        /// their consumers. Returns only enabled passes.
+        /// Topologically sorts all built passes so dependency edges are honored.
+        /// Returns only enabled passes.
         /// </summary>
         /// <param name="passMap">
         /// Passes instantiated in <see cref="Build"/>, keyed by instance name.
@@ -380,10 +370,11 @@ namespace HN.HNRP
         /// <remarks>
         /// Dependencies come from two sources:
         /// <list type="bullet">
-        ///   <item><b>Resource dependencies</b> — the pass owning
-        ///   <see cref="ResourceNode.ProducerSlot"/> must run before every pass
-        ///   owning a slot in <see cref="ResourceNode.ConsumerSlots"/> (the
-        ///   consumer reads the producer's handle during <see cref="Pass.Record"/>).</item>
+        ///   <item><b>Resource dependencies</b> — passes owning a slot in
+        ///   <see cref="ResourceNode.ConsumerSlots"/> are chained in definition
+        ///   order. RenderGraph does not reorder passes that share a
+        ///   non-pass-produced resource, so record order here is execution
+        ///   order.</item>
         ///   <item><b>SlotConnection edges</b> — legacy pass-to-pass edges from
         ///   <see cref="m_Connections"/> (source pass before target pass).</item>
         /// </list>
@@ -414,9 +405,10 @@ namespace HN.HNRP
 
             // ── Build dependency edges ──
 
-            // Resource dependencies: producer pass → consumer pass, plus chained
-            // consumer edges (definition order) so passes sharing a resource keep
-            // a stable order even when the resource has no producer pass.
+            // Chained consumer edges keep the passes that share a resource in
+            // definition order. RenderGraph does not reorder passes that share a
+            // non-pass-produced resource, so the record order here is the
+            // execution order.
             foreach (ResourceNode node in m_RuntimeResources)
             {
                 // Collect consumer passes (deduplicated) in definition order.
@@ -435,26 +427,6 @@ namespace HN.HNRP
 
                 consumers.Sort((a, b) => order.IndexOf(a).CompareTo(order.IndexOf(b)));
 
-                // Producer pass (if any) must record before every consumer.
-                if (node.ProducerSlot?.OwnerPass is Pass producer
-                    && index.TryGetValue(producer, out int producerIndex))
-                {
-                    foreach (Pass consumer in consumers)
-                    {
-                        if (consumer == producer)
-                        {
-                            continue;
-                        }
-
-                        AddEdge(adjacency, inDegree, producerIndex, index[consumer]);
-                    }
-                }
-
-                // Chained consumer edges keep resource consumers in definition
-                // order. This matters for resources without a producer pass:
-                // RenderGraph does not reorder passes that share an imported
-                // (non-pass-produced) resource, so the record order here is the
-                // execution order.
                 for (int i = 0; i + 1 < consumers.Count; i++)
                 {
                     AddEdge(adjacency, inDegree, index[consumers[i]], index[consumers[i + 1]]);
