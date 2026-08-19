@@ -12,7 +12,8 @@ namespace HN.HNRP.Tests
     /// <summary>
     /// Tests for <see cref="DrawObjectPass"/> in
     /// <c>Runtime/Passes/DrawObjectPass.cs</c>.
-    /// Verifies slot declaration, <c>[Pass]</c> attribute, and lifecycle.
+    /// Verifies slot declaration (all eight inputs), <c>[Pass]</c> attribute,
+    /// parameterized options, and lifecycle.
     /// </summary>
     public sealed class DrawObjectPassTests
     {
@@ -20,26 +21,29 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="Pass.SetupSlots"/> is called,
-        /// all seven slots are non-null with correct names and directions.
+        /// all ten slots are non-null with correct names and directions:
+        /// eight inputs plus two pass-through outputs
+        /// (<c>ColorTargetOutput</c> / <c>DepthTargetOutput</c>) that let
+        /// downstream passes chain from this pass's outputs.
         /// </summary>
         [Test]
-        public void SetupSlots_DeclaresAllSevenSlots()
+        public void SetupSlots_DeclaresAllTenSlots()
         {
             var pass = new DrawObjectPass("TestDrawObject");
 
             pass.SetupSlots();
 
-            // ── Output texture slots ──
+            // ── Input texture slots: ColorTarget / DepthTarget ──
 
             Assert.That(pass.ColorTargetSlot, Is.Not.Null,
                 "ColorTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.ColorTargetSlot!.SlotName, Is.EqualTo("ColorTarget"));
-            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
 
             Assert.That(pass.DepthTargetSlot, Is.Not.Null,
                 "DepthTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.DepthTargetSlot!.SlotName, Is.EqualTo("DepthTarget"));
-            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Output));
+            Assert.That(pass.DepthTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
 
             // ── Input compute buffer slot: LightDatas ──
 
@@ -75,6 +79,53 @@ namespace HN.HNRP.Tests
                 "LightMaskSlot should be non-null after SetupSlots.");
             Assert.That(pass.LightMaskSlot!.SlotName, Is.EqualTo("LightMask"));
             Assert.That(pass.LightMaskSlot.Direction, Is.EqualTo(SlotDirection.Input));
+
+            // ── Input renderer list slot: RendererList ──
+
+            Assert.That(pass.RendererListSlot, Is.Not.Null,
+                "RendererListSlot should be non-null after SetupSlots.");
+            Assert.That(pass.RendererListSlot!.SlotName, Is.EqualTo("RendererList"));
+            Assert.That(pass.RendererListSlot.Direction, Is.EqualTo(SlotDirection.Input));
+
+            // ── Output pass-through slot: ColorTargetOutput ──
+
+            Assert.That(pass.ColorTargetOutputSlot, Is.Not.Null,
+                "ColorTargetOutputSlot should be non-null after SetupSlots.");
+            Assert.That(pass.ColorTargetOutputSlot!.SlotName, Is.EqualTo("ColorTargetOutput"));
+            Assert.That(pass.ColorTargetOutputSlot.Direction, Is.EqualTo(SlotDirection.Output));
+
+            // ── Output pass-through slot: DepthTargetOutput ──
+
+            Assert.That(pass.DepthTargetOutputSlot, Is.Not.Null,
+                "DepthTargetOutputSlot should be non-null after SetupSlots.");
+            Assert.That(pass.DepthTargetOutputSlot!.SlotName, Is.EqualTo("DepthTargetOutput"));
+            Assert.That(pass.DepthTargetOutputSlot.Direction, Is.EqualTo(SlotDirection.Output));
+        }
+
+        /// <summary>
+        /// After <see cref="Pass.SetupSlots"/>, every declared slot is also
+        /// discoverable through <see cref="Pass.GetSlot(string)"/> — the pass
+        /// must call <see cref="Pass.RegisterSlot"/> for each slot so that
+        /// build-time resource connections can find them by name.
+        /// </summary>
+        [Test]
+        public void SetupSlots_RegistersAllSlotsByName()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+            pass.SetupSlots();
+
+            string[] slotNames =
+            {
+                "ColorTarget", "DepthTarget", "LightDatas", "ReflectionProbeAtlas",
+                "ProbeMask", "ProbeDatas", "LightMask", "RendererList",
+                "ColorTargetOutput", "DepthTargetOutput",
+            };
+
+            foreach (string name in slotNames)
+            {
+                Assert.That(pass.GetSlot(name), Is.Not.Null,
+                    $"Slot '{name}' should be registered and discoverable via GetSlot.");
+            }
         }
 
         /// <summary>
@@ -93,6 +144,9 @@ namespace HN.HNRP.Tests
             Assert.That(pass.ProbeMaskSlot, Is.Null);
             Assert.That(pass.ProbeDatasSlot, Is.Null);
             Assert.That(pass.LightMaskSlot, Is.Null);
+            Assert.That(pass.RendererListSlot, Is.Null);
+            Assert.That(pass.ColorTargetOutputSlot, Is.Null);
+            Assert.That(pass.DepthTargetOutputSlot, Is.Null);
         }
 
         #endregion
@@ -134,6 +188,45 @@ namespace HN.HNRP.Tests
             var pass = new DrawObjectPass("TestDrawObject");
 
             Assert.That(pass.RenderingLayerMask, Is.EqualTo(0x00000001u));
+        }
+
+        /// <summary>
+        /// <see cref="DrawObjectPass.RenderingLayerMask"/> is writable — configs
+        /// such as <c>ForwardOpaqueConfig</c> / <c>TransparencyConfig</c> copy
+        /// their layer mask onto the pass through this property.
+        /// </summary>
+        [Test]
+        public void RenderingLayerMask_CanBeSet()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+            pass.RenderingLayerMask = 0x00000007;
+
+            Assert.That(pass.RenderingLayerMask, Is.EqualTo(0x00000007u));
+        }
+
+        /// <summary>
+        /// <see cref="DrawObjectPass.SetLightGlobals"/> defaults to <c>true</c>
+        /// so opaque graphs bind probe / light / light-data globals by default.
+        /// </summary>
+        [Test]
+        public void SetLightGlobals_DefaultsTrue()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+
+            Assert.That(pass.SetLightGlobals, Is.True);
+        }
+
+        /// <summary>
+        /// <see cref="DrawObjectPass.SetLightGlobals"/> is writable — preview
+        /// graphs (which have no cluster culling data) set it to <c>false</c>.
+        /// </summary>
+        [Test]
+        public void SetLightGlobals_CanBeSet()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+            pass.SetLightGlobals = false;
+
+            Assert.That(pass.SetLightGlobals, Is.False);
         }
 
         #endregion
@@ -241,7 +334,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// Calling <see cref="Pass.Record"/> without <see cref="SetupSlots"/>
-        /// should return early rather than throwing — both slots are null
+        /// should return early rather than throwing — all slots are null
         /// so the null-check guard triggers.
         /// </summary>
         [Test]
@@ -249,8 +342,8 @@ namespace HN.HNRP.Tests
         {
             var pass = new DrawObjectPass("TestDrawObject");
 
-            // Without SetupSlots, ColorTargetSlot and DepthTargetSlot are null —
-            // Record should return early rather than throwing.
+            // Without SetupSlots, ColorTargetSlot/DepthTargetSlot/RendererListSlot
+            // are null — Record should return early rather than throwing.
             Assert.DoesNotThrow(() => pass.Record(null));
         }
 
@@ -267,6 +360,25 @@ namespace HN.HNRP.Tests
 
             // Slots are set up but Initialize was not called → cameraContext is null.
             Assert.DoesNotThrow(() => pass.Record(null));
+        }
+
+        /// <summary>
+        /// Calling <see cref="Pass.Record"/> after a full
+        /// <see cref="SetupSlots"/> + <see cref="Initialize"/> where the required
+        /// inputs (ColorTarget / DepthTarget / RendererList) are <b>not connected</b>
+        /// returns early rather than throwing. The pass must not reach
+        /// <c>renderGraph.AddRenderPass</c> when required inputs are unconnected.
+        /// </summary>
+        [Test]
+        public void Record_WithoutConnections_ReturnsEarly()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+            pass.SetupSlots();
+            pass.Initialize(new CameraContext(null, default));
+
+            // No resource nodes are connected — the IsConnected guard returns early.
+            Assert.DoesNotThrow(() => pass.Record(null),
+                "Record should return early when required inputs are unconnected.");
         }
 
         #endregion

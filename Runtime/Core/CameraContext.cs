@@ -26,8 +26,18 @@ namespace HN.HNRP
         /// <summary>
         /// Culling results produced by <c>context.Cull()</c> for the current frame.
         /// Contains visible lights, reflection probes, and draw renderers.
+        /// Only valid when <see cref="HasCullingResults"/> is <c>true</c>.
         /// </summary>
         public CullingResults CullingResults { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether camera culling succeeded this
+        /// frame. When <c>false</c>, <see cref="CullingResults"/> is
+        /// <c>default(CullingResults)</c> and must not be used to build
+        /// renderer lists (an invalid descriptor throws during render graph
+        /// compilation).
+        /// </summary>
+        public bool HasCullingResults { get; set; }
 
         /// <summary>
         /// Command buffer for recording render commands.

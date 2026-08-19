@@ -22,19 +22,13 @@ MonoBehaviour:
   - m_PassType: Cluster Culling Light
     m_InstanceName: clusterLight
     m_Config: {fileID: 0}
-  - m_PassType: Color Buffer Input
-    m_InstanceName: colorInput
-    m_Config: {fileID: 0}
-  - m_PassType: Depth Buffer Input
-    m_InstanceName: depthInput
-    m_Config: {fileID: 0}
-  - m_PassType: Forward Opaque
+  - m_PassType: Draw Object
     m_InstanceName: forwardOpaque
     m_Config: {fileID: 0}
   - m_PassType: Builtin Sky
     m_InstanceName: sky
     m_Config: {fileID: 0}
-  - m_PassType: Transparency
+  - m_PassType: Draw Object
     m_InstanceName: transparency
     m_Config: {fileID: 0}
   - m_PassType: Editor Wire Overlay
@@ -44,62 +38,211 @@ MonoBehaviour:
     m_InstanceName: finalBlit
     m_Config: {fileID: 0}
   m_Connections:
-  - m_SourcePass: buildLight
-    m_SourceSlot: lightDatasBuffer
-    m_TargetPass: clusterLight
-    m_TargetSlot: lightDatasBuffer
+  - m_SourcePass: forwardOpaque
+    m_SourceSlot: ColorTargetOutput
+    m_TargetPass: sky
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: forwardOpaque
+    m_SourceSlot: DepthTargetOutput
+    m_TargetPass: sky
+    m_TargetSlot: DepthTarget
+  - m_SourcePass: sky
+    m_SourceSlot: ColorTargetOutput
+    m_TargetPass: transparency
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: sky
+    m_SourceSlot: DepthTargetOutput
+    m_TargetPass: transparency
+    m_TargetSlot: DepthTarget
+  - m_SourcePass: transparency
+    m_SourceSlot: ColorTargetOutput
+    m_TargetPass: wireOverlay
+    m_TargetSlot: ColorTarget
+  - m_SourcePass: transparency
+    m_SourceSlot: ColorTargetOutput
+    m_TargetPass: finalBlit
+    m_TargetSlot: ColorTarget
   - m_SourcePass: buildLight
     m_SourceSlot: lightDatasBuffer
     m_TargetPass: forwardOpaque
     m_TargetSlot: LightDatas
+  - m_SourcePass: buildLight
+    m_SourceSlot: lightDatasBuffer
+    m_TargetPass: transparency
+    m_TargetSlot: LightDatas
   - m_SourcePass: clusterProbe
     m_SourceSlot: reflectionProbeAtlas
-    m_TargetPass: forwardOpaque
+    m_TargetPass: transparency
     m_TargetSlot: ReflectionProbeAtlas
   - m_SourcePass: clusterProbe
     m_SourceSlot: clusterCullingReflectionProbeMaskBuffer
-    m_TargetPass: forwardOpaque
+    m_TargetPass: transparency
     m_TargetSlot: ProbeMask
   - m_SourcePass: clusterProbe
     m_SourceSlot: clusterCullingReflectionProbeDatasBuffer
-    m_TargetPass: forwardOpaque
+    m_TargetPass: transparency
     m_TargetSlot: ProbeDatas
   - m_SourcePass: clusterLight
     m_SourceSlot: clusterCullingLightMaskBuffer
-    m_TargetPass: forwardOpaque
+    m_TargetPass: transparency
     m_TargetSlot: LightMask
-  - m_SourcePass: colorInput
-    m_SourceSlot: colorTargetSlot
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: ColorTarget
-  - m_SourcePass: depthInput
-    m_SourceSlot: DepthTarget
-    m_TargetPass: forwardOpaque
-    m_TargetSlot: DepthTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: ColorTarget
-    m_TargetPass: sky
-    m_TargetSlot: ColorTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: DepthTarget
-    m_TargetPass: sky
-    m_TargetSlot: DepthTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: ColorTarget
-    m_TargetPass: transparency
-    m_TargetSlot: ColorTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: DepthTarget
-    m_TargetPass: transparency
-    m_TargetSlot: DepthTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: ColorTarget
-    m_TargetPass: wireOverlay
-    m_TargetSlot: ColorTarget
-  - m_SourcePass: forwardOpaque
-    m_SourceSlot: ColorTarget
-    m_TargetPass: finalBlit
-    m_TargetSlot: ColorTarget
+  m_Resources:
+  - ResourceName: ColorBuffer
+    ResourceKind: 0
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: DepthBuffer
+    ResourceKind: 0
+    ColorFormat: 8
+    DepthBits: 32
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: LightDatas
+    ResourceKind: 1
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 528
+    BufferStride: 64
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: LightMask
+    ResourceKind: 1
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 16384
+    BufferStride: 4
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: ReflectionProbeAtlas
+    ResourceKind: 0
+    ColorFormat: 74
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: ProbeMask
+    ResourceKind: 1
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 16384
+    BufferStride: 4
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: ProbeDatas
+    ResourceKind: 1
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 64
+    BufferStride: 64
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: OpaqueRendererList
+    ResourceKind: 2
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: TransparentRendererList
+    ResourceKind: 2
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 1
+    RenderingLayerMask: 1
+  m_ResourceConnections:
+  - ResourceName: LightDatas
+    PassName: buildLight
+    SlotName: lightDatasBuffer
+    Direction: 1
+  - ResourceName: LightMask
+    PassName: clusterLight
+    SlotName: clusterCullingLightMaskBuffer
+    Direction: 1
+  - ResourceName: ReflectionProbeAtlas
+    PassName: clusterProbe
+    SlotName: reflectionProbeAtlas
+    Direction: 1
+  - ResourceName: ProbeMask
+    PassName: clusterProbe
+    SlotName: clusterCullingReflectionProbeMaskBuffer
+    Direction: 1
+  - ResourceName: ProbeDatas
+    PassName: clusterProbe
+    SlotName: clusterCullingReflectionProbeDatasBuffer
+    Direction: 1
+  - ResourceName: ColorBuffer
+    PassName: forwardOpaque
+    SlotName: ColorTarget
+    Direction: 0
+  - ResourceName: DepthBuffer
+    PassName: forwardOpaque
+    SlotName: DepthTarget
+    Direction: 0
+  - ResourceName: LightDatas
+    PassName: clusterLight
+    SlotName: lightDatasBuffer
+    Direction: 0
+  - ResourceName: LightMask
+    PassName: forwardOpaque
+    SlotName: LightMask
+    Direction: 0
+  - ResourceName: ReflectionProbeAtlas
+    PassName: forwardOpaque
+    SlotName: ReflectionProbeAtlas
+    Direction: 0
+  - ResourceName: ProbeMask
+    PassName: forwardOpaque
+    SlotName: ProbeMask
+    Direction: 0
+  - ResourceName: ProbeDatas
+    PassName: forwardOpaque
+    SlotName: ProbeDatas
+    Direction: 0
+  - ResourceName: OpaqueRendererList
+    PassName: forwardOpaque
+    SlotName: RendererList
+    Direction: 0
+  - ResourceName: TransparentRendererList
+    PassName: transparency
+    SlotName: RendererList
+    Direction: 0
   m_Settings:
     SHEvalMode: 2
     AllowHDR: 1

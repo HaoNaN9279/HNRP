@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using HN.HNRP;
@@ -11,15 +12,17 @@ namespace HN.HNRP.Tests
 {
     /// <summary>
     /// Tests for <c>PreviewGraph.asset</c> — the lightweight render graph
-    /// used for preview cameras. Verifies that the asset exists, has the
-    /// correct passes (minimal set), omits heavy passes, and has appropriate
-    /// preview-oriented settings.
+    /// used for preview cameras. Verifies that the asset exists, builds the
+    /// minimal pass set (draw object + render output), omits heavy passes,
+    /// materializes its resource nodes, and has preview-oriented settings.
     /// </summary>
     /// <remarks>
     /// <para>
     /// PreviewGraph is designed to be a stripped-down version of StandardGraph.
     /// It includes only the minimum passes needed for basic opaque rendering:
-    /// color/depth buffer input, forward opaque, and render output.
+    /// an <c>opaque</c> <see cref="DrawObjectPass"/> and a <c>finalBlit</c>
+    /// render output pass, wired through ColorBuffer / DepthBuffer /
+    /// OpaqueRendererList resource nodes.
     /// </para>
     /// <para>
     /// Passes intentionally <b>excluded</b> from PreviewGraph:
@@ -30,7 +33,6 @@ namespace HN.HNRP.Tests
     ///   <item>Builtin Sky — skybox rendering is skipped</item>
     ///   <item>Transparency — transparent object rendering is skipped</item>
     ///   <item>Editor Wire Overlay — editor debug overlay is skipped</item>
-    ///   <item>Draw Object — draw object pass is skipped</item>
     /// </list>
     /// </para>
     /// </remarks>
@@ -71,8 +73,10 @@ namespace HN.HNRP.Tests
         #region Pass Composition
 
         /// <summary>
-        /// PreviewGraph contains exactly the expected minimal pass set:
-        /// Color Buffer Input, Depth Buffer Input, Forward Opaque, and Render Output.
+        /// <see cref="RenderGraphAsset.Build"/> succeeds on the real asset and
+        /// produces exactly the minimal preview pass set: the <c>opaque</c>
+        /// draw pass and the <c>finalBlit</c> render output pass, in
+        /// topological (producer-before-consumer) order.
         /// </summary>
         [Test]
         public void PreviewGraph_HasExpectedPasses()
@@ -80,39 +84,60 @@ namespace HN.HNRP.Tests
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/PreviewGraph");
             Assume.That(asset, Is.Not.Null, "PreviewGraph asset must exist for this test.");
 
-            List<PassDefinition> passes = asset.Passes;
+            List<Pass> result = asset.Build(renderer: null);
 
-            Assert.That(passes, Is.Not.Null,
-                "Passes list should not be null.");
-            Assert.That(passes.Count, Is.EqualTo(4),
-                "PreviewGraph should have exactly 4 passes.");
+            Assert.That(result, Is.Not.Null,
+                "Build should return a non-null list.");
+            Assert.That(result.Count, Is.EqualTo(2),
+                "PreviewGraph should build exactly 2 passes.");
 
-            // Verify each expected pass type and instance name.
-            Assert.That(passes[0].PassType, Is.EqualTo("Color Buffer Input"),
-                "First pass should be Color Buffer Input.");
-            Assert.That(passes[0].InstanceName, Is.EqualTo("Color Target"),
-                "Color Buffer Input instance should be named 'Color Target'.");
+            Assert.That(result.Exists(p => p.PassName == "opaque"), Is.True,
+                "PreviewGraph should contain an 'opaque' draw pass.");
+            Assert.That(result.Exists(p => p.PassName == "finalBlit"), Is.True,
+                "PreviewGraph should contain a 'finalBlit' render output pass.");
 
-            Assert.That(passes[1].PassType, Is.EqualTo("Depth Buffer Input"),
-                "Second pass should be Depth Buffer Input.");
-            Assert.That(passes[1].InstanceName, Is.EqualTo("Depth Target"),
-                "Depth Buffer Input instance should be named 'Depth Target'.");
+            int opaqueIndex = result.FindIndex(p => p.PassName == "opaque");
+            int finalBlitIndex = result.FindIndex(p => p.PassName == "finalBlit");
+            Assert.That(opaqueIndex, Is.LessThan(finalBlitIndex),
+                "opaque (color producer) must be ordered before finalBlit.");
+        }
 
-            Assert.That(passes[2].PassType, Is.EqualTo("Forward Opaque"),
-                "Third pass should be Forward Opaque.");
-            Assert.That(passes[2].InstanceName, Is.EqualTo("Opaque"),
-                "Forward Opaque instance should be named 'Opaque'.");
+        /// <summary>
+        /// After <see cref="RenderGraphAsset.Build"/>, the preview graph's key
+        /// input slots are connected under the new chained model: the opaque
+        /// draw pass reads color / depth / renderer list from resource nodes,
+        /// and <c>finalBlit</c> receives the color target through the
+        /// <c>opaque.ColorTargetOutput</c> slot connection.
+        /// </summary>
+        [Test]
+        public void PreviewGraph_ConnectsKeySlots()
+        {
+            var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/PreviewGraph");
+            Assume.That(asset, Is.Not.Null, "PreviewGraph asset must exist for this test.");
 
-            Assert.That(passes[3].PassType, Is.EqualTo("Render Output"),
-                "Fourth pass should be Render Output.");
-            Assert.That(passes[3].InstanceName, Is.EqualTo("Final Blit"),
-                "Render Output instance should be named 'Final Blit'.");
+            List<Pass> result = asset.Build(renderer: null);
+
+            var opaque = result.Find(p => p.PassName == "opaque") as DrawObjectPass;
+            Assert.That(opaque, Is.Not.Null,
+                "PreviewGraph should contain an 'opaque' DrawObjectPass.");
+            Assert.That(opaque!.ColorTargetSlot!.IsConnected, Is.True,
+                "opaque.ColorTarget should be connected through a resource node.");
+            Assert.That(opaque.DepthTargetSlot!.IsConnected, Is.True,
+                "opaque.DepthTarget should be connected through a resource node.");
+            Assert.That(opaque.RendererListSlot!.IsConnected, Is.True,
+                "opaque.RendererList should be connected through a resource node.");
+
+            var finalBlit = result.Find(p => p.PassName == "finalBlit") as RenderOutputPass;
+            Assert.That(finalBlit, Is.Not.Null,
+                "PreviewGraph should contain a 'finalBlit' RenderOutputPass.");
+            Assert.That(finalBlit!.ColorTargetSlot!.IsConnected, Is.True,
+                "finalBlit.ColorTarget should be connected through opaque.ColorTargetOutput.");
         }
 
         /// <summary>
         /// PreviewGraph does NOT include heavy passes that are in StandardGraph:
         /// Build Light Data, Cluster Culling Light, Cluster Culling Probe,
-        /// Builtin Sky, Transparency, Editor Wire Overlay, Draw Object.
+        /// Builtin Sky, Transparency, Editor Wire Overlay.
         /// </summary>
         [Test]
         public void PreviewGraph_ExcludesHeavyPasses()
@@ -141,60 +166,41 @@ namespace HN.HNRP.Tests
                 "PreviewGraph should NOT include Transparency.");
             Assert.That(passTypeNames.Contains("Editor Wire Overlay"), Is.False,
                 "PreviewGraph should NOT include Editor Wire Overlay.");
-            Assert.That(passTypeNames.Contains("Draw Object"), Is.False,
-                "PreviewGraph should NOT include Draw Object.");
+
+            Assert.That(passTypeNames.Contains("Draw Object"), Is.True,
+                "PreviewGraph should include Draw Object (the opaque pass).");
+            Assert.That(passTypeNames.Contains("Render Output"), Is.True,
+                "PreviewGraph should include Render Output (the final blit pass).");
         }
 
         #endregion
 
-        #region Connections
+        #region Resource Nodes
 
         /// <summary>
-        /// PreviewGraph has the expected slot connections wiring
-        /// color and depth targets through the pipeline.
+        /// <see cref="RenderGraphAsset.Build"/> materializes the preview graph's
+        /// color / depth buffers and opaque renderer list as resource nodes.
         /// </summary>
         [Test]
-        public void PreviewGraph_HasExpectedConnections()
+        public void PreviewGraph_MaterializesResourceNodes()
         {
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/PreviewGraph");
             Assume.That(asset, Is.Not.Null, "PreviewGraph asset must exist for this test.");
 
-            List<SlotConnection> connections = asset.Connections;
+            asset.Build(renderer: null);
 
-            Assert.That(connections, Is.Not.Null,
-                "Connections list should not be null.");
-            Assert.That(connections.Count, Is.EqualTo(3),
-                "PreviewGraph should have exactly 3 slot connections.");
+            IReadOnlyList<ResourceNode> nodes = asset.ResourceNodes;
+            Assert.That(nodes, Is.Not.Null,
+                "ResourceNodes should be non-null after Build.");
+            Assert.That(nodes.Count, Is.GreaterThan(0),
+                "Build should materialize at least one resource node.");
 
-            // Connection 1: Color Target → Opaque (colorTarget)
-            Assert.That(connections[0].SourcePass, Is.EqualTo("Color Target"),
-                "First connection source should be 'Color Target'.");
-            Assert.That(connections[0].SourceSlot, Is.EqualTo("colorTargetSlot"),
-                "First connection source slot should be 'colorTargetSlot'.");
-            Assert.That(connections[0].TargetPass, Is.EqualTo("Opaque"),
-                "First connection target should be 'Opaque'.");
-            Assert.That(connections[0].TargetSlot, Is.EqualTo("colorTargetSlot"),
-                "First connection target slot should be 'colorTargetSlot'.");
-
-            // Connection 2: Depth Target → Opaque (depthTarget)
-            Assert.That(connections[1].SourcePass, Is.EqualTo("Depth Target"),
-                "Second connection source should be 'Depth Target'.");
-            Assert.That(connections[1].SourceSlot, Is.EqualTo("depthTargetSlot"),
-                "Second connection source slot should be 'depthTargetSlot'.");
-            Assert.That(connections[1].TargetPass, Is.EqualTo("Opaque"),
-                "Second connection target should be 'Opaque'.");
-            Assert.That(connections[1].TargetSlot, Is.EqualTo("depthTargetSlot"),
-                "Second connection target slot should be 'depthTargetSlot'.");
-
-            // Connection 3: Opaque → Final Blit (colorTarget)
-            Assert.That(connections[2].SourcePass, Is.EqualTo("Opaque"),
-                "Third connection source should be 'Opaque'.");
-            Assert.That(connections[2].SourceSlot, Is.EqualTo("colorTargetSlot"),
-                "Third connection source slot should be 'colorTargetSlot'.");
-            Assert.That(connections[2].TargetPass, Is.EqualTo("Final Blit"),
-                "Third connection target should be 'Final Blit'.");
-            Assert.That(connections[2].TargetSlot, Is.EqualTo("colorTargetSlot"),
-                "Third connection target slot should be 'colorTargetSlot'.");
+            Assert.That(nodes.Any(n => n.ResourceName == "ColorBuffer"), Is.True,
+                "A ColorBuffer resource node should be present.");
+            Assert.That(nodes.Any(n => n.ResourceName == "DepthBuffer"), Is.True,
+                "A DepthBuffer resource node should be present.");
+            Assert.That(nodes.Any(n => n.ResourceName == "OpaqueRendererList"), Is.True,
+                "An OpaqueRendererList resource node should be present.");
         }
 
         #endregion
@@ -203,7 +209,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="RenderGraphAsset.Build"/> successfully instantiates
-        /// all four passes from the PreviewGraph asset.
+        /// the preview pass set, all enabled by default.
         /// </summary>
         [Test]
         public void Build_FromPreviewGraph_InstantiatesAllPasses()
@@ -215,8 +221,8 @@ namespace HN.HNRP.Tests
 
             Assert.That(result, Is.Not.Null,
                 "Build should return a non-null list.");
-            Assert.That(result.Count, Is.EqualTo(4),
-                "Build should instantiate all 4 passes from PreviewGraph.");
+            Assert.That(result.Count, Is.GreaterThanOrEqualTo(2),
+                "Build should instantiate at least the 2 preview passes.");
             Assert.That(result.TrueForAll(p => p.IsEnabled), Is.True,
                 "All PreviewGraph passes should be enabled by default.");
         }

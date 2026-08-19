@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// ScriptableObject configuration for <see cref="ForwardOpaquePass"/>.
+    /// ScriptableObject configuration for an opaque <see cref="DrawObjectPass"/>.
     /// Holds all configurable parameters — render-queue range, layer mask, etc. —
     /// and applies them to the pass via <see cref="ApplyToPass"/>.
     /// </summary>
@@ -79,9 +79,9 @@ namespace HN.HNRP
 
             pass.IsEnabled = true;
 
-            if (pass is ForwardOpaquePass forwardOpaque)
+            if (pass is DrawObjectPass drawObject)
             {
-                forwardOpaque.RenderingLayerMask = m_RenderingLayerMask;
+                drawObject.RenderingLayerMask = m_RenderingLayerMask;
             }
         }
 

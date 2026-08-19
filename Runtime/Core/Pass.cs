@@ -70,7 +70,11 @@ namespace HN.HNRP
         /// Same-name registration overwrites the existing entry.
         /// </summary>
         /// <param name="slot">The slot to register. Must not be <c>null</c>.</param>
-        protected void RegisterSlot(PassSlot slot) => m_Slots[slot.SlotName] = slot;
+        protected void RegisterSlot(PassSlot slot)
+        {
+            m_Slots[slot.SlotName] = slot;
+            slot.OwnerPass = this;
+        }
 
         /// <summary>
         /// Gets a slot by name, or <c>null</c> if no slot with that name is registered.

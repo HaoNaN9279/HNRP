@@ -73,6 +73,72 @@ namespace HN.HNRP
         protected PassSlot? connectedOutput;
 
         /// <summary>
+        /// For input slots connected to a <see cref="ResourceNode"/>: the resource
+        /// node this input reads from. Mutually exclusive with
+        /// <see cref="connectedOutput"/> — a slot reads either a connected
+        /// output slot's handle or a connected resource node's handle.
+        /// </summary>
+        public ResourceNode? ConnectedResource;
+
+        /// <summary>
+        /// The <see cref="Pass"/> that owns this slot.
+        /// Set by <see cref="Pass.RegisterSlot"/>; used to derive pass-level
+        /// dependencies from resource connections at build time.
+        /// </summary>
+        public Pass OwnerPass { get; internal set; }
+
+        /// <summary>
+        /// Connects this input slot to a <see cref="ResourceNode"/>.
+        /// After a successful connection, <see cref="PassSlot{T}.ReadHandle"/>
+        /// returns the resource node's handle and <see cref="IsConnected"/> is
+        /// <c>true</c>.
+        /// </summary>
+        /// <param name="node">The resource node to connect. Must not be <c>null</c>.</param>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="node"/> is <c>null</c>.
+        /// </exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when this slot is not an input slot.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the resource node type does not match this slot's resource type.
+        /// </exception>
+        public void ConnectResource(ResourceNode node)
+        {
+            if (node == null)
+            {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (Direction != SlotDirection.Input)
+            {
+                throw new InvalidOperationException(
+                    "Only input slots can connect to a resource node.");
+            }
+
+            if (!CanConnectTo(node))
+            {
+                throw new ArgumentException(
+                    $"Resource type mismatch: {GetType().Name} cannot connect to " +
+                    $"{node.GetType().Name}. The resource node type must match the " +
+                    "slot's resource type.");
+            }
+
+            ConnectedResource = node;
+            IsConnected = true;
+        }
+
+        /// <summary>
+        /// Determines whether this slot can connect to the given
+        /// <see cref="ResourceNode"/>. The base implementation rejects all nodes;
+        /// <see cref="PassSlot{T}"/> subclasses override it to require a matching
+        /// concrete resource node type.
+        /// </summary>
+        /// <param name="node">The resource node to validate against.</param>
+        /// <returns><c>true</c> when the connection is type-compatible.</returns>
+        protected virtual bool CanConnectTo(ResourceNode node) => false;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="PassSlot"/> class.
         /// </summary>
         /// <param name="slotName">
@@ -260,6 +326,13 @@ namespace HN.HNRP
         /// </exception>
         public T ReadHandle()
         {
+            // A slot connected to a resource node reads the node's handle directly.
+            // This bypasses the pass-to-pass handle chain (connectedOutput) entirely.
+            if (ConnectedResource != null)
+            {
+                return (T)ConnectedResource.GetHandle();
+            }
+
             if (Direction == SlotDirection.Output)
             {
                 return m_Value;
@@ -307,6 +380,12 @@ namespace HN.HNRP
         /// actual render graph texture — a default handle is not valid.
         /// </remarks>
         protected override bool IsValueValid(TextureHandle value) => value.IsValid();
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A texture slot only accepts <see cref="TextureResourceNode"/>.
+        /// </remarks>
+        protected override bool CanConnectTo(ResourceNode node) => node is TextureResourceNode;
     }
 
     /// <summary>
@@ -330,6 +409,12 @@ namespace HN.HNRP
         /// actual render graph buffer — a default handle is not valid.
         /// </remarks>
         protected override bool IsValueValid(ComputeBufferHandle value) => value.IsValid();
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A compute buffer slot only accepts <see cref="ComputeBufferResourceNode"/>.
+        /// </remarks>
+        protected override bool CanConnectTo(ResourceNode node) => node is ComputeBufferResourceNode;
     }
 
     /// <summary>
@@ -353,6 +438,12 @@ namespace HN.HNRP
         /// actual render graph renderer list — a default handle is not valid.
         /// </remarks>
         protected override bool IsValueValid(RendererListHandle value) => value.IsValid();
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A renderer list slot only accepts <see cref="RendererListResourceNode"/>.
+        /// </remarks>
+        protected override bool CanConnectTo(ResourceNode node) => node is RendererListResourceNode;
     }
 
     #endregion

@@ -3,6 +3,7 @@
 // </copyright>
 
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -13,192 +14,40 @@ namespace HN.HNRP.Tests
     /// <summary>
     /// Tests for <c>Runtime/Resources/RenderGraphs/StandardGraph.asset</c>.
     /// Verifies the asset loads correctly, <see cref="RenderGraphAsset.Build"/>
-    /// produces 10 passes, and all <see cref="SlotConnection"/> entries are valid.
+    /// instantiates the expected pass set, resource nodes are materialized,
+    /// key resource slots are connected, and execution order respects the
+    /// topological (producer-before-consumer) order.
     /// </summary>
     public sealed class StandardGraphTests
     {
-        #region Test Pass Stubs
-
-        // ── Stub pass classes registered manually with matching display names ──
-        // These are minimal implementations so Build() can resolve pass types
-        // from PassRegistry without requiring the full pass implementations.
-        // They carry no [Pass] attribute: attribute-based registration would let
-        // the reflection scan in PassRegistry.RegisterAll() overwrite the real
-        // passes with these stubs (Stub registry pollution).
-        // RegisterStubPasses() re-registers them per-test, and TearDown() calls
-        // PassRegistry.RegisterAll() to restore the clean registry (real passes
-        // only) before the next test.
-
-        private sealed class StubBuildLightData : Pass
+        /// <summary>
+        /// The expected instance names of the passes in StandardGraph, in
+        /// topological (producer-before-consumer) order.
+        /// </summary>
+        private static readonly string[] ExpectedPassNames =
         {
-            public StubBuildLightData(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new ComputeBufferSlot("lightDatasBuffer", SlotDirection.Output);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubClusterProbe : Pass
-        {
-            public StubClusterProbe(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("reflectionProbeAtlas", SlotDirection.Output);
-                new ComputeBufferSlot("clusterCullingReflectionProbeMaskBuffer", SlotDirection.Output);
-                new ComputeBufferSlot("clusterCullingReflectionProbeDatasBuffer", SlotDirection.Output);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubClusterLight : Pass
-        {
-            public StubClusterLight(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new ComputeBufferSlot("lightDatasBuffer", SlotDirection.Input);
-                new ComputeBufferSlot("clusterCullingLightMaskBuffer", SlotDirection.Output);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubColorInput : Pass
-        {
-            public StubColorInput(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("colorTargetSlot", SlotDirection.Output);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubDepthInput : Pass
-        {
-            public StubDepthInput(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("DepthTarget", SlotDirection.Output);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubForwardOpaque : Pass
-        {
-            public StubForwardOpaque(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("ColorTarget", SlotDirection.Output);
-                new TextureSlot("DepthTarget", SlotDirection.Output);
-                new ComputeBufferSlot("LightDatas", SlotDirection.Input);
-                new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
-                new ComputeBufferSlot("ProbeMask", SlotDirection.Input);
-                new ComputeBufferSlot("ProbeDatas", SlotDirection.Input);
-                new ComputeBufferSlot("LightMask", SlotDirection.Input);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubSky : Pass
-        {
-            public StubSky(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("ColorTarget", SlotDirection.Input);
-                new TextureSlot("DepthTarget", SlotDirection.Input);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubTransparency : Pass
-        {
-            public StubTransparency(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("ColorTarget", SlotDirection.Input);
-                new TextureSlot("DepthTarget", SlotDirection.Input);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubWireOverlay : Pass
-        {
-            public StubWireOverlay(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("ColorTarget", SlotDirection.Input);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        private sealed class StubRenderOutput : Pass
-        {
-            public StubRenderOutput(string name) : base(name) { }
-            public override void SetupSlots()
-            {
-                new TextureSlot("ColorTarget", SlotDirection.Input);
-            }
-
-            public override void Initialize(CameraContext context) { }
-            public override void Record(RenderGraph renderGraph) { }
-        }
-
-        #endregion
-
-        #region Setup / Teardown
+            "buildLight", "clusterProbe", "clusterLight",
+            "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
+        };
 
         /// <summary>
-        /// Builds the clean registry (real passes only), then registers all stub
-        /// pass types under their matching display names before each test.
+        /// Ensures <see cref="PassRegistry"/> is populated (real passes only —
+        /// no stubs) before each test.
         /// </summary>
         [SetUp]
         public void SetUp()
         {
             PassRegistry.RegisterAll();
-            RegisterStubPasses();
-        }
-
-        private static void RegisterStubPasses()
-        {
-            PassRegistry.Register("Build Light Data", typeof(StubBuildLightData));
-            PassRegistry.Register("Cluster Culling Probe", typeof(StubClusterProbe));
-            PassRegistry.Register("Cluster Culling Light", typeof(StubClusterLight));
-            PassRegistry.Register("Color Buffer Input", typeof(StubColorInput));
-            PassRegistry.Register("Depth Buffer Input", typeof(StubDepthInput));
-            PassRegistry.Register("Forward Opaque", typeof(StubForwardOpaque));
-            PassRegistry.Register("Builtin Sky", typeof(StubSky));
-            PassRegistry.Register("Transparency", typeof(StubTransparency));
-            PassRegistry.Register("Editor Wire Overlay", typeof(StubWireOverlay));
-            PassRegistry.Register("Render Output", typeof(StubRenderOutput));
         }
 
         /// <summary>
-        /// Restores the clean registry (real passes only) after each test.
+        /// Restores the clean registry after each test.
         /// </summary>
         [TearDown]
         public void TearDown()
         {
             PassRegistry.RegisterAll();
         }
-
-        #endregion
 
         #region Asset Loading
 
@@ -219,16 +68,14 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Pass Count
+        #region Build — Pass Composition
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> produces exactly 10 passes
-        /// matching the 10 <see cref="PassDefinition"/> entries in the asset.
-        /// Expected order: buildLight, clusterProbe, clusterLight, colorInput,
-        /// depthInput, forwardOpaque, sky, transparency, wireOverlay, finalBlit.
+        /// <see cref="RenderGraphAsset.Build"/> succeeds on the real asset and
+        /// produces exactly the expected pass set in topological order.
         /// </summary>
         [Test]
-        public void Build_ProducesTenPasses()
+        public void Build_ProducesExpectedPasses()
         {
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/StandardGraph");
             Assume.That(asset, Is.Not.Null,
@@ -236,19 +83,12 @@ namespace HN.HNRP.Tests
 
             List<Pass> result = asset.Build(renderer: null);
 
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result.Count, Is.EqualTo(10),
-                "Build should produce exactly 10 passes.");
+            Assert.That(result, Is.Not.Null,
+                "Build should return a non-null list.");
+            Assert.That(result.Count, Is.EqualTo(ExpectedPassNames.Length),
+                "Build should produce exactly the expected number of passes.");
 
-            // Verify each expected instance name is present.
-            string[] expectedNames =
-            {
-                "buildLight", "clusterProbe", "clusterLight",
-                "colorInput", "depthInput", "forwardOpaque",
-                "sky", "transparency", "wireOverlay", "finalBlit",
-            };
-
-            foreach (string name in expectedNames)
+            foreach (string name in ExpectedPassNames)
             {
                 Assert.That(
                     result.Exists(p => p.PassName == name),
@@ -259,44 +99,188 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Connections Validation
+        #region Build — Resource Nodes
 
         /// <summary>
-        /// All 14 <see cref="SlotConnection"/> entries in the asset are valid,
-        /// and all referenced source/target passes exist in the pass list.
+        /// <see cref="RenderGraphAsset.Build"/> materializes the asset's
+        /// <see cref="ResourceDefinition"/> entries into runtime
+        /// <see cref="ResourceNode"/> instances exposed through
+        /// <see cref="RenderGraphAsset.ResourceNodes"/>. StandardGraph declares
+        /// nine resources — the color / depth buffers, the lighting compute
+        /// buffers, and both opaque / transparent renderer lists.
         /// </summary>
         [Test]
-        public void Connections_AllValidAndReferenced()
+        public void Build_MaterializesResourceNodes()
         {
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/StandardGraph");
-            Assume.That(asset, Is.Not.Null);
+            Assume.That(asset, Is.Not.Null,
+                "Test requires StandardGraph.asset to be loadable.");
 
-            Assert.That(asset.Connections.Count, Is.EqualTo(14),
-                "StandardGraph should have exactly 14 slot connections.");
+            IReadOnlyList<ResourceNode> nodes = asset.ResourceNodes;
 
-            // Build so we can cross-reference connection pass names with
-            // instantiated passes.
-            List<Pass> builtPasses = asset.Build(renderer: null);
+            Assert.That(nodes, Is.Not.Null,
+                "ResourceNodes should be non-null after Build.");
+            Assert.That(nodes.Count, Is.EqualTo(9),
+                "Build should materialize the nine StandardGraph resource nodes.");
 
-            // Collect pass names for existence checks.
-            var passNames = new HashSet<string>();
-            foreach (Pass p in builtPasses)
+            string[] expectedNames =
             {
-                passNames.Add(p.PassName);
+                "ColorBuffer", "DepthBuffer", "LightDatas", "LightMask",
+                "ReflectionProbeAtlas", "ProbeMask", "ProbeDatas",
+                "OpaqueRendererList", "TransparentRendererList",
+            };
+
+            foreach (string name in expectedNames)
+            {
+                Assert.That(nodes.Any(n => n.ResourceName == name), Is.True,
+                    $"A '{name}' resource node should be present.");
+            }
+        }
+
+        #endregion
+
+        #region Build — Connections
+
+        /// <summary>
+        /// After <see cref="RenderGraphAsset.Build"/>, the key input slots of
+        /// every rendering pass are connected under the new chained model:
+        /// resource nodes feed the first consumer only, and downstream passes
+        /// receive the same buffer through <see cref="SlotConnection"/>
+        /// pass-to-pass chains (e.g. <c>forwardOpaque.ColorTargetOutput</c> →
+        /// <c>sky.ColorTarget</c> → <c>transparency.ColorTarget</c>).
+        /// </summary>
+        [Test]
+        public void Build_ConnectsKeyPassSlots()
+        {
+            var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/StandardGraph");
+            Assume.That(asset, Is.Not.Null,
+                "Test requires StandardGraph.asset to be loadable.");
+
+            List<Pass> result = asset.Build(renderer: null);
+
+            Pass FindPass(string instanceName)
+            {
+                Pass pass = result.Find(p => p.PassName == instanceName);
+                Assert.That(pass, Is.Not.Null,
+                    $"Pass '{instanceName}' should be present in the build result.");
+                return pass!;
             }
 
-            foreach (SlotConnection conn in asset.Connections)
-            {
-                Assert.That(conn.IsValid(), Is.True,
-                    $"Connection {conn.SourcePass}.{conn.SourceSlot} → " +
-                    $"{conn.TargetPass}.{conn.TargetSlot} should be valid.");
+            // ── forwardOpaque: all eight inputs connected (resource nodes) ──
 
-                Assert.That(passNames.Contains(conn.SourcePass), Is.True,
-                    $"SourcePass '{conn.SourcePass}' should exist in the pass list.");
+            var forwardOpaque = (DrawObjectPass)FindPass("forwardOpaque");
+            Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.True,
+                "forwardOpaque.ColorTarget should be connected through a resource node.");
+            Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.True,
+                "forwardOpaque.DepthTarget should be connected through a resource node.");
+            Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
+                "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
+            Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
+                "forwardOpaque.ReflectionProbeAtlas should be connected through a resource node.");
+            Assert.That(forwardOpaque.ProbeMaskSlot!.IsConnected, Is.True,
+                "forwardOpaque.ProbeMask should be connected through a resource node.");
+            Assert.That(forwardOpaque.ProbeDatasSlot!.IsConnected, Is.True,
+                "forwardOpaque.ProbeDatas should be connected through a resource node.");
+            Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
+                "forwardOpaque.LightMask should be connected through a resource node.");
+            Assert.That(forwardOpaque.RendererListSlot!.IsConnected, Is.True,
+                "forwardOpaque.RendererList should be connected through a resource node.");
 
-                Assert.That(passNames.Contains(conn.TargetPass), Is.True,
-                    $"TargetPass '{conn.TargetPass}' should exist in the pass list.");
-            }
+            // ── sky: color / depth targets connected (chained from forwardOpaque) ──
+
+            var sky = (BuiltinSkyPass)FindPass("sky");
+            Assert.That(sky.ColorTargetSlot!.IsConnected, Is.True,
+                "sky.ColorTarget should be connected through forwardOpaque.ColorTargetOutput.");
+            Assert.That(sky.DepthTargetSlot!.IsConnected, Is.True,
+                "sky.DepthTarget should be connected through forwardOpaque.DepthTargetOutput.");
+
+            // ── transparency: all eight inputs connected (chained where possible) ──
+
+            var transparency = (DrawObjectPass)FindPass("transparency");
+            Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
+                "transparency.ColorTarget should be connected through sky.ColorTargetOutput.");
+            Assert.That(transparency.DepthTargetSlot!.IsConnected, Is.True,
+                "transparency.DepthTarget should be connected through sky.DepthTargetOutput.");
+            Assert.That(transparency.LightDatasSlot!.IsConnected, Is.True,
+                "transparency.LightDatas should be connected through a slot connection from buildLight.");
+            Assert.That(transparency.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
+                "transparency.ReflectionProbeAtlas should be connected through a slot connection from clusterProbe.");
+            Assert.That(transparency.ProbeMaskSlot!.IsConnected, Is.True,
+                "transparency.ProbeMask should be connected through a slot connection from clusterProbe.");
+            Assert.That(transparency.ProbeDatasSlot!.IsConnected, Is.True,
+                "transparency.ProbeDatas should be connected through a slot connection from clusterProbe.");
+            Assert.That(transparency.LightMaskSlot!.IsConnected, Is.True,
+                "transparency.LightMask should be connected through a slot connection from clusterLight.");
+            Assert.That(transparency.RendererListSlot!.IsConnected, Is.True,
+                "transparency.RendererList should be connected through a resource node.");
+
+            // ── wireOverlay: color target connected (chained from transparency) ──
+
+            var wireOverlay = (EditorWireOverlayPass)FindPass("wireOverlay");
+            Assert.That(wireOverlay.ColorTargetSlot!.IsConnected, Is.True,
+                "wireOverlay.ColorTarget should be connected through transparency.ColorTargetOutput.");
+
+            // ── finalBlit: color target connected (chained from wireOverlay) ──
+
+            var finalBlit = (RenderOutputPass)FindPass("finalBlit");
+            Assert.That(finalBlit.ColorTargetSlot!.IsConnected, Is.True,
+                "finalBlit.ColorTarget should be connected through wireOverlay.ColorTargetOutput.");
+        }
+
+        #endregion
+
+        #region Build — Topological Order
+
+        /// <summary>
+        /// <see cref="RenderGraphAsset.Build"/> returns passes in topological
+        /// order (producers before consumers). The chained model adds explicit
+        /// pass-to-pass edges along the color / depth target chain, so
+        /// <c>forwardOpaque</c> must run before <c>sky</c>, which runs before
+        /// <c>transparency</c>, which runs before <c>wireOverlay</c>, which
+        /// runs before <c>finalBlit</c>; <c>buildLight</c> produces the
+        /// LightDatas resource consumed by <c>clusterLight</c>, so it must run
+        /// first too.
+        /// </summary>
+        [Test]
+        public void Build_OrdersPassesTopologically()
+        {
+            var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/StandardGraph");
+            Assume.That(asset, Is.Not.Null,
+                "Test requires StandardGraph.asset to be loadable.");
+
+            List<Pass> result = asset.Build(renderer: null);
+
+            int IndexOf(string name) => result.FindIndex(p => p.PassName == name);
+
+            Assert.That(IndexOf("buildLight"), Is.GreaterThanOrEqualTo(0),
+                "buildLight should be present.");
+            Assert.That(IndexOf("clusterLight"), Is.GreaterThanOrEqualTo(0),
+                "clusterLight should be present.");
+            Assert.That(IndexOf("forwardOpaque"), Is.GreaterThanOrEqualTo(0),
+                "forwardOpaque should be present.");
+            Assert.That(IndexOf("sky"), Is.GreaterThanOrEqualTo(0),
+                "sky should be present.");
+            Assert.That(IndexOf("transparency"), Is.GreaterThanOrEqualTo(0),
+                "transparency should be present.");
+            Assert.That(IndexOf("wireOverlay"), Is.GreaterThanOrEqualTo(0),
+                "wireOverlay should be present.");
+            Assert.That(IndexOf("finalBlit"), Is.GreaterThanOrEqualTo(0),
+                "finalBlit should be present.");
+
+            Assert.That(IndexOf("buildLight"), Is.LessThan(IndexOf("clusterLight")),
+                "buildLight (LightDatas producer) must be ordered before clusterLight.");
+
+            Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("sky")),
+                "forwardOpaque (color/depth producer) must be ordered before sky.");
+            Assert.That(IndexOf("sky"), Is.LessThan(IndexOf("transparency")),
+                "sky (color/depth producer) must be ordered before transparency.");
+            Assert.That(IndexOf("transparency"), Is.LessThan(IndexOf("wireOverlay")),
+                "transparency (color producer) must be ordered before wireOverlay.");
+            Assert.That(IndexOf("wireOverlay"), Is.LessThan(IndexOf("finalBlit")),
+                "wireOverlay (color producer) must be ordered before finalBlit.");
+
+            Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("transparency")),
+                "forwardOpaque must be ordered before transparency (stable definition order).");
         }
 
         #endregion

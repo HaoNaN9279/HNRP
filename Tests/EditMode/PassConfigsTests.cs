@@ -85,7 +85,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="ForwardOpaqueConfig.ApplyToPass"/> must enable the pass
-        /// and set <see cref="ForwardOpaquePass.RenderingLayerMask"/> on a
+        /// and set <see cref="DrawObjectPass.RenderingLayerMask"/> on a
         /// compatible pass instance.
         /// </summary>
         [Test]
@@ -95,7 +95,7 @@ namespace HN.HNRP.Tests
             var config = ScriptableObject.CreateInstance<ForwardOpaqueConfig>();
             config.RenderingLayerMask = 0x00000003;
 
-            var pass = new ForwardOpaquePass("TestForwardOpaque");
+            var pass = new DrawObjectPass("TestForwardOpaque");
             pass.IsEnabled = false;
 
             // ── Act ──
@@ -263,7 +263,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="TransparencyConfig.ApplyToPass"/> must enable the pass
-        /// and set <see cref="TransparencyPass.RenderingLayerMask"/> on a
+        /// and set <see cref="DrawObjectPass.RenderingLayerMask"/> on a
         /// compatible pass instance.
         /// </summary>
         [Test]
@@ -273,7 +273,7 @@ namespace HN.HNRP.Tests
             var config = ScriptableObject.CreateInstance<TransparencyConfig>();
             config.RenderingLayerMask = 0x00000005;
 
-            var pass = new TransparencyPass("TestTransparency");
+            var pass = new DrawObjectPass("TestTransparency");
             pass.IsEnabled = false;
 
             // ── Act ──

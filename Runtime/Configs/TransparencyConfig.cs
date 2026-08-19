@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// ScriptableObject configuration for <see cref="TransparencyPass"/>.
+    /// ScriptableObject configuration for a transparent <see cref="DrawObjectPass"/>.
     /// Holds all configurable parameters — render-queue range, layer mask, sorting mode —
     /// and applies them to the pass via <see cref="ApplyToPass"/>.
     /// </summary>
@@ -84,9 +84,9 @@ namespace HN.HNRP
 
             pass.IsEnabled = true;
 
-            if (pass is TransparencyPass transparency)
+            if (pass is DrawObjectPass drawObject)
             {
-                transparency.RenderingLayerMask = m_RenderingLayerMask;
+                drawObject.RenderingLayerMask = m_RenderingLayerMask;
             }
         }
     }

@@ -16,6 +16,8 @@ namespace HN.HNRP.Editor
     /// <item><see cref="RenderGraphSettings"/> (SHEvalMode, AllowHDR)</item>
     /// <item><see cref="PassDefinition"/> list (add, remove, reorder)</item>
     /// <item><see cref="SlotConnection"/> list (add, remove, edit source/target names)</item>
+    /// <item><see cref="ResourceDefinition"/> list — resource nodes (add, remove, reorder)</item>
+    /// <item><see cref="ResourceConnection"/> list — resource↔pass edges (add, remove, edit)</item>
     /// </list>
     /// </summary>
     [CustomEditor(typeof(RenderGraphAsset))]
@@ -25,6 +27,8 @@ namespace HN.HNRP.Editor
 
         private SerializedProperty m_PassesProp;
         private SerializedProperty m_ConnectionsProp;
+        private SerializedProperty m_ResourcesProp;
+        private SerializedProperty m_ResourceConnectionsProp;
         private SerializedProperty m_SettingsProp;
 
         private SerializedProperty m_SHEvalModeProp;
@@ -32,9 +36,13 @@ namespace HN.HNRP.Editor
 
         private ReorderableList m_PassesList;
         private ReorderableList m_ConnectionsList;
+        private ReorderableList m_ResourcesList;
+        private ReorderableList m_ResourceConnectionsList;
 
         private bool m_PassesExpanded = true;
         private bool m_ConnectionsExpanded = true;
+        private bool m_ResourcesExpanded = true;
+        private bool m_ResourceConnectionsExpanded = true;
         private bool m_SettingsExpanded = true;
 
         #endregion
@@ -45,6 +53,8 @@ namespace HN.HNRP.Editor
         {
             m_PassesProp = serializedObject.FindProperty("m_Passes");
             m_ConnectionsProp = serializedObject.FindProperty("m_Connections");
+            m_ResourcesProp = serializedObject.FindProperty("m_Resources");
+            m_ResourceConnectionsProp = serializedObject.FindProperty("m_ResourceConnections");
             m_SettingsProp = serializedObject.FindProperty("m_Settings");
 
             if (m_SettingsProp != null)
@@ -55,6 +65,8 @@ namespace HN.HNRP.Editor
 
             SetupPassesList();
             SetupConnectionsList();
+            SetupResourcesList();
+            SetupResourceConnectionsList();
         }
 
         public override void OnInspectorGUI()
@@ -65,6 +77,8 @@ namespace HN.HNRP.Editor
             DrawSettingsSection();
             DrawPassesSection();
             DrawConnectionsSection();
+            DrawResourcesSection();
+            DrawResourceConnectionsSection();
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -150,6 +164,40 @@ namespace HN.HNRP.Editor
 
             EditorGUI.indentLevel++;
             m_ConnectionsList.DoLayoutList();
+            EditorGUI.indentLevel--;
+        }
+
+        private void DrawResourcesSection()
+        {
+            m_ResourcesExpanded = EditorGUILayout.Foldout(
+                m_ResourcesExpanded,
+                $"Resource Nodes ({m_ResourcesProp.arraySize})",
+                toggleOnLabelClick: true);
+
+            if (!m_ResourcesExpanded)
+            {
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+            m_ResourcesList.DoLayoutList();
+            EditorGUI.indentLevel--;
+        }
+
+        private void DrawResourceConnectionsSection()
+        {
+            m_ResourceConnectionsExpanded = EditorGUILayout.Foldout(
+                m_ResourceConnectionsExpanded,
+                $"Resource Connections ({m_ResourceConnectionsProp.arraySize})",
+                toggleOnLabelClick: true);
+
+            if (!m_ResourceConnectionsExpanded)
+            {
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+            m_ResourceConnectionsList.DoLayoutList();
             EditorGUI.indentLevel--;
         }
 
@@ -312,6 +360,162 @@ namespace HN.HNRP.Editor
                 element.FindPropertyRelative("m_SourceSlot").stringValue = string.Empty;
                 element.FindPropertyRelative("m_TargetPass").stringValue = string.Empty;
                 element.FindPropertyRelative("m_TargetSlot").stringValue = string.Empty;
+            }
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        #endregion
+
+        #region ResourceDefinition List Setup
+
+        private void SetupResourcesList()
+        {
+            m_ResourcesList = new ReorderableList(
+                serializedObject, m_ResourcesProp,
+                draggable: true,
+                displayHeader: true,
+                displayAddButton: true,
+                displayRemoveButton: true)
+            {
+                drawHeaderCallback = DrawResourcesHeader,
+                drawElementCallback = DrawResourceElement,
+                elementHeightCallback = GetResourceElementHeight,
+                onAddCallback = OnAddResource,
+            };
+        }
+
+        private static void DrawResourcesHeader(Rect rect)
+        {
+            EditorGUI.LabelField(rect, "Resource Nodes");
+        }
+
+        private void DrawResourceElement(Rect rect, int index, bool isActive, bool isFocused)
+        {
+            SerializedProperty element = m_ResourcesProp.GetArrayElementAtIndex(index);
+            if (element == null)
+            {
+                return;
+            }
+
+            SerializedProperty nameProp = element.FindPropertyRelative("ResourceName");
+            SerializedProperty kindProp = element.FindPropertyRelative("ResourceKind");
+
+            float singleLine = EditorGUIUtility.singleLineHeight;
+            float padding = 2f;
+            float halfWidth = (rect.width - padding) / 2f;
+
+            var row1NameRect = new Rect(rect.x, rect.y + padding, halfWidth, singleLine);
+            var row1KindRect = new Rect(rect.x + halfWidth + padding, rect.y + padding, halfWidth, singleLine);
+
+            EditorGUI.PropertyField(row1NameRect, nameProp, new GUIContent("Name"));
+            EditorGUI.PropertyField(row1KindRect, kindProp, new GUIContent("Kind"));
+        }
+
+        private float GetResourceElementHeight(int index)
+        {
+            return EditorGUIUtility.singleLineHeight + 4f;
+        }
+
+        private void OnAddResource(ReorderableList list)
+        {
+            int index = m_ResourcesProp.arraySize;
+            m_ResourcesProp.InsertArrayElementAtIndex(index);
+
+            // Initialize defaults.
+            SerializedProperty element = m_ResourcesProp.GetArrayElementAtIndex(index);
+            if (element != null)
+            {
+                element.FindPropertyRelative("ResourceName").stringValue = string.Empty;
+                element.FindPropertyRelative("ResourceKind").enumValueIndex = 0;
+            }
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        #endregion
+
+        #region ResourceConnection List Setup
+
+        private void SetupResourceConnectionsList()
+        {
+            m_ResourceConnectionsList = new ReorderableList(
+                serializedObject, m_ResourceConnectionsProp,
+                draggable: true,
+                displayHeader: true,
+                displayAddButton: true,
+                displayRemoveButton: true)
+            {
+                drawHeaderCallback = DrawResourceConnectionsHeader,
+                drawElementCallback = DrawResourceConnectionElement,
+                elementHeightCallback = GetResourceConnectionElementHeight,
+                onAddCallback = OnAddResourceConnection,
+            };
+        }
+
+        private static void DrawResourceConnectionsHeader(Rect rect)
+        {
+            EditorGUI.LabelField(rect, "Resource Connections");
+        }
+
+        private void DrawResourceConnectionElement(Rect rect, int index, bool isActive, bool isFocused)
+        {
+            SerializedProperty element = m_ResourceConnectionsProp.GetArrayElementAtIndex(index);
+            if (element == null)
+            {
+                return;
+            }
+
+            SerializedProperty resourceProp = element.FindPropertyRelative("ResourceName");
+            SerializedProperty directionProp = element.FindPropertyRelative("Direction");
+            SerializedProperty passProp = element.FindPropertyRelative("PassName");
+            SerializedProperty slotProp = element.FindPropertyRelative("SlotName");
+
+            float singleLine = EditorGUIUtility.singleLineHeight;
+            float padding = 2f;
+            float labelWidth = 60f;
+            float fieldWidth = (rect.width - (labelWidth * 2f) - (padding * 3f)) / 2f;
+
+            float col1X = rect.x + labelWidth + padding;
+            float col2X = col1X + fieldWidth + labelWidth + (padding * 2f);
+
+            // Row 1: Resource + Direction
+            var resourceLabelRect = new Rect(rect.x, rect.y + padding, labelWidth, singleLine);
+            var resourceRect = new Rect(col1X, rect.y + padding, fieldWidth, singleLine);
+            var directionRect = new Rect(col2X, rect.y + padding, fieldWidth, singleLine);
+
+            EditorGUI.LabelField(resourceLabelRect, "Resource");
+            EditorGUI.PropertyField(resourceRect, resourceProp, GUIContent.none);
+            EditorGUI.PropertyField(directionRect, directionProp, GUIContent.none);
+
+            // Row 2: Pass + Slot
+            var passLabelRect = new Rect(rect.x, rect.y + singleLine + padding, labelWidth, singleLine);
+            var passRect = new Rect(col1X, rect.y + singleLine + padding, fieldWidth, singleLine);
+            var slotRect = new Rect(col2X, rect.y + singleLine + padding, fieldWidth, singleLine);
+
+            EditorGUI.LabelField(passLabelRect, "Pass");
+            EditorGUI.PropertyField(passRect, passProp, GUIContent.none);
+            EditorGUI.PropertyField(slotRect, slotProp, GUIContent.none);
+        }
+
+        private float GetResourceConnectionElementHeight(int index)
+        {
+            return (EditorGUIUtility.singleLineHeight * 2) + 6f;
+        }
+
+        private void OnAddResourceConnection(ReorderableList list)
+        {
+            int index = m_ResourceConnectionsProp.arraySize;
+            m_ResourceConnectionsProp.InsertArrayElementAtIndex(index);
+
+            // Initialize defaults.
+            SerializedProperty element = m_ResourceConnectionsProp.GetArrayElementAtIndex(index);
+            if (element != null)
+            {
+                element.FindPropertyRelative("ResourceName").stringValue = string.Empty;
+                element.FindPropertyRelative("Direction").enumValueIndex = 0;
+                element.FindPropertyRelative("PassName").stringValue = string.Empty;
+                element.FindPropertyRelative("SlotName").stringValue = string.Empty;
             }
 
             serializedObject.ApplyModifiedProperties();

@@ -115,6 +115,86 @@ namespace HN.HNRP.Tests
             }
         }
 
+        /// <summary>
+        /// Minimal pass with a registered texture output slot.
+        /// Registered as <c>"TestTextureProducer"</c>. Used to verify resource-node
+        /// based topology (producer before consumer).
+        /// </summary>
+        [Pass("TestTextureProducer")]
+        private sealed class TestTextureProducerPass : Pass
+        {
+            /// <summary>
+            /// Gets the registered texture output slot.
+            /// </summary>
+            public TextureSlot Output { get; private set; }
+
+            /// <summary>
+            /// Initializes a new instance with the given name.
+            /// </summary>
+            /// <param name="name">The pass instance name.</param>
+            public TestTextureProducerPass(string name)
+                : base(name)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void SetupSlots()
+            {
+                Output = new TextureSlot("Out", SlotDirection.Output);
+                RegisterSlot(Output);
+            }
+
+            /// <inheritdoc />
+            public override void Initialize(CameraContext context)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void Record(RenderGraph renderGraph)
+            {
+            }
+        }
+
+        /// <summary>
+        /// Minimal pass with a registered texture input slot.
+        /// Registered as <c>"TestTextureConsumer"</c>. Used to verify resource-node
+        /// based topology (producer before consumer).
+        /// </summary>
+        [Pass("TestTextureConsumer")]
+        private sealed class TestTextureConsumerPass : Pass
+        {
+            /// <summary>
+            /// Gets the registered texture input slot.
+            /// </summary>
+            public TextureSlot Input { get; private set; }
+
+            /// <summary>
+            /// Initializes a new instance with the given name.
+            /// </summary>
+            /// <param name="name">The pass instance name.</param>
+            public TestTextureConsumerPass(string name)
+                : base(name)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void SetupSlots()
+            {
+                Input = new TextureSlot("In", SlotDirection.Input);
+                RegisterSlot(Input);
+            }
+
+            /// <inheritdoc />
+            public override void Initialize(CameraContext context)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void Record(RenderGraph renderGraph)
+            {
+            }
+        }
+
         #endregion
 
         #region Setup
@@ -314,6 +394,145 @@ namespace HN.HNRP.Tests
                 "EnabledBeta should be in the result.");
             Assert.That(hasDisabled, Is.False,
                 "DisabledPass should NOT be in the result.");
+
+            Object.DestroyImmediate(asset);
+        }
+
+        #endregion
+
+        #region Build — Resource Nodes
+
+        /// <summary>
+        /// <see cref="RenderGraphAsset.Build"/> materializes each valid
+        /// <see cref="ResourceDefinition"/> into the matching concrete
+        /// <see cref="ResourceNode"/> subclass, exposed through
+        /// <see cref="RenderGraphAsset.ResourceNodes"/>.
+        /// </summary>
+        [Test]
+        public void Build_MaterializesResourceNodes_FromDefinitions()
+        {
+            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            asset.Resources.Add(new ResourceDefinition
+            {
+                ResourceName = "ColorBuffer",
+                ResourceKind = ResourceKind.Texture,
+            });
+            asset.Resources.Add(new ResourceDefinition
+            {
+                ResourceName = "LightDatas",
+                ResourceKind = ResourceKind.ComputeBuffer,
+            });
+            asset.Resources.Add(new ResourceDefinition
+            {
+                ResourceName = "OpaqueList",
+                ResourceKind = ResourceKind.RendererList,
+            });
+
+            List<Pass> result = asset.Build(renderer: null);
+
+            Assert.That(asset.ResourceNodes, Is.Not.Null,
+                "ResourceNodes should be non-null after Build.");
+            Assert.That(asset.ResourceNodes.Count, Is.EqualTo(3),
+                "Build should materialize one node per valid resource definition.");
+
+            Assert.That(asset.ResourceNodes[0], Is.InstanceOf<TextureResourceNode>(),
+                "A Texture definition should produce a TextureResourceNode.");
+            Assert.That(asset.ResourceNodes[0].ResourceName, Is.EqualTo("ColorBuffer"));
+            Assert.That(asset.ResourceNodes[1], Is.InstanceOf<ComputeBufferResourceNode>(),
+                "A ComputeBuffer definition should produce a ComputeBufferResourceNode.");
+            Assert.That(asset.ResourceNodes[2], Is.InstanceOf<RendererListResourceNode>(),
+                "A RendererList definition should produce a RendererListResourceNode.");
+
+            Assert.That(result, Is.Not.Null,
+                "Build should still return a non-null (possibly empty) pass list.");
+
+            Object.DestroyImmediate(asset);
+        }
+
+        /// <summary>
+        /// A <see cref="ResourceConnection"/> that references an unknown
+        /// <see cref="ResourceDefinition"/> name must not throw — Build logs a
+        /// warning and continues with the remaining passes.
+        /// </summary>
+        [Test]
+        public void Build_InvalidResourceConnection_DoesNotThrow()
+        {
+            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            asset.Passes.Add(PassDefinition.Create("TestPassA", "OnlyPass"));
+            asset.ResourceConnections.Add(new ResourceConnection
+            {
+                ResourceName = "GhostResource",
+                PassName = "OnlyPass",
+                SlotName = "In",
+                Direction = ResourceConnectionDirection.ResourceToPass,
+            });
+
+            Assert.DoesNotThrow(() => asset.Build(renderer: null),
+                "Build must tolerate resource connections to unknown resources.");
+
+            Assert.That(asset.ResourceNodes.Count, Is.EqualTo(0),
+                "No resource definitions means no runtime resource nodes.");
+
+            Object.DestroyImmediate(asset);
+        }
+
+        #endregion
+
+        #region Build — Topological Order via Resource Nodes
+
+        /// <summary>
+        /// <see cref="RenderGraphAsset.Build"/> orders passes so producers run
+        /// before consumers. A resource node produced by pass <c>A</c> and
+        /// consumed by pass <c>B</c> forces <c>A</c> before <c>B</c>, and the
+        /// consumer's input slot becomes connected through the node.
+        /// </summary>
+        [Test]
+        public void Build_TopologicalOrder_ProducerBeforeConsumer()
+        {
+            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
+            asset.Passes.Add(PassDefinition.Create("TestTextureProducer", "Producer"));
+            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "Consumer"));
+
+            asset.Resources.Add(new ResourceDefinition
+            {
+                ResourceName = "SharedTex",
+                ResourceKind = ResourceKind.Texture,
+            });
+
+            asset.ResourceConnections.Add(new ResourceConnection
+            {
+                ResourceName = "SharedTex",
+                PassName = "Producer",
+                SlotName = "Out",
+                Direction = ResourceConnectionDirection.PassToResource,
+            });
+            asset.ResourceConnections.Add(new ResourceConnection
+            {
+                ResourceName = "SharedTex",
+                PassName = "Consumer",
+                SlotName = "In",
+                Direction = ResourceConnectionDirection.ResourceToPass,
+            });
+
+            List<Pass> result = asset.Build(renderer: null);
+
+            Assert.That(result.Count, Is.EqualTo(2),
+                "Both passes should be built and enabled.");
+
+            int producerIndex = result.FindIndex(p => p.PassName == "Producer");
+            int consumerIndex = result.FindIndex(p => p.PassName == "Consumer");
+
+            Assert.That(producerIndex, Is.GreaterThanOrEqualTo(0),
+                "Producer pass should be present.");
+            Assert.That(consumerIndex, Is.GreaterThanOrEqualTo(0),
+                "Consumer pass should be present.");
+            Assert.That(producerIndex, Is.LessThan(consumerIndex),
+                "Producer pass must be ordered before the consumer pass.");
+
+            var consumer = result[consumerIndex] as TestTextureConsumerPass;
+            Assert.That(consumer, Is.Not.Null);
+            Assert.That(consumer!.Input.IsConnected, Is.True,
+                "The consumer's input slot should be connected through the resource node.");
 
             Object.DestroyImmediate(asset);
         }

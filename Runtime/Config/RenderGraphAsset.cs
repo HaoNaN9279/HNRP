@@ -77,7 +77,19 @@ namespace HN.HNRP
         private List<SlotConnection> m_Connections = new();
 
         [SerializeField]
+        private List<ResourceDefinition> m_Resources = new();
+
+        [SerializeField]
+        private List<ResourceConnection> m_ResourceConnections = new();
+
+        [SerializeField]
         private RenderGraphSettings m_Settings;
+
+        /// <summary>
+        /// Runtime resource nodes built from <see cref="m_Resources"/> during
+        /// <see cref="Build"/>. Not serialized.
+        /// </summary>
+        private List<ResourceNode> m_RuntimeResources = new();
 
         /// <summary>
         /// Gets the ordered list of pass definitions in this graph.
@@ -88,6 +100,23 @@ namespace HN.HNRP
         /// Gets the ordered list of slot connections wiring passes together.
         /// </summary>
         public List<SlotConnection> Connections => m_Connections;
+
+        /// <summary>
+        /// Gets the ordered list of resource definitions in this graph.
+        /// </summary>
+        public List<ResourceDefinition> Resources => m_Resources;
+
+        /// <summary>
+        /// Gets the ordered list of resource connections in this graph.
+        /// </summary>
+        public List<ResourceConnection> ResourceConnections => m_ResourceConnections;
+
+        /// <summary>
+        /// Gets the runtime resource nodes built during the last <see cref="Build"/>
+        /// call. Consumers (e.g. <c>CameraRenderer</c>) resolve these each frame
+        /// before passes record.
+        /// </summary>
+        public IReadOnlyList<ResourceNode> ResourceNodes => m_RuntimeResources;
 
         /// <summary>
         /// Gets or sets the bundled render graph settings.
@@ -155,6 +184,31 @@ namespace HN.HNRP
                 passMap[def.InstanceName] = pass;
             }
 
+            // ── Phase 1.5: Build resource nodes from definitions ──
+            m_RuntimeResources = new List<ResourceNode>();
+            var resourceMap = new Dictionary<string, ResourceNode>();
+            foreach (ResourceDefinition def in m_Resources)
+            {
+                if (def == null || string.IsNullOrEmpty(def.ResourceName))
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: Skipping resource definition with null/empty ResourceName.");
+                    continue;
+                }
+
+                ResourceNode node = CreateResourceNode(def);
+                if (node == null)
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: Could not create resource node for " +
+                        $"'{def.ResourceName}' (kind '{def.ResourceKind}').");
+                    continue;
+                }
+
+                resourceMap[def.ResourceName] = node;
+                m_RuntimeResources.Add(node);
+            }
+
             // ── Phase 2: Wire up slot connections ──
             foreach (SlotConnection conn in m_Connections)
             {
@@ -186,17 +240,307 @@ namespace HN.HNRP
                 ConnectPassSlots(sourcePass, conn.SourceSlot, targetPass, conn.TargetSlot);
             }
 
-            // ── Phase 3: Filter to enabled passes only ──
-            var result = new List<Pass>(passMap.Count);
-            foreach (KeyValuePair<string, Pass> kvp in passMap)
+            // ── Phase 2.5: Parse resource connections ──
+            foreach (ResourceConnection rc in m_ResourceConnections)
             {
-                if (kvp.Value.IsEnabled)
+                if (rc == null || string.IsNullOrEmpty(rc.ResourceName))
                 {
-                    result.Add(kvp.Value);
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: Skipping ResourceConnection with null/empty ResourceName.");
+                    continue;
+                }
+
+                if (!resourceMap.TryGetValue(rc.ResourceName, out ResourceNode node))
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: ResourceConnection references unknown ResourceName " +
+                        $"'{rc.ResourceName}'.");
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(rc.PassName)
+                    || !passMap.TryGetValue(rc.PassName, out Pass pass))
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
+                        $"references unknown PassName '{(rc != null ? rc.PassName : "<null>")}'.");
+                    continue;
+                }
+
+                PassSlot slot = pass.GetSlot(rc.SlotName);
+                if (slot == null)
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
+                        $"references unknown slot '{rc.SlotName}' on pass '{rc.PassName}'.");
+                    continue;
+                }
+
+                if (rc.Direction == ResourceConnectionDirection.ResourceToPass)
+                {
+                    try
+                    {
+                        slot.ConnectResource(node);
+                        node.ConsumerSlots.Add(slot);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Debug.LogWarning(
+                            $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
+                            $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    if (slot.Direction != SlotDirection.Output)
+                    {
+                        Debug.LogWarning(
+                            $"RenderGraphAsset.Build: PassToResource connection for resource " +
+                            $"'{rc.ResourceName}' must reference an Output slot; slot " +
+                            $"'{rc.SlotName}' on pass '{rc.PassName}' is {slot.Direction}.");
+                        continue;
+                    }
+
+                    node.ProducerSlot = slot;
                 }
             }
 
-            return result;
+            // ── Phase 3: Topologically sort passes (producers before consumers) ──
+            return TopologicalSort(passMap);
+        }
+
+        /// <summary>
+        /// Creates the concrete <see cref="ResourceNode"/> subclass matching the
+        /// definition's <see cref="ResourceKind"/>.
+        /// </summary>
+        /// <param name="def">The resource definition to materialize.</param>
+        /// <returns>
+        /// A <see cref="TextureResourceNode"/>, <see cref="ComputeBufferResourceNode"/>,
+        /// or <see cref="RendererListResourceNode"/>, or <c>null</c> for unknown kinds.
+        /// </returns>
+        private static ResourceNode CreateResourceNode(ResourceDefinition def)
+        {
+            ResourceNode node;
+            switch (def.ResourceKind)
+            {
+                case ResourceKind.Texture:
+                    node = new TextureResourceNode();
+                    break;
+                case ResourceKind.ComputeBuffer:
+                    node = new ComputeBufferResourceNode();
+                    break;
+                case ResourceKind.RendererList:
+                    node = new RendererListResourceNode();
+                    break;
+                default:
+                    return null;
+            }
+
+            node.ResourceName = def.ResourceName;
+            node.Kind = def.ResourceKind;
+            node.Definition = def;
+            return node;
+        }
+
+        /// <summary>
+        /// Topologically sorts all built passes so producers are recorded before
+        /// their consumers. Returns only enabled passes.
+        /// </summary>
+        /// <param name="passMap">
+        /// Passes instantiated in <see cref="Build"/>, keyed by instance name.
+        /// </param>
+        /// <returns>
+        /// The enabled passes in a stable topological order (definition insertion
+        /// order as tie-breaker), or all enabled passes in definition order when a
+        /// cycle is detected.
+        /// </returns>
+        /// <remarks>
+        /// Dependencies come from two sources:
+        /// <list type="bullet">
+        ///   <item><b>Resource dependencies</b> — the pass owning
+        ///   <see cref="ResourceNode.ProducerSlot"/> must run before every pass
+        ///   owning a slot in <see cref="ResourceNode.ConsumerSlots"/> (the
+        ///   consumer reads the producer's handle during <see cref="Pass.Record"/>).</item>
+        ///   <item><b>SlotConnection edges</b> — legacy pass-to-pass edges from
+        ///   <see cref="m_Connections"/> (source pass before target pass).</item>
+        /// </list>
+        /// </remarks>
+        private List<Pass> TopologicalSort(Dictionary<string, Pass> passMap)
+        {
+            // Stable base order: definition insertion order, restricted to passes
+            // that were actually built (passMap may omit failed instantiations).
+            var order = new List<Pass>(passMap.Count);
+            var index = new Dictionary<Pass, int>();
+            foreach (PassDefinition def in m_Passes)
+            {
+                if (string.IsNullOrEmpty(def.InstanceName))
+                {
+                    continue;
+                }
+
+                if (passMap.TryGetValue(def.InstanceName, out Pass pass))
+                {
+                    index[pass] = order.Count;
+                    order.Add(pass);
+                }
+            }
+
+            int count = order.Count;
+            var adjacency = new Dictionary<int, HashSet<int>>();
+            var inDegree = new int[count];
+
+            // ── Build dependency edges ──
+
+            // Resource dependencies: producer pass → consumer pass, plus chained
+            // consumer edges (definition order) so passes sharing a resource keep
+            // a stable order even when the resource has no producer pass.
+            foreach (ResourceNode node in m_RuntimeResources)
+            {
+                // Collect consumer passes (deduplicated) in definition order.
+                var consumers = new List<Pass>();
+                foreach (PassSlot consumer in node.ConsumerSlots)
+                {
+                    if (consumer.OwnerPass == null
+                        || !index.TryGetValue(consumer.OwnerPass, out _)
+                        || consumers.Contains(consumer.OwnerPass))
+                    {
+                        continue;
+                    }
+
+                    consumers.Add(consumer.OwnerPass);
+                }
+
+                consumers.Sort((a, b) => order.IndexOf(a).CompareTo(order.IndexOf(b)));
+
+                // Producer pass (if any) must record before every consumer.
+                if (node.ProducerSlot?.OwnerPass is Pass producer
+                    && index.TryGetValue(producer, out int producerIndex))
+                {
+                    foreach (Pass consumer in consumers)
+                    {
+                        if (consumer == producer)
+                        {
+                            continue;
+                        }
+
+                        AddEdge(adjacency, inDegree, producerIndex, index[consumer]);
+                    }
+                }
+
+                // Chained consumer edges keep resource consumers in definition
+                // order. This matters for resources without a producer pass:
+                // RenderGraph does not reorder passes that share an imported
+                // (non-pass-produced) resource, so the record order here is the
+                // execution order.
+                for (int i = 0; i + 1 < consumers.Count; i++)
+                {
+                    AddEdge(adjacency, inDegree, index[consumers[i]], index[consumers[i + 1]]);
+                }
+            }
+
+            // Legacy SlotConnection edges: source pass → target pass.
+            foreach (SlotConnection conn in m_Connections)
+            {
+                if (!conn.IsValid())
+                {
+                    continue;
+                }
+
+                if (!passMap.TryGetValue(conn.SourcePass, out Pass source)
+                    || !passMap.TryGetValue(conn.TargetPass, out Pass target)
+                    || source == target)
+                {
+                    continue;
+                }
+
+                if (index.TryGetValue(source, out int sourceIndex)
+                    && index.TryGetValue(target, out int targetIndex))
+                {
+                    AddEdge(adjacency, inDegree, sourceIndex, targetIndex);
+                }
+            }
+
+            // ── Kahn's algorithm with stable (insertion-order) tie-breaking ──
+            var result = new List<Pass>(count);
+            var visited = new bool[count];
+            bool progressed = true;
+            while (progressed)
+            {
+                progressed = false;
+                for (int i = 0; i < count; i++)
+                {
+                    if (visited[i] || inDegree[i] != 0)
+                    {
+                        continue;
+                    }
+
+                    visited[i] = true;
+                    result.Add(order[i]);
+                    progressed = true;
+
+                    if (adjacency.TryGetValue(i, out HashSet<int> targets))
+                    {
+                        foreach (int target in targets)
+                        {
+                            if (!visited[target])
+                            {
+                                inDegree[target]--;
+                            }
+                        }
+                    }
+
+                    break;
+                }
+            }
+
+            // ── Cycle detection: append remaining nodes so nothing is dropped ──
+            if (result.Count < count)
+            {
+                Debug.LogWarning(
+                    $"RenderGraphAsset.TopologicalSort: cycle detected in render graph " +
+                    $"'{name}'. Appending remaining passes in definition order.");
+                for (int i = 0; i < count; i++)
+                {
+                    if (!visited[i])
+                    {
+                        result.Add(order[i]);
+                    }
+                }
+            }
+
+            // ── Filter to enabled passes only ──
+            var enabled = new List<Pass>(result.Count);
+            foreach (Pass pass in result)
+            {
+                if (pass.IsEnabled)
+                {
+                    enabled.Add(pass);
+                }
+            }
+
+            return enabled;
+        }
+
+        /// <summary>
+        /// Adds a dependency edge from index <paramref name="from"/> to
+        /// <paramref name="to"/>, deduplicating parallel edges.
+        /// </summary>
+        private static void AddEdge(
+            Dictionary<int, HashSet<int>> adjacency,
+            int[] inDegree,
+            int from,
+            int to)
+        {
+            if (!adjacency.TryGetValue(from, out HashSet<int> targets))
+            {
+                targets = new HashSet<int>();
+                adjacency[from] = targets;
+            }
+
+            if (targets.Add(to))
+            {
+                inDegree[to]++;
+            }
         }
 
         /// <summary>

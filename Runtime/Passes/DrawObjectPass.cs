@@ -2,35 +2,45 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
-using System;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
-using UnityEngine.Rendering;
 using UnityEngine.Rendering.RendererUtils;
 
 namespace HN.HNRP
 {
     /// <summary>
-    /// Generic object-drawing pass that creates a <see cref="RendererList"/> from
-    /// the camera's culling results and draws it using
-    /// <c>ctx.cmd.DrawRendererList</c>.
-    /// New <see cref="Pass"/>-based replacement for the legacy
-    /// <see cref="DrawObjectPass"/> (<c>PassBase</c>).
+    /// Generic parameterized object-drawing pass.
+    /// All resources — color / depth targets, light data buffers, reflection probe
+    /// data, and the renderer list — are supplied as <see cref="ResourceNode"/>
+    /// inputs. The pass never allocates its own resources.
     /// </summary>
     /// <remarks>
-    /// <para>Outputs:</para>
+    /// <para><b>Inputs (all optional except <see cref="ColorTargetSlot"/> /
+    /// <see cref="DepthTargetSlot"/> / <see cref="RendererListSlot"/>):</b></para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer written by draw calls.</item>
     ///   <item><b>DepthTarget</b> — the depth buffer written by draw calls.</item>
-    /// </list>
-    /// <para>Inputs (optional — gated via <c>IsConnected</c>):</para>
-    /// <list type="bullet">
     ///   <item><b>LightDatas</b> — compute buffer with light data for shader access.</item>
     ///   <item><b>ReflectionProbeAtlas</b> — reflection probe cubemap atlas texture.</item>
     ///   <item><b>ProbeMask</b> — cluster culling reflection probe mask buffer.</item>
     ///   <item><b>ProbeDatas</b> — cluster culling reflection probe data buffer.</item>
     ///   <item><b>LightMask</b> — cluster culling light mask buffer.</item>
+    ///   <item><b>RendererList</b> — the renderer list to draw.</item>
+    /// </list>
+    /// <para>
+    /// When <see cref="SetLightGlobals"/> is <c>true</c> the render function also
+    /// binds the probe / light / light-data shader globals (replacing the old
+    /// Forward Opaque pass behavior). When <c>false</c> only
+    /// <c>DrawRendererList</c> is emitted (e.g. preview graphs without cluster data).
+    /// </para>
+    /// <para>
+    /// <b>Outputs (pass-through for downstream chaining):</b>
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>ColorTargetOutput</b> — pass-through of the input color target
+    ///   so downstream passes can connect without a separate resource node.</item>
+    ///   <item><b>DepthTargetOutput</b> — pass-through of the input depth target
+    ///   so downstream passes can connect without a separate resource node.</item>
     /// </list>
     /// </remarks>
     [Pass(PassNameConst)]
@@ -48,18 +58,31 @@ namespace HN.HNRP
         /// Only renderers on matching layers are drawn.
         /// Default is <c>0x00000001</c> (layer 0).
         /// </summary>
+        /// <remarks>
+        /// Retained for config compatibility. The actual renderer list comes from
+        /// the <see cref="RendererListSlot"/> input (whose resource definition
+        /// carries its own layer mask).
+        /// </remarks>
         public uint RenderingLayerMask { get; set; } = 0x00000001;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the render function should set
+        /// the probe / light / light-datas shader globals before drawing.
+        /// Default is <c>true</c>. Set to <c>false</c> for graphs that have no
+        /// cluster culling data (e.g. preview).
+        /// </summary>
+        public bool SetLightGlobals { get; set; } = true;
 
         // ── Slots ──
 
         /// <summary>
-        /// Gets the output color target slot.
+        /// Gets the input color target slot.
         /// Available after <see cref="Pass.SetupSlots"/> is called.
         /// </summary>
         public TextureSlot? ColorTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output depth target slot.
+        /// Gets the input depth target slot.
         /// Available after <see cref="Pass.SetupSlots"/> is called.
         /// </summary>
         public TextureSlot? DepthTargetSlot { get; private set; }
@@ -94,6 +117,26 @@ namespace HN.HNRP
         /// </summary>
         public ComputeBufferSlot? LightMaskSlot { get; private set; }
 
+        /// <summary>
+        /// Gets the input renderer list slot.
+        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// </summary>
+        public RendererListSlot? RendererListSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the output color target slot (pass-through of the input
+        /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
+        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// </summary>
+        public TextureSlot? ColorTargetOutputSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the output depth target slot (pass-through of the input
+        /// <see cref="DepthTargetSlot"/> handle for downstream chaining).
+        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// </summary>
+        public TextureSlot? DepthTargetOutputSlot { get; private set; }
+
         // ── Camera context ──
 
         private CameraContext? cameraContext;
@@ -116,20 +159,33 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Output);
-            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Output);
+            ColorTargetSlot = new TextureSlot("ColorTarget", SlotDirection.Input);
+            RegisterSlot(ColorTargetSlot);
+            DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
+            RegisterSlot(DepthTargetSlot);
             LightDatasSlot = new ComputeBufferSlot("LightDatas", SlotDirection.Input);
+            RegisterSlot(LightDatasSlot);
             ReflectionProbeAtlasSlot = new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
+            RegisterSlot(ReflectionProbeAtlasSlot);
             ProbeMaskSlot = new ComputeBufferSlot("ProbeMask", SlotDirection.Input);
+            RegisterSlot(ProbeMaskSlot);
             ProbeDatasSlot = new ComputeBufferSlot("ProbeDatas", SlotDirection.Input);
+            RegisterSlot(ProbeDatasSlot);
             LightMaskSlot = new ComputeBufferSlot("LightMask", SlotDirection.Input);
+            RegisterSlot(LightMaskSlot);
+            RendererListSlot = new RendererListSlot("RendererList", SlotDirection.Input);
+            RegisterSlot(RendererListSlot);
+
+            ColorTargetOutputSlot = new TextureSlot("ColorTargetOutput", SlotDirection.Output);
+            RegisterSlot(ColorTargetOutputSlot);
+            DepthTargetOutputSlot = new TextureSlot("DepthTargetOutput", SlotDirection.Output);
+            RegisterSlot(DepthTargetOutputSlot);
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context so the renderer list can be built from
-        /// <c>CullingResults</c>, <c>Camera</c>, and <c>RuntimeResources</c>
-        /// during <see cref="Record"/>.
+        /// Stores the camera context so renderer list / lighting globals can be
+        /// resolved during <see cref="Record"/>.
         /// </remarks>
         public override void Initialize(CameraContext context)
         {
@@ -139,7 +195,7 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Record(RenderGraph renderGraph)
         {
-            if (ColorTargetSlot == null || DepthTargetSlot == null)
+            if (ColorTargetSlot == null || DepthTargetSlot == null || RendererListSlot == null)
             {
                 return;
             }
@@ -149,121 +205,140 @@ namespace HN.HNRP
                 return;
             }
 
+            // ── Required inputs: color / depth targets + renderer list ──
+
+            if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected || !RendererListSlot.IsConnected)
+            {
+                return;
+            }
+
+            TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
+            if (!colorTarget.IsValid())
+            {
+                return;
+            }
+
+            TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
+            if (!depthTarget.IsValid())
+            {
+                return;
+            }
+
+            RendererListHandle rendererList = RendererListSlot.ReadHandle();
+            if (!rendererList.IsValid())
+            {
+                return;
+            }
+
+            // Pass-through the input color / depth handles to the output slots so
+            // downstream passes can chain from this pass's outputs.
+            if (ColorTargetOutputSlot != null)
+            {
+                ColorTargetOutputSlot.SetHandle(colorTarget);
+            }
+
+            if (DepthTargetOutputSlot != null)
+            {
+                DepthTargetOutputSlot.SetHandle(depthTarget);
+            }
+
             using var builder = renderGraph.AddRenderPass<DrawObjectPassData>(
                 PassName, out var passData);
 
             builder.AllowRendererListCulling(false);
 
-            // ── Output slots: create and register color / depth targets ──
-            // Explicit size so window resizes allocate a correctly-sized target.
-            var colorDesc = new TextureDesc(
-                cameraContext.Camera.pixelWidth,
-                cameraContext.Camera.pixelHeight,
-                false, false)
-            {
-                colorFormat = GraphicsFormat.R8G8B8A8_UNorm,
-                clearBuffer = false,
-                name = $"{PassName}_ColorTarget",
-            };
-
-            var depthDesc = new TextureDesc(
-                cameraContext.Camera.pixelWidth,
-                cameraContext.Camera.pixelHeight,
-                false, false)
-            {
-                depthBufferBits = DepthBits.Depth32,
-                clearBuffer = false,
-                name = $"{PassName}_DepthTarget",
-            };
-
-            TextureHandle colorTarget = renderGraph.CreateTexture(colorDesc);
-            TextureHandle depthTarget = renderGraph.CreateTexture(depthDesc);
-
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
-            ColorTargetSlot.SetHandle(colorTarget);
-            DepthTargetSlot.SetHandle(depthTarget);
+            // ── Optional inputs: gated independently on connectivity ──
 
-            // ── Input slot: light data buffer ──
-
-            if (LightDatasSlot?.IsConnected == true)
+            bool hasLightDatas = LightDatasSlot?.IsConnected == true;
+            if (hasLightDatas)
             {
                 passData.lightDatasBuffer = builder.ReadComputeBuffer(
                     LightDatasSlot.ReadHandle());
             }
 
-            // ── Input slots: reflection probe atlas + cluster culling buffers ──
-
-            if (ReflectionProbeAtlasSlot?.IsConnected == true
-                && ProbeMaskSlot?.IsConnected == true
-                && ProbeDatasSlot?.IsConnected == true)
+            bool hasReflectionProbeAtlas = ReflectionProbeAtlasSlot?.IsConnected == true;
+            if (hasReflectionProbeAtlas)
             {
                 passData.reflectionProbeAtlas = builder.ReadTexture(
                     ReflectionProbeAtlasSlot.ReadHandle());
+            }
+
+            bool hasProbeMask = ProbeMaskSlot?.IsConnected == true;
+            if (hasProbeMask)
+            {
                 passData.probeMaskBuffer = builder.ReadComputeBuffer(
                     ProbeMaskSlot.ReadHandle());
+            }
+
+            bool hasProbeDatas = ProbeDatasSlot?.IsConnected == true;
+            if (hasProbeDatas)
+            {
                 passData.probeDatasBuffer = builder.ReadComputeBuffer(
                     ProbeDatasSlot.ReadHandle());
             }
 
-            // ── Input slot: cluster culling light mask buffer ──
-
-            if (LightMaskSlot?.IsConnected == true)
+            bool hasLightMask = LightMaskSlot?.IsConnected == true;
+            if (hasLightMask)
             {
                 passData.lightMaskBuffer = builder.ReadComputeBuffer(
                     LightMaskSlot.ReadHandle());
             }
 
-            // ── Renderer list: same logic as old DrawObjectPass ──
+            // ── Renderer list: read from the resource node input ──
 
-            RendererListDesc rendererListDesc = HNRenderPipelineUtils.GetOpaqueRendererListDesc(
-                ShaderPassNames.AllForwardNames,
-                cameraContext.CullingResults,
-                cameraContext.Camera,
-                RenderingLayerMask);
-
-            passData.rendererList = builder.UseRendererList(
-                renderGraph.CreateRendererList(rendererListDesc));
+            passData.rendererList = builder.UseRendererList(rendererList);
 
             // ── Render function ──
+            // The probe keyword requires all three probe slots connected at record
+            // time (mirrors the original Forward Opaque behavior).
+
+            bool setLightGlobals = SetLightGlobals;
+            bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
 
             builder.SetRenderFunc(
                 (DrawObjectPassData data, RenderGraphContext ctx) =>
                 {
-                    // Reflection probe shader keyword + globals
-                    if (ReflectionProbeAtlasSlot?.IsConnected == true
-                        && ProbeMaskSlot?.IsConnected == true
-                        && ProbeDatasSlot?.IsConnected == true)
+                    if (setLightGlobals)
                     {
-                        ctx.cmd.EnableShaderKeyword(
-                            GlobalKeywords.clusterCullingReflectionProbe);
-                        ctx.cmd.SetGlobalTexture(
-                            ClusterCullingReflectionProbePass.PropertyIDs.reflectionProbeAtlas,
-                            data.reflectionProbeAtlas);
-                        ctx.cmd.SetGlobalBuffer(
-                            ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeMaskBuffer,
-                            data.probeMaskBuffer);
-                        ctx.cmd.SetGlobalBuffer(
-                            ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
-                            data.probeDatasBuffer);
-                    }
+                        // Reflection probe shader keyword + globals (all three
+                        // probe slots must be connected).
+                        if (enableProbeKeyword)
+                        {
+                            ctx.cmd.EnableShaderKeyword(
+                                GlobalKeywords.clusterCullingReflectionProbe);
+                            ctx.cmd.SetGlobalTexture(
+                                ClusterCullingReflectionProbePass.PropertyIDs.reflectionProbeAtlas,
+                                data.reflectionProbeAtlas);
+                            ctx.cmd.SetGlobalBuffer(
+                                ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeMaskBuffer,
+                                data.probeMaskBuffer);
+                            ctx.cmd.SetGlobalBuffer(
+                                ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
+                                data.probeDatasBuffer);
+                        }
 
-                    // Cluster culling light shader keyword + globals
-                    if (LightMaskSlot?.IsConnected == true)
-                    {
-                        ctx.cmd.EnableShaderKeyword(
-                            GlobalKeywords.clusterCullingLight);
-                        ctx.cmd.SetGlobalBuffer(
-                            ClusterCullingLightPass.PropertyIDs.clusterCullingLightMaskBuffer,
-                            data.lightMaskBuffer);
-                    }
+                        // Cluster culling light shader keyword + globals
+                        if (hasLightMask)
+                        {
+                            ctx.cmd.EnableShaderKeyword(
+                                GlobalKeywords.clusterCullingLight);
+                            ctx.cmd.SetGlobalBuffer(
+                                ClusterCullingLightPass.PropertyIDs.clusterCullingLightMaskBuffer,
+                                data.lightMaskBuffer);
+                        }
 
-                    // Light data buffer (always set if available — gated by slot
-                    // connectivity at record time)
-                    ctx.cmd.SetGlobalBuffer(
-                        BuildLightDataPass.PropertyIDs.LightDatasBuffer,
-                        data.lightDatasBuffer);
+                        // Light data buffer (set only when the slot is connected —
+                        // avoids binding an invalid handle when there is no light pass)
+                        if (hasLightDatas)
+                        {
+                            ctx.cmd.SetGlobalBuffer(
+                                BuildLightDataPass.PropertyIDs.LightDatasBuffer,
+                                data.lightDatasBuffer);
+                        }
+                    }
 
                     ctx.cmd.DrawRendererList(data.rendererList);
                 });
@@ -318,7 +393,7 @@ namespace HN.HNRP
             public ComputeBufferHandle lightMaskBuffer;
 
             /// <summary>
-            /// The opaque renderer list handle.
+            /// The renderer list handle.
             /// </summary>
             public RendererListHandle rendererList;
         }

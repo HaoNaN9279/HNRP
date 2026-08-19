@@ -15,7 +15,7 @@ namespace HN.HNRP
     /// <see cref="BuiltinSkyPass"/> (<c>PassBase</c>).
     /// </summary>
     /// <remarks>
-    /// <para>Inputs (connected from upstream, e.g. <c>ForwardOpaquePass</c>):</para>
+    /// <para>Inputs (connected from upstream, e.g. <c>DrawObjectPass</c>):</para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer into which the skybox is rendered.</item>
     ///   <item><b>DepthTarget</b> — the depth buffer used for skybox depth writes.</item>
@@ -28,6 +28,15 @@ namespace HN.HNRP
     /// material assigned to the active camera. This is the same logic as the
     /// legacy <see cref="BuiltinSkyPass"/>.
     /// </para>
+    /// <para>
+    /// <b>Outputs (pass-through for downstream chaining):</b>
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>ColorTargetOutput</b> — pass-through of the input color target
+    ///   so downstream passes can connect without a separate resource node.</item>
+    ///   <item><b>DepthTargetOutput</b> — pass-through of the input depth target
+    ///   so downstream passes can connect without a separate resource node.</item>
+    /// </list>
     /// </remarks>
     [Pass(PassNameConst)]
     public sealed class BuiltinSkyPass : Pass
@@ -51,6 +60,20 @@ namespace HN.HNRP
         /// Available after <see cref="SetupSlots"/> is called.
         /// </summary>
         public TextureSlot? DepthTargetSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the output color target slot (pass-through of the input
+        /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
+        /// Available after <see cref="SetupSlots"/> is called.
+        /// </summary>
+        public TextureSlot? ColorTargetOutputSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the output depth target slot (pass-through of the input
+        /// <see cref="DepthTargetSlot"/> handle for downstream chaining).
+        /// Available after <see cref="SetupSlots"/> is called.
+        /// </summary>
+        public TextureSlot? DepthTargetOutputSlot { get; private set; }
 
         // ── Camera context ──
 
@@ -78,6 +101,11 @@ namespace HN.HNRP
             RegisterSlot(ColorTargetSlot);
             DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
             RegisterSlot(DepthTargetSlot);
+
+            ColorTargetOutputSlot = new TextureSlot("ColorTargetOutput", SlotDirection.Output);
+            RegisterSlot(ColorTargetOutputSlot);
+            DepthTargetOutputSlot = new TextureSlot("DepthTargetOutput", SlotDirection.Output);
+            RegisterSlot(DepthTargetOutputSlot);
         }
 
         /// <inheritdoc />
@@ -93,7 +121,7 @@ namespace HN.HNRP
         /// <inheritdoc />
         /// <remarks>
         /// Reads the upstream color and depth targets (shared texture model — allocated
-        /// by <c>ForwardOpaquePass</c>) and sets a render function that draws the
+        /// by <c>DrawObjectPass</c>) and sets a render function that draws the
         /// skybox using <c>ctx.renderContext.CreateSkyboxRendererList</c> — identical
         /// logic to the legacy <see cref="BuiltinSkyPass.Record"/>.
         /// </remarks>
@@ -123,6 +151,27 @@ namespace HN.HNRP
 
             TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
             TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
+
+            // Guard against an invalid upstream chain (e.g. a frame where culling
+            // failed so the producer pass skipped recording). Skip this pass
+            // instead of binding an invalid handle, which would throw during
+            // render graph execution.
+            if (!colorTarget.IsValid() || !depthTarget.IsValid())
+            {
+                return;
+            }
+
+            // Pass-through the input color / depth handles to the output slots so
+            // downstream passes can chain from this pass's outputs.
+            if (ColorTargetOutputSlot != null)
+            {
+                ColorTargetOutputSlot.SetHandle(colorTarget);
+            }
+
+            if (DepthTargetOutputSlot != null)
+            {
+                DepthTargetOutputSlot.SetHandle(depthTarget);
+            }
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);

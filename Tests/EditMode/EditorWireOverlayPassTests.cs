@@ -20,10 +20,13 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// After <see cref="Pass.SetupSlots"/> is called,
-        /// the color target input slot is non-null with correct name and direction.
+        /// both slots are non-null with correct names and directions:
+        /// the color target input plus the pass-through output
+        /// (<c>ColorTargetOutput</c>) that lets downstream passes chain
+        /// from this pass's output.
         /// </summary>
         [Test]
-        public void SetupSlots_DeclaresColorTargetSlot()
+        public void SetupSlots_DeclaresColorTargetSlots()
         {
             var pass = new EditorWireOverlayPass("TestEditorWireOverlay");
 
@@ -35,11 +38,18 @@ namespace HN.HNRP.Tests
                 "ColorTargetSlot should be non-null after SetupSlots.");
             Assert.That(pass.ColorTargetSlot!.SlotName, Is.EqualTo("ColorTarget"));
             Assert.That(pass.ColorTargetSlot.Direction, Is.EqualTo(SlotDirection.Input));
+
+            // ── ColorTargetOutput pass-through slot ──
+
+            Assert.That(pass.ColorTargetOutputSlot, Is.Not.Null,
+                "ColorTargetOutputSlot should be non-null after SetupSlots.");
+            Assert.That(pass.ColorTargetOutputSlot!.SlotName, Is.EqualTo("ColorTargetOutput"));
+            Assert.That(pass.ColorTargetOutputSlot.Direction, Is.EqualTo(SlotDirection.Output));
         }
 
         /// <summary>
         /// Before <see cref="Pass.SetupSlots"/> is called,
-        /// the color target slot property is <c>null</c>.
+        /// the slot properties are <c>null</c>.
         /// </summary>
         [Test]
         public void AllSlots_AreNull_BeforeSetupSlots()
@@ -47,6 +57,7 @@ namespace HN.HNRP.Tests
             var pass = new EditorWireOverlayPass("TestEditorWireOverlay");
 
             Assert.That(pass.ColorTargetSlot, Is.Null);
+            Assert.That(pass.ColorTargetOutputSlot, Is.Null);
         }
 
         #endregion
@@ -54,16 +65,17 @@ namespace HN.HNRP.Tests
         #region Slot Types
 
         /// <summary>
-        /// The input slot is a <see cref="TextureSlot"/> instance.
+        /// Both slots are <see cref="TextureSlot"/> instances.
         /// </summary>
         [Test]
-        public void SetupSlots_SlotIsTextureSlot()
+        public void SetupSlots_SlotsAreTextureSlots()
         {
             var pass = new EditorWireOverlayPass("TestEditorWireOverlay");
 
             pass.SetupSlots();
 
             Assert.That(pass.ColorTargetSlot, Is.InstanceOf<TextureSlot>());
+            Assert.That(pass.ColorTargetOutputSlot, Is.InstanceOf<TextureSlot>());
         }
 
         #endregion

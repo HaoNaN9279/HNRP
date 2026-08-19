@@ -13,31 +13,64 @@ MonoBehaviour:
   m_Name: PreviewGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - m_PassType: Color Buffer Input
-    m_InstanceName: Color Target
-    m_Config: {fileID: 0}
-  - m_PassType: Depth Buffer Input
-    m_InstanceName: Depth Target
-    m_Config: {fileID: 0}
-  - m_PassType: Forward Opaque
-    m_InstanceName: Opaque
+  - m_PassType: Draw Object
+    m_InstanceName: opaque
     m_Config: {fileID: 0}
   - m_PassType: Render Output
-    m_InstanceName: Final Blit
+    m_InstanceName: finalBlit
     m_Config: {fileID: 0}
   m_Connections:
-  - m_SourcePass: Color Target
-    m_SourceSlot: colorTargetSlot
-    m_TargetPass: Opaque
-    m_TargetSlot: colorTargetSlot
-  - m_SourcePass: Depth Target
-    m_SourceSlot: depthTargetSlot
-    m_TargetPass: Opaque
-    m_TargetSlot: depthTargetSlot
-  - m_SourcePass: Opaque
-    m_SourceSlot: colorTargetSlot
-    m_TargetPass: Final Blit
-    m_TargetSlot: colorTargetSlot
+  - m_SourcePass: opaque
+    m_SourceSlot: ColorTargetOutput
+    m_TargetPass: finalBlit
+    m_TargetSlot: ColorTarget
+  m_Resources:
+  - ResourceName: ColorBuffer
+    ResourceKind: 0
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: DepthBuffer
+    ResourceKind: 0
+    ColorFormat: 8
+    DepthBits: 32
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  - ResourceName: OpaqueRendererList
+    ResourceKind: 2
+    ColorFormat: 8
+    DepthBits: 0
+    TextureScale: {x: 1, y: 1}
+    ClearBuffer: 1
+    ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    BufferCount: 0
+    BufferStride: 0
+    ListKind: 0
+    RenderingLayerMask: 1
+  m_ResourceConnections:
+  - ResourceName: ColorBuffer
+    PassName: opaque
+    SlotName: ColorTarget
+    Direction: 0
+  - ResourceName: DepthBuffer
+    PassName: opaque
+    SlotName: DepthTarget
+    Direction: 0
+  - ResourceName: OpaqueRendererList
+    PassName: opaque
+    SlotName: RendererList
+    Direction: 0
   m_Settings:
     SHEvalMode: 0
     AllowHDR: 0

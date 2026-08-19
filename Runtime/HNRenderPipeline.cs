@@ -144,6 +144,7 @@ namespace HN.HNRP
                     if (gotParams)
                     {
                         cameraContext.CullingResults = context.Cull(ref cullingParams);
+                        cameraContext.HasCullingResults = true;
 
                         // Populate visible light / reflection probe arrays from the culling
                         // results so lighting passes (e.g. BuildLightDataPass) can consume them.

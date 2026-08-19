@@ -81,12 +81,20 @@ namespace HN.HNRP
             var backBuffer = renderGraph.ImportBackbuffer(
                 BuiltinRenderTextureType.CameraTarget);
 
+            TextureHandle inputHandle = colorTargetSlot.ReadHandle();
+            if (!inputHandle.IsValid())
+            {
+                // Upstream chain skipped recording (e.g. culling failed this
+                // frame). Do not record a blit from an invalid handle — binding
+                // it throws during render graph execution.
+                return;
+            }
+
             using var builder = renderGraph.AddRenderPass<RenderOutputData>(
                 PassName, out var passData);
             builder.AllowPassCulling(false);
 
-            passData.inputTexture = builder.ReadTexture(
-                colorTargetSlot.ReadHandle());
+            passData.inputTexture = builder.ReadTexture(inputHandle);
             passData.backBuffer = builder.UseColorBuffer(backBuffer, 0);
             // Game cameras render into the backbuffer, whose UV origin differs
             // from the render-graph texture — flip the blit. SceneView/Preview
