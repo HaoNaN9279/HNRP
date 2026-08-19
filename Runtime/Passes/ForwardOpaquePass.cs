@@ -186,7 +186,7 @@ namespace HN.HNRP
             if (LightDatasSlot?.IsConnected == true)
             {
                 passData.lightDatasBuffer = builder.ReadComputeBuffer(
-                    (ComputeBufferHandle)LightDatasSlot.ReadHandle()!);
+                    LightDatasSlot.ReadHandle());
             }
 
             // ── Input slots: reflection probe atlas + cluster culling buffers ──
@@ -196,11 +196,11 @@ namespace HN.HNRP
                 && ProbeDatasSlot?.IsConnected == true)
             {
                 passData.reflectionProbeAtlas = builder.ReadTexture(
-                    (TextureHandle)ReflectionProbeAtlasSlot.ReadHandle()!);
+                    ReflectionProbeAtlasSlot.ReadHandle());
                 passData.probeMaskBuffer = builder.ReadComputeBuffer(
-                    (ComputeBufferHandle)ProbeMaskSlot.ReadHandle()!);
+                    ProbeMaskSlot.ReadHandle());
                 passData.probeDatasBuffer = builder.ReadComputeBuffer(
-                    (ComputeBufferHandle)ProbeDatasSlot.ReadHandle()!);
+                    ProbeDatasSlot.ReadHandle());
             }
 
             // ── Input slot: cluster culling light mask buffer ──
@@ -208,7 +208,7 @@ namespace HN.HNRP
             if (LightMaskSlot?.IsConnected == true)
             {
                 passData.lightMaskBuffer = builder.ReadComputeBuffer(
-                    (ComputeBufferHandle)LightMaskSlot.ReadHandle()!);
+                    LightMaskSlot.ReadHandle());
             }
 
             // ── Renderer list: same logic as old ForwardOpaquePass ──

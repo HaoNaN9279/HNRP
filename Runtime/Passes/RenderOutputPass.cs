@@ -86,7 +86,7 @@ namespace HN.HNRP
             builder.AllowPassCulling(false);
 
             passData.inputTexture = builder.ReadTexture(
-                (TextureHandle)colorTargetSlot.ReadHandle()!);
+                colorTargetSlot.ReadHandle());
             passData.backBuffer = builder.UseColorBuffer(backBuffer, 0);
             // Game cameras render into the backbuffer, whose UV origin differs
             // from the render-graph texture — flip the blit. SceneView/Preview

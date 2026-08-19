@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
@@ -87,7 +88,8 @@ namespace HN.HNRP
         /// <param name="targetSlotName">The name of the target pass's input slot.</param>
         /// <returns>
         /// <c>true</c> if the connection was established; <c>false</c> if either slot
-        /// is missing or directions don't match (output→input required).
+        /// is missing, directions don't match (output→input required), or the slots
+        /// carry different resource types.
         /// </returns>
         public bool TryConnect(string sourceSlotName, Pass target, string targetSlotName)
         {
@@ -95,8 +97,34 @@ namespace HN.HNRP
             if (!target.m_Slots.TryGetValue(targetSlotName, out var targetSlot)) return false;
             if (sourceSlot.Direction != SlotDirection.Output) return false;
             if (targetSlot.Direction != SlotDirection.Input) return false;
-            sourceSlot.Connect(targetSlot);
-            return true;
+            try
+            {
+                sourceSlot.Connect(targetSlot);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Resets all output slot handles on this pass. Call at the start of each frame
+        /// before Record so stale handles from a previous frame cannot be read.
+        /// </summary>
+        public void ResetSlotHandles()
+        {
+            foreach (PassSlot slot in m_Slots.Values)
+            {
+                if (slot.Direction == SlotDirection.Output)
+                {
+                    slot.ResetHandle();
+                }
+            }
         }
 
         /// <summary>

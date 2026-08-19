@@ -113,8 +113,8 @@ namespace HN.HNRP
 
             // ── Input slots: use upstream color / depth targets (shared texture model) ──
 
-            TextureHandle colorTarget = (TextureHandle)ColorTargetSlot.ReadHandle()!;
-            TextureHandle depthTarget = (TextureHandle)DepthTargetSlot.ReadHandle()!;
+            TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
+            TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);

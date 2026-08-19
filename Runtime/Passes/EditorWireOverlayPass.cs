@@ -121,7 +121,7 @@ namespace HN.HNRP
 
             // ── Input slot: use upstream color target (shared texture model) ──
 
-            TextureHandle colorTarget = (TextureHandle)ColorTargetSlot.ReadHandle()!;
+            TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
 

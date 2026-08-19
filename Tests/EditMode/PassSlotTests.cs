@@ -4,12 +4,13 @@
 
 using System;
 using NUnit.Framework;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace HN.HNRP.Tests
 {
     /// <summary>
     /// Tests for the name-based <see cref="PassSlot"/> system in <c>Runtime/Core/PassSlot.cs</c>.
-    /// Verifies slot naming, direction, handle creation, connection, and input-output linking.
+    /// Verifies slot naming, direction, handle semantics, connection, and input-output linking.
     /// </summary>
     public sealed class PassSlotTests
     {
@@ -50,37 +51,40 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Handle Creation (Output)
+        #region Handle Semantics (Output)
 
         /// <summary>
-        /// An output slot can create a resource handle via <see cref="PassSlot.CreateHandle"/>.
+        /// An output slot has no handle before <see cref="PassSlot{T}.SetHandle"/> is called.
         /// </summary>
         [Test]
-        public void OutputSlot_CreatesHandle()
+        public void OutputSlot_HasHandle_False_BeforeSet()
         {
             var output = new TextureSlot("MainColor", SlotDirection.Output);
-
-            Assert.That(output.HasHandle, Is.False,
-                "Handle should not exist before CreateHandle is called.");
-
-            output.CreateHandle();
-
-            Assert.That(output.HasHandle, Is.True,
-                "Handle should exist after CreateHandle is called.");
-            Assert.That(output.ReadHandle(), Is.Not.Null,
-                "ReadHandle on an output should return the created handle.");
+            Assert.That(output.HasHandle, Is.False);
         }
 
         /// <summary>
-        /// An input slot cannot create a handle — only outputs can.
+        /// Setting a default (invalid) handle must not mark the slot as having a valid handle.
         /// </summary>
         [Test]
-        public void InputSlot_CannotCreateHandle()
+        public void OutputSlot_SetHandle_DefaultValue_IsNotValid()
         {
-            var input = new TextureSlot("ColorIn", SlotDirection.Input);
+            var output = new TextureSlot("MainColor", SlotDirection.Output);
+            output.SetHandle(default(TextureHandle));
+            Assert.That(output.HasHandle, Is.False,
+                "A default TextureHandle is not valid, so HasHandle must be false.");
+        }
 
-            Assert.Throws<InvalidOperationException>(() => input.CreateHandle(),
-                "Input slot should not be allowed to create a handle.");
+        /// <summary>
+        /// <see cref="PassSlot{T}.ResetHandle"/> clears the stored handle and resets the slot state.
+        /// </summary>
+        [Test]
+        public void OutputSlot_ResetHandle_ClearsHandle()
+        {
+            var output = new ComputeBufferSlot("Buf", SlotDirection.Output);
+            output.SetHandle(default(ComputeBufferHandle));
+            output.ResetHandle();
+            Assert.That(output.HasHandle, Is.False);
         }
 
         #endregion
@@ -93,17 +97,12 @@ namespace HN.HNRP.Tests
         [Test]
         public void InputSlot_ReadsConnectedHandle()
         {
-            var output = new TextureSlot("MainColor", SlotDirection.Output);
-            var input = new TextureSlot("ColorIn", SlotDirection.Input);
-
-            output.CreateHandle();
+            var output = new RendererListSlot("MainList", SlotDirection.Output);
+            var input = new RendererListSlot("ListIn", SlotDirection.Input);
+            var value = default(RendererListHandle);
+            output.SetHandle(value);
             output.Connect(input);
-
-            var readHandle = input.ReadHandle();
-            Assert.That(readHandle, Is.Not.Null,
-                "InputReadHandle should return a non-null handle after connection.");
-            Assert.That(readHandle, Is.SameAs(output.ReadHandle()),
-                "Input should read exactly the same handle instance created by output.");
+            Assert.That(input.ReadHandle(), Is.EqualTo(value));
         }
 
         /// <summary>
@@ -129,6 +128,30 @@ namespace HN.HNRP.Tests
 
             Assert.Throws<InvalidOperationException>(() => input.Connect(other),
                 "Input slot should not be allowed to initiate Connect.");
+        }
+
+        /// <summary>
+        /// Connecting slots that carry different resource types throws an
+        /// <see cref="ArgumentException"/> at connect time.
+        /// </summary>
+        [Test]
+        public void Connect_TypeMismatch_Throws()
+        {
+            var output = new TextureSlot("Tex", SlotDirection.Output);
+            var input = new ComputeBufferSlot("Buf", SlotDirection.Input);
+            Assert.Throws<ArgumentException>(() => output.Connect(input));
+        }
+
+        /// <summary>
+        /// A failed type-mismatched connect must not mark the input slot as connected.
+        /// </summary>
+        [Test]
+        public void Connect_TypeMismatch_DoesNotMarkConnected()
+        {
+            var output = new TextureSlot("Tex", SlotDirection.Output);
+            var input = new ComputeBufferSlot("Buf", SlotDirection.Input);
+            Assert.Throws<ArgumentException>(() => output.Connect(input));
+            Assert.That(input.IsConnected, Is.False);
         }
 
         #endregion

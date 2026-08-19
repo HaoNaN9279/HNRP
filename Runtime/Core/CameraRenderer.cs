@@ -308,6 +308,7 @@ namespace HN.HNRP
         /// <remarks>
         /// <para><b>Execution order per pass:</b></para>
         /// <list type="number">
+        ///   <item><see cref="Pass.ResetSlotHandles"/> — clear stale output slot handles from the previous frame</item>
         ///   <item><see cref="Pass.Initialize"/> — load resources using camera context</item>
         ///   <item><see cref="Pass.Record"/> — record render graph commands</item>
         /// </list>
@@ -338,6 +339,7 @@ namespace HN.HNRP
                     continue;
                 }
 
+                pass.ResetSlotHandles();
                 pass.Initialize(Context);
                 pass.Record(renderGraph);
             }

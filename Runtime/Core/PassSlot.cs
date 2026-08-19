@@ -3,6 +3,7 @@
 // </copyright>
 
 using System;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace HN.HNRP
 {
@@ -35,9 +36,9 @@ namespace HN.HNRP
     /// <remarks>
     /// <para><b>Connection model:</b></para>
     /// <list type="bullet">
-    ///   <item>Output slots call <see cref="CreateHandle"/> to produce a resource handle.</item>
+    ///   <item>Output slots call <see cref="PassSlot{T}.SetHandle"/> to publish a resource handle.</item>
     ///   <item>Output slots call <see cref="Connect"/> to link an input slot.</item>
-    ///   <item>Input slots call <see cref="ReadHandle"/> to retrieve the connected output's handle.</item>
+    ///   <item>Input slots call <see cref="PassSlot{T}.ReadHandle"/> to retrieve the connected output's handle.</item>
     /// </list>
     /// <para>
     /// This class is pure C# — no <c>ScriptableObject</c> inheritance and no Unity serialization
@@ -64,18 +65,6 @@ namespace HN.HNRP
         /// and does not track its own connection state).
         /// </summary>
         public bool IsConnected { get; protected set; }
-
-        /// <summary>
-        /// Gets a value indicating whether this slot holds a resource handle.
-        /// An output slot has a handle after <see cref="CreateHandle"/> is called.
-        /// </summary>
-        public bool HasHandle => handle != null;
-
-        /// <summary>
-        /// The resource handle created by this slot (output) or accessed via connection (input).
-        /// May be <c>null</c> if not yet created or not yet connected.
-        /// </summary>
-        protected object? handle;
 
         /// <summary>
         /// For input slots: the output slot this input is connected to.
@@ -110,42 +99,9 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Creates a resource handle for this slot.
-        /// Only valid for output slots.
-        /// </summary>
-        /// <exception cref="InvalidOperationException">
-        /// Thrown when this slot is an input slot.
-        /// </exception>
-        /// <remarks>
-        /// The base implementation creates a placeholder <see cref="object"/> handle.
-        /// Subclasses may override to create type-specific handles (e.g., via the render graph).
-        /// </remarks>
-        public virtual void CreateHandle()
-        {
-            if (Direction != SlotDirection.Output)
-            {
-                throw new InvalidOperationException(
-                    "Only output slots can create resource handles.");
-            }
-
-            handle = new object();
-        }
-
-        /// <summary>
-        /// Sets the resource handle for this slot. Output slots use this to publish
-        /// the real render graph handle (TextureHandle / ComputeBufferHandle) that
-        /// connected input slots read via <see cref="ReadHandle"/>.
-        /// </summary>
-        /// <param name="value">The real render graph resource handle.</param>
-        public void SetHandle(object value)
-        {
-            handle = value;
-        }
-
-        /// <summary>
         /// Connects this output slot to the given input slot.
-        /// After connection, the input slot can call <see cref="ReadHandle"/> to retrieve
-        /// this output's resource handle.
+        /// After connection, the input slot can call <see cref="PassSlot{T}.ReadHandle"/>
+        /// to retrieve this output's resource handle.
         /// </summary>
         /// <param name="input">
         /// The input slot to connect to. Must have <see cref="SlotDirection.Input"/>.
@@ -156,7 +112,10 @@ namespace HN.HNRP
         /// <exception cref="InvalidOperationException">
         /// Thrown when this slot is not an output, or <paramref name="input"/> is not an input.
         /// </exception>
-        public void Connect(PassSlot input)
+        /// <exception cref="ArgumentException">
+        /// Thrown when the output and input slots carry different resource types.
+        /// </exception>
+        public virtual void Connect(PassSlot input)
         {
             if (input == null)
             {
@@ -175,26 +134,135 @@ namespace HN.HNRP
                     "Can only connect an output slot to an input slot.");
             }
 
+            if (!CanConnectTo(input))
+            {
+                throw new ArgumentException(
+                    $"Slot type mismatch: {GetType().Name} cannot connect to {input.GetType().Name}. " +
+                    "Output and input slots must carry the same resource type.");
+            }
+
             input.connectedOutput = this;
             input.IsConnected = true;
+        }
+
+        /// <summary>
+        /// Determines whether this output slot can connect to the given input slot.
+        /// The base implementation allows any connection; <see cref="PassSlot{T}"/>
+        /// overrides it to require matching resource types.
+        /// </summary>
+        /// <param name="input">The input slot to validate against.</param>
+        /// <returns><c>true</c> when the connection is type-compatible.</returns>
+        protected virtual bool CanConnectTo(PassSlot input) => true;
+
+        /// <summary>
+        /// Clears this slot's stored handle. Call at the start of each frame
+        /// before <c>Record</c> so a stale handle from a previous frame cannot be read.
+        /// </summary>
+        public abstract void ResetHandle();
+    }
+
+    /// <summary>
+    /// A strongly-typed <see cref="PassSlot"/> that stores its resource handle
+    /// directly in a value-type field, eliminating per-frame boxing allocations.
+    /// </summary>
+    /// <typeparam name="T">
+    /// The render graph resource handle struct this slot carries
+    /// (e.g. <see cref="TextureHandle"/>, <see cref="ComputeBufferHandle"/>,
+    /// <see cref="RendererListHandle"/>).
+    /// </typeparam>
+    /// <remarks>
+    /// <para>
+    /// <b>Zero-allocation:</b> the handle is stored directly in a typed field,
+    /// so <see cref="SetHandle"/> never boxes the struct. This keeps the
+    /// render loop allocation-free.
+    /// </para>
+    /// <para>
+    /// <b><see cref="HasHandle"/> semantics:</b> <c>true</c> only after
+    /// <see cref="SetHandle"/> was called <i>and</i> the stored value passes
+    /// <see cref="IsValueValid"/>. A default (invalid) handle — e.g.
+    /// <c>default(TextureHandle)</c> — is treated as "no handle".
+    /// </para>
+    /// <para>
+    /// <b><see cref="ResetHandle"/>:</b> call at the start of each frame
+    /// before <c>Record</c> so stale handles from a previous frame cannot be read.
+    /// </para>
+    /// </remarks>
+    public class PassSlot<T> : PassSlot
+    {
+        /// <summary>
+        /// The value-type resource handle stored directly in this slot.
+        /// </summary>
+        private T m_Value;
+
+        /// <summary>
+        /// Whether <see cref="SetHandle"/> has been called since the last
+        /// <see cref="ResetHandle"/>.
+        /// </summary>
+        private bool m_HasValue;
+
+        /// <summary>
+        /// Gets a value indicating whether this slot currently holds a valid
+        /// resource handle. <c>true</c> only after <see cref="SetHandle"/> was
+        /// called with a value that passes <see cref="IsValueValid"/>.
+        /// </summary>
+        public bool HasHandle => m_HasValue && IsValueValid(m_Value);
+
+        /// <summary>
+        /// Validates the stored handle value. The base implementation accepts any
+        /// value; concrete slots delegate to the Unity handle type's validity check
+        /// (e.g. <see cref="TextureHandle.IsValid"/>).
+        /// </summary>
+        /// <param name="value">The handle value to validate.</param>
+        /// <returns><c>true</c> when the handle is valid.</returns>
+        protected virtual bool IsValueValid(T value) => true;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PassSlot{T}"/> class.
+        /// </summary>
+        /// <param name="slotName">The name of the slot.</param>
+        /// <param name="direction">Whether this is an input or output slot.</param>
+        public PassSlot(string slotName, SlotDirection direction)
+            : base(slotName, direction)
+        {
+        }
+
+        /// <summary>
+        /// Sets the resource handle for this slot. Output slots use this to publish
+        /// the real render graph handle that connected input slots read via
+        /// <see cref="ReadHandle"/>. The value is stored directly (zero allocation).
+        /// </summary>
+        /// <param name="value">The real render graph resource handle.</param>
+        public void SetHandle(T value)
+        {
+            m_Value = value;
+            m_HasValue = true;
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Resets the stored value to <c>default</c> and clears the has-value flag.
+        /// </remarks>
+        public override void ResetHandle()
+        {
+            m_Value = default;
+            m_HasValue = false;
         }
 
         /// <summary>
         /// Reads the resource handle associated with this slot.
         /// </summary>
         /// <returns>
-        /// For an output slot: its own created handle (may be <c>null</c> if
-        /// <see cref="CreateHandle"/> was not called).
+        /// For an output slot: its own stored handle.
         /// For a connected input slot: the connected output's handle.
         /// </returns>
         /// <exception cref="InvalidOperationException">
         /// Thrown when this is an input slot that is not yet connected.
         /// </exception>
-        public object? ReadHandle()
+        public T ReadHandle()
         {
             if (Direction == SlotDirection.Output)
             {
-                return handle;
+                return m_Value;
             }
 
             // Direction is Input
@@ -205,16 +273,23 @@ namespace HN.HNRP
                     "Call Connect() on the output slot first.");
             }
 
-            return connectedOutput!.handle;
+            return ((PassSlot<T>)connectedOutput).m_Value;
         }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// Requires the input slot to carry the same resource type
+        /// (i.e. <see cref="PassSlot{T}"/> with the same <typeparamref name="T"/>).
+        /// </remarks>
+        protected override bool CanConnectTo(PassSlot input) => input is PassSlot<T>;
     }
 
     #region Concrete Slot Types
 
     /// <summary>
-    /// A <see cref="PassSlot"/> that represents a texture resource.
+    /// A <see cref="PassSlot{T}"/> that represents a texture resource.
     /// </summary>
-    public class TextureSlot : PassSlot
+    public class TextureSlot : PassSlot<TextureHandle>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TextureSlot"/> class.
@@ -225,12 +300,19 @@ namespace HN.HNRP
             : base(slotName, direction)
         {
         }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A <see cref="TextureHandle"/> is valid only when it references an
+        /// actual render graph texture — a default handle is not valid.
+        /// </remarks>
+        protected override bool IsValueValid(TextureHandle value) => value.IsValid();
     }
 
     /// <summary>
-    /// A <see cref="PassSlot"/> that represents a compute buffer resource.
+    /// A <see cref="PassSlot{T}"/> that represents a compute buffer resource.
     /// </summary>
-    public class ComputeBufferSlot : PassSlot
+    public class ComputeBufferSlot : PassSlot<ComputeBufferHandle>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="ComputeBufferSlot"/> class.
@@ -241,12 +323,19 @@ namespace HN.HNRP
             : base(slotName, direction)
         {
         }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A <see cref="ComputeBufferHandle"/> is valid only when it references an
+        /// actual render graph buffer — a default handle is not valid.
+        /// </remarks>
+        protected override bool IsValueValid(ComputeBufferHandle value) => value.IsValid();
     }
 
     /// <summary>
-    /// A <see cref="PassSlot"/> that represents a renderer list resource.
+    /// A <see cref="PassSlot{T}"/> that represents a renderer list resource.
     /// </summary>
-    public class RendererListSlot : PassSlot
+    public class RendererListSlot : PassSlot<RendererListHandle>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="RendererListSlot"/> class.
@@ -257,6 +346,13 @@ namespace HN.HNRP
             : base(slotName, direction)
         {
         }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// A <see cref="RendererListHandle"/> is valid only when it references an
+        /// actual render graph renderer list — a default handle is not valid.
+        /// </remarks>
+        protected override bool IsValueValid(RendererListHandle value) => value.IsValid();
     }
 
     #endregion

@@ -148,7 +148,7 @@ namespace HN.HNRP
                 if (LightDatasBufferSlot?.IsConnected == true)
                 {
                     passData.lightDatasBuffer = builder.ReadComputeBuffer(
-                        (ComputeBufferHandle)LightDatasBufferSlot.ReadHandle()!);
+                        LightDatasBufferSlot.ReadHandle());
                 }
 
                 // ── Output: cluster culling light mask buffer ──
