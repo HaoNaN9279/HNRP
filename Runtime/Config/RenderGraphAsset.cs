@@ -128,6 +128,29 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// 用模板定义覆盖本资源的全部序列化内容（passes/connections/resources/resourceConnections/settings）。
+        /// 由 <see cref="RenderGraphTemplates"/> 在创建/重置模板资源时调用。
+        /// </summary>
+        /// <param name="passes">pass 定义列表。</param>
+        /// <param name="connections">slot 连接列表。</param>
+        /// <param name="resources">资源定义列表。</param>
+        /// <param name="resourceConnections">资源连接列表。</param>
+        /// <param name="settings">渲染图设置。</param>
+        public void SetDefinition(
+            List<PassDefinition> passes,
+            List<SlotConnection> connections,
+            List<ResourceDefinition> resources,
+            List<ResourceConnection> resourceConnections,
+            RenderGraphSettings settings)
+        {
+            m_Passes = passes;
+            m_Connections = connections;
+            m_Resources = resources;
+            m_ResourceConnections = resourceConnections;
+            m_Settings = settings;
+        }
+
+        /// <summary>
         /// Builds the runtime <see cref="Pass"/> list from this asset's definitions.
         /// Uses <see cref="PassRegistry"/> to resolve pass types by name,
         /// instantiates each pass, wires up slots via <see cref="SlotConnection"/>,
