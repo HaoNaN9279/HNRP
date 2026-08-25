@@ -53,8 +53,35 @@ namespace HN.HNRP
         /// <summary>
         /// Scale factor applied to the camera's pixel dimensions when sizing
         /// the allocated texture. Default is full resolution.
+        /// Ignored when <see cref="Width"/> and <see cref="Height"/> are positive
+        /// (fixed-size texture mode).
         /// </summary>
         public Vector2 TextureScale = Vector2.one;
+
+        /// <summary>
+        /// Fixed texture width in pixels. When positive (along with
+        /// <see cref="Height"/>), the texture uses fixed dimensions instead
+        /// of camera-scaled dimensions. Default is 0 (camera-scaled mode).
+        /// </summary>
+        public int Width;
+
+        /// <summary>
+        /// Fixed texture height in pixels. When positive (along with
+        /// <see cref="Width"/>), the texture uses fixed dimensions instead
+        /// of camera-scaled dimensions. Default is 0 (camera-scaled mode).
+        /// </summary>
+        public int Height;
+
+        /// <summary>
+        /// Whether the allocated texture should have mipmaps.
+        /// Default is <c>false</c>.
+        /// </summary>
+        public bool UseMipMap;
+
+        /// <summary>
+        /// Whether the allocated texture should have its mipmaps automatically generated.
+        /// </summary>
+        public bool AutoGenerateMips;
 
         /// <summary>
         /// Whether the allocated texture should be cleared before first use.

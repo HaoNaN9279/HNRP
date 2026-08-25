@@ -73,7 +73,8 @@ float4 FragMain(PackedVaryings packedVaryings)
     // float3 test3 = float3(frac(lightingInputData.normalizedScreenSpaceUV.x * 8), frac(lightingInputData.normalizedScreenSpaceUV.y * 8), 0);
     // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
-    float4 outColor = float4(lightingOutputData.lightingColor.r, lightingOutputData.lightingColor.g, lightingOutputData.lightingColor.b, 1);
+    float4 outColor = float4(lightingOutputData.lightingColor.rgb, 1);
+    // float4 outColor = float4(lightingData.indirectLight.specular.r, lightingData.indirectLight.specular.g, lightingData.indirectLight.specular.b, 1);
     return outColor;
 }
 

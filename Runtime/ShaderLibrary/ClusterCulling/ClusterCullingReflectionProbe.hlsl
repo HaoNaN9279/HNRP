@@ -20,7 +20,7 @@ ClusterCullingReflectionProbeIterator ClusterCullingReflectionProbeInit(float2 n
     uint2 clusterIndexXY = uint2(normalizedScreenSpaceUV * _CLUSTER_CULLING_REFLECTION_PROBE_XY_SCALE);
     float viewZ = dot(GetViewForwardDir(), positionWS - GetCameraPositionWS());
     uint clusterIndexZ = (uint)((IsPerspectiveProjection() ? log2(viewZ) : viewZ) * _CLUSTER_CULLING_REFLECTION_PROBE_Z_SCALE + _CLUSTER_CULLING_REFLECTION_PROBE_Z_OFFSET);
-    it.headerIndex = (clusterIndexXY.x + 1) * (clusterIndexXY.y + 1) * clusterIndexZ - 1;
+    it.headerIndex = (clusterIndexXY.x + 1) * (clusterIndexXY.y + 1) * (clusterIndexZ + 1) - 1;
     uint header = _ClusterCullingReflectionProbeMaskBuffer[it.headerIndex * _CLUSTER_CULLING_REFLECTION_PROBE_WORDS_PER_CLUSTER];
     it.minIndex = header & 0x0000FFFFu;
     it.maxIndex = (header & 0xFFFF0000u) >> 16;

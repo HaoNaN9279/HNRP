@@ -94,11 +94,16 @@ void ClusterCullingReflectionProbeCS(uint3 id : SV_DispatchThreadID)
     float2 clusterMinMaxZVS;
     float zSize = pow(2, clusterSize.z);
     clusterMinMaxZVS.x = ((float)clusterIndexZ - clusterZScaleOffset.y) / clusterZScaleOffset.x;
-    clusterMinMaxZVS.x = isOrthographic ? pow(2, clusterMinMaxZVS.x) : clusterMinMaxZVS.x;
     clusterMinMaxZVS.y = ((float)clusterIndexZ + 1 - clusterZScaleOffset.y) / clusterZScaleOffset.x;
-    clusterMinMaxZVS.y = isOrthographic ? pow(2, clusterMinMaxZVS.y) : clusterMinMaxZVS.y;
-    clusterMinCS.z = mul(_ClusterCullingReflectionProbeViewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
-    clusterMaxCS.z = mul(_ClusterCullingReflectionProbeViewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
+    // Perspective uses log2-sliced cluster depths: (i - offset) / scale is
+    // log2(viewZ), so it must be exponentiated back to a real view-space depth.
+    // Orthographic uses linear-sliced depths and must NOT be exponentiated.
+    clusterMinMaxZVS.x = isOrthographic ? clusterMinMaxZVS.x : pow(2, clusterMinMaxZVS.x);
+    clusterMinMaxZVS.y = isOrthographic ? clusterMinMaxZVS.y : pow(2, clusterMinMaxZVS.y);
+    // cluster depths are positive view-space distances; the projection matrix
+    // expects negative view z (camera looks down -Z), so negate before projecting.
+    clusterMinCS.z = mul(_ClusterCullingReflectionProbeViewToClip, float4(0, 0, -clusterMinMaxZVS.x, 1)).z;
+    clusterMaxCS.z = mul(_ClusterCullingReflectionProbeViewToClip, float4(0, 0, -clusterMinMaxZVS.y, 1)).z;
     clusterMinCS.xy = float2((float)clusterIndexX / clusterSize.x, (float)clusterIndexY / clusterSize.y) * 2 - 1;
     clusterMaxCS.xy = float2((float)(clusterIndexX + 1) / clusterSize.x, (float)(clusterIndexY + 1) / clusterSize.y) * 2 - 1;
     clusterMinCS = max(clusterMinCS, float3(-1, -1, 0));

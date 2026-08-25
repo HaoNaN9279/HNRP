@@ -12,8 +12,8 @@ namespace HN.HNRP.Tests
 {
     /// <summary>
     /// Tests for <see cref="HNRenderPipelineAdditionalCameraDataEditor"/> and its
-    /// underlying <see cref="HNAdditionalCameraData.PipelineConfigOverride"/> field.
-    /// Covers the editor UI ObjectField behavior and the render graph selection priority chain.
+    /// underlying <see cref="HNAdditionalCameraData.RenderGraphViewIndex"/> field.
+    /// Covers the editor UI behavior and the render graph selection priority chain.
     /// </summary>
     public class CameraDataEditorTests
     {
@@ -66,155 +66,57 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region PipelineConfigOverride Field Tests
+        #region RenderGraphViewIndex Field Tests
 
         [Test]
-        public void PipelineConfigOverride_DefaultsToNull()
+        public void RenderGraphViewIndex_DefaultsToZero()
         {
-            Assert.That(m_CameraData.PipelineConfigOverride, Is.Null,
-                "Default PipelineConfigOverride should be null (dropdown shows 'None').");
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(0),
+                "Default RenderGraphViewIndex should be 0.");
         }
 
         [Test]
-        public void PipelineConfigOverride_CanBeSetToAnyConfig()
+        public void RenderGraphViewIndex_CanBeSetToAnyIndex()
         {
-            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                config.name = "TestConfig";
-                m_CameraData.PipelineConfigOverride = config;
+            m_CameraData.RenderGraphViewIndex = 2;
 
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(config),
-                    "PipelineConfigOverride should reference the assigned config.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(config);
-            }
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(2),
+                "RenderGraphViewIndex should return the assigned index.");
         }
 
         [Test]
-        public void PipelineConfigOverride_CanBeSetToNull_NoneOption()
+        public void RenderGraphViewIndex_CanBeSetToZero()
         {
-            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                m_CameraData.PipelineConfigOverride = config;
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.Not.Null);
+            m_CameraData.RenderGraphViewIndex = 2;
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.Not.EqualTo(0));
 
-                // Simulate selecting "None" from dropdown
-                m_CameraData.PipelineConfigOverride = null;
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.Null,
-                    "Setting to null should clear the override (selects 'None' in dropdown).");
-            }
-            finally
-            {
-                Object.DestroyImmediate(config);
-            }
+            m_CameraData.RenderGraphViewIndex = 0;
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(0),
+                "Setting to 0 should work.");
         }
 
         [Test]
-        public void PipelineConfigOverride_CanSwitchBetweenConfigs()
+        public void RenderGraphViewIndex_CanSwitchBetweenValues()
         {
-            var configA = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            var configB = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                configA.name = "ConfigA";
-                configB.name = "ConfigB";
+            m_CameraData.RenderGraphViewIndex = 1;
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(1));
 
-                m_CameraData.PipelineConfigOverride = configA;
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(configA));
-
-                m_CameraData.PipelineConfigOverride = configB;
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(configB));
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.Not.SameAs(configA));
-            }
-            finally
-            {
-                Object.DestroyImmediate(configA);
-                Object.DestroyImmediate(configB);
-            }
+            m_CameraData.RenderGraphViewIndex = 3;
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(3));
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.Not.EqualTo(1));
         }
 
         [Test]
-        public void PipelineConfigOverride_PersistsAfterComponentCycle()
+        public void RenderGraphViewIndex_PersistsAfterComponentCycle()
         {
-            var config = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                m_CameraData.PipelineConfigOverride = config;
+            m_CameraData.RenderGraphViewIndex = 2;
 
-                // Simulate disable/enable cycle
-                m_CameraData.enabled = false;
-                m_CameraData.enabled = true;
+            // Simulate disable/enable cycle
+            m_CameraData.enabled = false;
+            m_CameraData.enabled = true;
 
-                Assert.That(m_CameraData.PipelineConfigOverride, Is.SameAs(config),
-                    "PipelineConfigOverride should persist after enable/disable cycle.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(config);
-            }
-        }
-
-        #endregion
-
-        #region Selection Priority Chain Tests
-
-        [Test]
-        public void SelectionPriority_OverrideTakesPriority_WhenSet()
-        {
-            var overrideConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                m_CameraData.PipelineConfigOverride = overrideConfig;
-
-                // Simulate: pipelineConfigOverride ?? defaultConfig ?? null
-                var selected = m_CameraData.PipelineConfigOverride ?? defaultConfig;
-
-                Assert.That(selected, Is.SameAs(overrideConfig),
-                    "Override should take priority over default.");
-                Assert.That(selected, Is.Not.SameAs(defaultConfig));
-            }
-            finally
-            {
-                Object.DestroyImmediate(overrideConfig);
-                Object.DestroyImmediate(defaultConfig);
-            }
-        }
-
-        [Test]
-        public void SelectionPriority_FallsBackToDefault_WhenOverrideIsNull()
-        {
-            var defaultConfig = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            try
-            {
-                m_CameraData.PipelineConfigOverride = null;
-
-                // Simulate: pipelineConfigOverride ?? defaultConfig ?? null
-                var selected = m_CameraData.PipelineConfigOverride ?? defaultConfig;
-
-                Assert.That(selected, Is.SameAs(defaultConfig),
-                    "Should fall back to default when override is null (None selected).");
-            }
-            finally
-            {
-                Object.DestroyImmediate(defaultConfig);
-            }
-        }
-
-        [Test]
-        public void SelectionPriority_ReturnsNull_WhenBothAreNull()
-        {
-            m_CameraData.PipelineConfigOverride = null;
-            RenderGraphAsset defaultConfig = null;
-
-            var selected = m_CameraData.PipelineConfigOverride ?? defaultConfig;
-
-            Assert.That(selected, Is.Null,
-                "Should return null when both override and default are null.");
+            Assert.That(m_CameraData.RenderGraphViewIndex, Is.EqualTo(2),
+                "RenderGraphViewIndex should persist after enable/disable cycle.");
         }
 
         #endregion

@@ -434,7 +434,7 @@ namespace HN.HNRP.Editor
             
             RenderTexture rt = new RenderTexture(new RenderTextureDescriptor(resolution, resolution, UnityEngine.RenderTextureFormat.RGB111110Float, 32));
             rt.dimension = TextureDimension.Cube;
-            rt.useMipMap = true;
+            rt.useMipMap = false;
             camera.targetTexture = rt;
             
             // 渲染到立方体贴图

@@ -104,10 +104,10 @@ namespace HN.HNRP.Tests
                 "Standard template should declare exactly 8 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(18),
                 "Standard template should declare exactly 18 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(4),
-                "Standard template should declare exactly 4 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(4),
-                "Standard template should declare exactly 4 resource connections.");
+            Assert.That(asset.Resources.Count, Is.EqualTo(5),
+                "Standard template should declare exactly 5 resources.");
+            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(5),
+                "Standard template should declare exactly 5 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
@@ -179,12 +179,10 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// The Reflection template declares the 7-pass reflection pipeline, 7
-        /// resources, and 8 resource connections. It imports the pipeline's
-        /// <c>emptyTexture</c> as an <c>EmptyTexture</c> resource node whose
-        /// <see cref="ResourceDefinition.ExternalTextureName"/> is
-        /// <c>"emptyTexture"</c>, and wires it into both forwardOpaque and
-        /// transparency via their <c>ReflectionProbeAtlas</c> input slots.
+        /// The Reflection template declares the 7-pass reflection pipeline, 4
+        /// resources, and 4 resource connections. It contains no cluster probe pass
+        /// and no <c>EmptyTexture</c> resource: the Reflection graph renders a probe
+        /// face but must not render reflection probes itself.
         /// </summary>
         [Test]
         public void ReflectionTemplate_HasExpectedDefinition()
@@ -195,10 +193,10 @@ namespace HN.HNRP.Tests
                 "Reflection template should declare exactly 7 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(11),
                 "Reflection template should declare exactly 11 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(7),
-                "Reflection template should declare exactly 7 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(8),
-                "Reflection template should declare exactly 8 resource connections.");
+            Assert.That(asset.Resources.Count, Is.EqualTo(4),
+                "Reflection template should declare exactly 4 resources.");
+            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(4),
+                "Reflection template should declare exactly 4 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Reflection template should use PerPixel SH evaluation.");
@@ -211,26 +209,12 @@ namespace HN.HNRP.Tests
                     $"Reflection template should declare a '{passName}' pass.");
             }
 
-            // The EmptyTexture resource is imported from the pipeline's runtime
-            // resources rather than allocated.
-            ResourceDefinition? emptyTexture = asset.Resources.Find(r => r.ResourceName == "EmptyTexture");
-            Assert.That(emptyTexture, Is.Not.Null,
-                "Reflection template should declare an 'EmptyTexture' resource.");
-            Assert.That(emptyTexture!.ResourceKind, Is.EqualTo(ResourceKind.Texture),
-                "EmptyTexture should be a texture resource.");
-            Assert.That(emptyTexture.ExternalTextureName, Is.EqualTo("emptyTexture"),
-                "EmptyTexture should import the external 'emptyTexture' from the pipeline runtime resources.");
-
-            foreach (string passName in new[] { "forwardOpaque", "transparency" })
-            {
-                Assert.That(
-                    asset.ResourceConnections.Any(rc =>
-                        rc.ResourceName == "EmptyTexture"
-                        && rc.PassName == passName
-                        && rc.SlotName == "ReflectionProbeAtlas"),
-                    Is.True,
-                    $"Reflection template should connect EmptyTexture to {passName}.ReflectionProbeAtlas.");
-            }
+            // No reflection probe cluster-culling pass and no EmptyTexture resource:
+            // the Reflection graph renders a probe face but must not render probes.
+            Assert.That(asset.Passes.Any(p => p.InstanceName == "clusterProbe"), Is.False,
+                "Reflection template must not declare a cluster probe pass.");
+            Assert.That(asset.Resources.Any(r => r.ResourceName == "EmptyTexture"), Is.False,
+                "Reflection template should not declare an EmptyTexture resource.");
         }
 
         #endregion

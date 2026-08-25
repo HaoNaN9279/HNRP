@@ -25,12 +25,22 @@ namespace HN.HNRP
         public HNRenderPipelineAsset InstanceAsset { get; }
 
         /// <summary>
+        /// Renders realtime reflection probes before all main cameras. Owns the
+        /// pooled probe cameras; dispose via <see cref="Dispose(bool)"/>.
+        /// </summary>
+        private readonly RealtimeProbeRenderer realtimeProbeRenderer;
+
+        private RuntimeReflectionSystem runtimeReflectionSystem;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="HNRenderPipeline"/> class.
         /// </summary>
         /// <param name="asset">The pipeline asset providing configuration.</param>
         public HNRenderPipeline(HNRenderPipelineAsset asset)
         {
             InstanceAsset = asset;
+
+            realtimeProbeRenderer = new RealtimeProbeRenderer(new RealtimeProbeCameraPool());
 
             // Register all [Pass]-decorated pass types before building any render graph.
             // In the Editor this uses reflection to scan assemblies; in Player builds it
@@ -101,18 +111,78 @@ namespace HN.HNRP
                 rendererListCulling = false,
             };
 
+            if (runtimeReflectionSystem == null)
+            {
+                runtimeReflectionSystem = new RuntimeReflectionSystem();
+                ScriptableRuntimeReflectionSystemSettings.system = runtimeReflectionSystem;
+            }
+
+            // ── Phase A: cull every camera, collect realtime probes ──
+            // Realtime reflection probes render before all main cameras, so every
+            // camera is culled first (results cached in CameraContext) and visible
+            // realtime probes are collected. CullingResults stay valid for the rest
+            // of this Render call and are reused in Phase C.
+            var cameraContexts = new List<CameraContext>();
+            var selectedGraphs = new Dictionary<Camera, RenderGraphAsset>();
+            realtimeProbeRenderer.BeginFrame();
+
+            foreach (Camera camera in cameras)
+            {
+                var cameraData = camera.GetHNRPAdditionalCameraData();
+
+                // ── Select RenderGraphAsset ──
+                RenderGraphAsset renderGraphAsset = SelectPipelineConfig(camera, cameraData);
+                if (renderGraphAsset == null)
+                    continue;
+
+                // ── Create CameraContext ──
+                var cameraContext = new CameraContext(camera, context)
+                {
+                    Flip = SystemInfo.graphicsUVStartsAtTop
+                        && camera.cameraType != CameraType.SceneView
+                        && camera.cameraType != CameraType.Preview,
+                    RuntimeResources = InstanceAsset.runtimeResources,
+                };
+
+                // ── Cull ──
+                bool gotParams = camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParams);
+                if (gotParams)
+                {
+                    cameraContext.CullingResults = context.Cull(ref cullingParams);
+                    cameraContext.HasCullingResults = true;
+
+                    // Populate visible light / reflection probe arrays from the culling
+                    // results so lighting passes (e.g. BuildLightDataPass) can consume them.
+                    // CameraContext.Dispose releases both arrays.
+                    cameraContext.VisibleLights = new NativeArray<UnityEngine.Rendering.VisibleLight>(
+                        cameraContext.CullingResults.visibleLights, Allocator.TempJob);
+                    cameraContext.VisibleReflectionProbes =
+                        new NativeArray<UnityEngine.Rendering.VisibleReflectionProbe>(
+                            cameraContext.CullingResults.visibleReflectionProbes, Allocator.TempJob);
+
+                    // Collect realtime probes visible to this camera.
+                    realtimeProbeRenderer.CollectRealtimeProbes(cameraContext.VisibleReflectionProbes);
+                }
+
+                cameraContexts.Add(cameraContext);
+                selectedGraphs[camera] = renderGraphAsset;
+            }
+
+            // ── Phase B: render realtime probes before all main cameras ──
+            // Each probe face executes in its own RecordAndExecute block (inside
+            // RenderProbes) so the per-face camera matrix is active when its passes run.
+            realtimeProbeRenderer.RenderProbes(context, renderGraph, parameters, InstanceAsset);
+
             // Record all camera passes into the graph; RenderGraphExecution.Dispose()
             // (at the end of this block) compiles and executes the recorded passes.
-            var cameraContexts = new List<CameraContext>();
             using (renderGraph.RecordAndExecute(parameters))
             {
-                foreach (Camera camera in cameras)
+                // ── Phase C: render main cameras using cached culling results ──
+                foreach (CameraContext cameraContext in cameraContexts)
                 {
-                    var cameraData = camera.GetHNRPAdditionalCameraData();
-
-                    // ── Select RenderGraphAsset ──
-                    RenderGraphAsset renderGraphAsset = SelectPipelineConfig(camera, cameraData);
-                    if (renderGraphAsset == null)
+                    Camera camera = cameraContext.Camera;
+                    if (!selectedGraphs.TryGetValue(camera, out RenderGraphAsset renderGraphAsset) ||
+                        renderGraphAsset == null)
                         continue;
 
                     // ── Per-camera setup ──
@@ -132,31 +202,15 @@ namespace HN.HNRP
 
                     SetupCameraProperties(context, camera);
 
-                    // ── Create CameraContext ──
-                    var cameraContext = new CameraContext(camera, context)
-                    {
-                        TargetId = camera.targetTexture != null
-                            ? new RenderTargetIdentifier(camera.targetTexture)
-                            : new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget),
-                        RuntimeResources = InstanceAsset.runtimeResources,
-                    };
-
-                    // ── Cull ──
-                    bool gotParams = camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParams);
-                    if (gotParams)
-                    {
-                        cameraContext.CullingResults = context.Cull(ref cullingParams);
-                        cameraContext.HasCullingResults = true;
-
-                        // Populate visible light / reflection probe arrays from the culling
-                        // results so lighting passes (e.g. BuildLightDataPass) can consume them.
-                        // CameraContext.Dispose releases both arrays.
-                        cameraContext.VisibleLights = new NativeArray<UnityEngine.Rendering.VisibleLight>(
-                            cameraContext.CullingResults.visibleLights, Allocator.TempJob);
-                        cameraContext.VisibleReflectionProbes =
-                            new NativeArray<UnityEngine.Rendering.VisibleReflectionProbe>(
-                                cameraContext.CullingResults.visibleReflectionProbes, Allocator.TempJob);
-                    }
+                    var globalConstantBuffer = new GlobalConstantBuffer();
+                    GlobalConstantBufferUtility.FillFromCamera(
+                        camera,
+                        true,
+                        ref globalConstantBuffer);
+                    ConstantBuffer.PushGlobal(
+                        cmd,
+                        globalConstantBuffer,
+                        GlobalPropertyIDs.ShaderVariablesGlobal);
 
                     // ── Create CameraRenderer, build from template, render ──
                     var cameraRenderer = new CameraRenderer(cameraContext);
@@ -171,18 +225,34 @@ namespace HN.HNRP
                     // recorded passes at the end of that block, and the BuildLightData
                     // job (which reads VisibleLights) must complete before the native
                     // arrays are released.
-                    cameraContexts.Add(cameraContext);
                 }
             }
 
             // ── Execute all recorded render graph passes ──
             renderGraph.EndFrame();
 
+#if UNITY_EDITOR
+            // HNRP 物体渲染（DrawObjectPass）用 Y 翻转投影矩阵（renderIntoTexture=true），
+            // 把全局 unity_MatrixVP 设成翻转矩阵。Unity Editor 内部绘制 SceneView 的
+            // grid（xz 网格平面）依赖非翻转的全局 unity_MatrixVP，需在此恢复，否则 grid 颠倒。
+            foreach (CameraContext cameraContext in cameraContexts)
+            {
+                Camera camera = cameraContext.Camera;
+                if (camera.cameraType == CameraType.SceneView)
+                {
+                    cmd.SetViewProjectionMatrices(camera.worldToCameraMatrix, camera.projectionMatrix);
+                    break;
+                }
+            }
+#endif
+
             // ── Cleanup per-camera contexts after execution ──
             foreach (CameraContext cameraContext in cameraContexts)
             {
                 cameraContext.Dispose();
             }
+
+            realtimeProbeRenderer.EndFrame();
 
             // RenderGraph records commands into the command buffer; submit them to the context.
             context.ExecuteCommandBuffer(cmd);
@@ -207,31 +277,37 @@ namespace HN.HNRP
         /// </returns>
         public RenderGraphAsset SelectPipelineConfig(Camera camera, HNAdditionalCameraData cameraData)
         {
-            // Step 1: Check per-camera override
-            RenderGraphAsset config = cameraData.PipelineConfigOverride;
+            // Step 1: Get the render graph view block for this camera type
+            RenderGraphViewBlock viewBlock = GetViewBlockForCameraType(camera.cameraType);
+            if (viewBlock == null)
+                return null;
+
+            // Step 2: Get the render graph by index from the view block
+            int index = cameraData.RenderGraphViewIndex;
+            RenderGraphAsset config = viewBlock.GetRenderGraphObject(index);
             if (config != null)
                 return config;
 
-            // Step 2: Fall back to default render graph based on camera type
-            return GetDefaultConfigForCameraType(camera.cameraType);
+            // Step 3: Fall back to the first render graph in the block
+            return viewBlock.GetRenderGraphObject();
         }
 
         /// <summary>
-        /// Gets the default <see cref="RenderGraphAsset"/> from <see cref="HNRenderPipelineAsset"/>
+        /// Gets the <see cref="RenderGraphViewBlock"/> from <see cref="HNRenderPipelineAsset"/>
         /// based on the camera type.
         /// </summary>
         /// <param name="cameraType">The camera's type.</param>
-        /// <returns>The default render graph for the given camera type, or <c>null</c>.</returns>
-        private RenderGraphAsset GetDefaultConfigForCameraType(CameraType cameraType)
+        /// <returns>The view block for the given camera type, or <c>null</c>.</returns>
+        private RenderGraphViewBlock GetViewBlockForCameraType(CameraType cameraType)
         {
             return cameraType switch
             {
-                CameraType.Game => InstanceAsset.DefaultGameRenderGraph,
+                CameraType.Game => InstanceAsset.gameViewRenderGraphViewBlock,
 #if UNITY_EDITOR
-                CameraType.SceneView => InstanceAsset.DefaultSceneViewRenderGraph,
-                CameraType.Preview => InstanceAsset.DefaultPreviewRenderGraph,
+                CameraType.SceneView => InstanceAsset.sceneViewRenderGraphViewBlock,
+                CameraType.Preview => InstanceAsset.previewRenderGraphViewBlock,
 #endif
-                CameraType.Reflection => InstanceAsset.DefaultReflectionRenderGraph,
+                CameraType.Reflection => InstanceAsset.reflectionRenderGraphViewBlock,
                 _ => null,
             };
         }
@@ -262,6 +338,8 @@ namespace HN.HNRP
 
             renderGraph.Cleanup();
             renderGraph = null;
+
+            realtimeProbeRenderer.Dispose();
 
             ConstantBuffer.ReleaseAll();
         }

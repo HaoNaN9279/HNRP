@@ -44,7 +44,7 @@ namespace HN.HNRP
         {
             Standard.Ensure();
             Reflection.Ensure();
-            Preview.Ensure();
+            Preview.Ensure(); 
         }
 
         private static void PopulateStandardGraph(RenderGraphAsset g)
@@ -71,14 +71,14 @@ namespace HN.HNRP
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "transparency", "LightDatas"),
-                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlas", "transparency", "ReflectionProbeAtlas"),
+                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "transparency", "ReflectionProbeAtlas"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "transparency", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "transparency", "ProbeDatas"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "transparency", "LightMask"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
-                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlas", "forwardOpaque", "ReflectionProbeAtlas"),
+                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "forwardOpaque", "ReflectionProbeAtlas"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
                 },
@@ -88,6 +88,18 @@ namespace HN.HNRP
                     new ResourceDefinition { ResourceName = "DepthBuffer", ResourceKind = ResourceKind.Texture, DepthBits = UnityEngine.Rendering.DepthBits.Depth32 },
                     new ResourceDefinition { ResourceName = "OpaqueRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
                     new ResourceDefinition { ResourceName = "TransparentRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
+                    new ResourceDefinition
+                    {
+                        ResourceName = "ReflectionProbeAtlas",
+                        ResourceKind = ResourceKind.Texture,
+                        Width = 4096,
+                        Height = 4096,
+                        ColorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.B10G11R11_UFloatPack32,
+                        ClearBuffer = true,
+                        ClearColor = Color.black,
+                        UseMipMap = true,
+                        AutoGenerateMips = false,
+                    },
                 },
                 new List<ResourceConnection>
                 {
@@ -95,6 +107,7 @@ namespace HN.HNRP
                     new ResourceConnection { ResourceName = "DepthBuffer", PassName = "forwardOpaque", SlotName = "DepthTarget" },
                     new ResourceConnection { ResourceName = "OpaqueRendererList", PassName = "forwardOpaque", SlotName = "RendererList" },
                     new ResourceConnection { ResourceName = "TransparentRendererList", PassName = "transparency", SlotName = "RendererList" },
+                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "clusterProbe", SlotName = "reflectionProbeAtlas" },
                 },
                 new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
         }
@@ -132,6 +145,7 @@ namespace HN.HNRP
                     new ResourceDefinition { ResourceName = "DepthBuffer", ResourceKind = ResourceKind.Texture, DepthBits = UnityEngine.Rendering.DepthBits.Depth32 },
                     new ResourceDefinition { ResourceName = "OpaqueRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
                     new ResourceDefinition { ResourceName = "TransparentRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
+                    new ResourceDefinition { ResourceName = "ReflectionProbeAtlas", ResourceKind = ResourceKind.Texture, ExternalTextureName = "emptyTexture"},
                 },
                 new List<ResourceConnection>
                 {
@@ -139,6 +153,8 @@ namespace HN.HNRP
                     new ResourceConnection { ResourceName = "DepthBuffer", PassName = "forwardOpaque", SlotName = "DepthTarget" },
                     new ResourceConnection { ResourceName = "OpaqueRendererList", PassName = "forwardOpaque", SlotName = "RendererList" },
                     new ResourceConnection { ResourceName = "TransparentRendererList", PassName = "transparency", SlotName = "RendererList" },
+                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "forwardOpaque", SlotName = "ReflectionProbeAtlas" },
+                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "transparency", SlotName = "ReflectionProbeAtlas" },
                 },
                 new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
         }

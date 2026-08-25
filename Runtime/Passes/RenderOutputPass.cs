@@ -55,14 +55,10 @@ namespace HN.HNRP
         }
 
         /// <inheritdoc />
-        /// <remarks>
-        /// Stores the camera context for use during <see cref="Record"/>.
-        /// The <see cref="Blitter"/> static utility class is used for the
-        /// final blit — its initialization is handled by the pipeline setup.
-        /// </remarks>
         public override void Initialize(CameraContext context)
         {
             cameraContext = context;
+            Flip = context.Flip;
         }
 
         /// <inheritdoc />
@@ -78,15 +74,24 @@ namespace HN.HNRP
                 return;
             }
 
-            var backBuffer = renderGraph.ImportBackbuffer(
-                BuiltinRenderTextureType.CameraTarget);
+            TextureHandle backBuffer;
+            if (
+                cameraContext.Camera.cameraType != CameraType.Game
+                && cameraContext.Camera.cameraType != CameraType.SceneView
+                && cameraContext.CustomTargetRTHandle != null
+            )
+            {
+                backBuffer = renderGraph.ImportTexture(cameraContext.CustomTargetRTHandle);
+            }
+            else
+            {
+                backBuffer = renderGraph.ImportBackbuffer(
+                    new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
+            }
 
             TextureHandle inputHandle = colorTargetSlot.ReadHandle();
             if (!inputHandle.IsValid())
             {
-                // Upstream chain skipped recording (e.g. culling failed this
-                // frame). Do not record a blit from an invalid handle — binding
-                // it throws during render graph execution.
                 return;
             }
 
@@ -96,11 +101,9 @@ namespace HN.HNRP
 
             passData.inputTexture = builder.ReadTexture(inputHandle);
             passData.backBuffer = builder.UseColorBuffer(backBuffer, 0);
-            // Game cameras render into the backbuffer, whose UV origin differs
-            // from the render-graph texture — flip the blit. SceneView/Preview
-            // render into their own targets and must not flip.
-            passData.flip = Flip
-                || cameraContext.Camera.cameraType == CameraType.Game;
+            passData.TargetFace = cameraContext.TargetFace;
+            passData.TargetDepthSlice = cameraContext.TargetDepthSlice;
+            passData.flip = Flip;
 
             builder.SetRenderFunc(
                 (RenderOutputData data, RenderGraphContext ctx) =>
@@ -110,14 +113,15 @@ namespace HN.HNRP
                     var scaleBias = data.flip
                         ? new Vector4(1.0f, -1.0f, 0.0f, 1.0f)
                         : new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
-                    Blitter.BlitCameraTexture(
-                        ctx.cmd,
-                        propertyBlock,
-                        data.inputTexture,
-                        data.backBuffer,
-                        scaleBias,
-                        0,
-                        true);
+                    if(data.TargetFace != CubemapFace.Unknown)
+                    {
+                        ctx.cmd.SetRenderTarget(data.backBuffer, 0, data.TargetFace, data.TargetDepthSlice);
+                        Blitter.BlitTexture(ctx.cmd, propertyBlock, data.inputTexture, scaleBias, 0, true);
+                    }
+                    else
+                    {
+                        Blitter.BlitCameraTexture(ctx.cmd, propertyBlock, data.inputTexture, data.backBuffer, scaleBias, 0, true);
+                    }
                 });
         }
 
@@ -135,6 +139,10 @@ namespace HN.HNRP
             /// The camera backbuffer that receives the blit output.
             /// </summary>
             public TextureHandle backBuffer;
+
+            public CubemapFace TargetFace;
+
+            public int TargetDepthSlice;
 
             /// <summary>
             /// Whether to vertically flip the output.

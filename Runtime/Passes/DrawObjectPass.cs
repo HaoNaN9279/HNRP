@@ -298,9 +298,24 @@ namespace HN.HNRP
             bool setLightGlobals = SetLightGlobals;
             bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
 
+            // Explicit camera matrices for this pass. SetupCameraProperties on the
+            // ScriptableRenderContext only stores the LAST camera's matrix as the
+            // active global state, so passes that render offscreen cameras (e.g.
+            // realtime probe faces) must set the matrices per pass — otherwise every
+            // draw would use the main camera's view.
+            // All passes in HNRP render through RenderGraph which always renders to
+            // render textures internally, so renderIntoTexture is always true.
+            Camera passCamera = cameraContext?.Camera;
+            passData.viewMatrix = passCamera != null ? passCamera.worldToCameraMatrix : Matrix4x4.identity;
+            passData.projMatrix = passCamera != null
+                ? GL.GetGPUProjectionMatrix(passCamera.projectionMatrix, true)
+                : Matrix4x4.identity;
+
             builder.SetRenderFunc(
                 (DrawObjectPassData data, RenderGraphContext ctx) =>
                 {
+                    ctx.cmd.SetViewProjectionMatrices(data.viewMatrix, data.projMatrix);
+
                     if (setLightGlobals)
                     {
                         // Reflection probe shader keyword + globals (all three
@@ -318,6 +333,10 @@ namespace HN.HNRP
                             ctx.cmd.SetGlobalBuffer(
                                 ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
                                 data.probeDatasBuffer);
+                        }
+                        else
+                        {
+                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
                         }
 
                         // Cluster culling light shader keyword + globals
@@ -396,6 +415,16 @@ namespace HN.HNRP
             /// The renderer list handle.
             /// </summary>
             public RendererListHandle rendererList;
+
+            /// <summary>
+            /// The view matrix for this pass's camera.
+            /// </summary>
+            public Matrix4x4 viewMatrix;
+
+            /// <summary>
+            /// The GPU projection matrix for this pass's camera.
+            /// </summary>
+            public Matrix4x4 projMatrix;
         }
     }
 }

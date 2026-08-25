@@ -107,10 +107,10 @@ namespace HN.HNRP.Tests
         /// <see cref="ResourceDefinition"/> entries into runtime
         /// <see cref="ResourceNode"/> instances exposed through
         /// <see cref="RenderGraphAsset.ResourceNodes"/>. StandardGraph declares
-        /// four resources — the color / depth buffers and both opaque /
-        /// transparent renderer lists. Lighting / probe data (LightDatas,
-        /// LightMask, ProbeMask, ProbeDatas, ReflectionProbeAtlas) flows through
-        /// <see cref="SlotConnection"/> entries, not resource nodes.
+        /// five resources — the color / depth buffers, both opaque /
+        /// transparent renderer lists, and the reflection probe atlas.
+        /// Lighting / probe data (LightDatas, LightMask, ProbeMask, ProbeDatas)
+        /// flows through <see cref="SlotConnection"/> entries, not resource nodes.
         /// </summary>
         [Test]
         public void Build_MaterializesResourceNodes()
@@ -123,13 +123,14 @@ namespace HN.HNRP.Tests
 
             Assert.That(nodes, Is.Not.Null,
                 "ResourceNodes should be non-null after Build.");
-            Assert.That(nodes.Count, Is.EqualTo(4),
-                "Build should materialize the four StandardGraph resource nodes.");
+            Assert.That(nodes.Count, Is.EqualTo(5),
+                "Build should materialize the five StandardGraph resource nodes.");
 
             string[] expectedNames =
             {
                 "ColorBuffer", "DepthBuffer",
                 "OpaqueRendererList", "TransparentRendererList",
+                "ReflectionProbeAtlas",
             };
 
             foreach (string name in expectedNames)

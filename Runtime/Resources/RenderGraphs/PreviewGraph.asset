@@ -30,6 +30,10 @@ MonoBehaviour:
     ColorFormat: 8
     DepthBits: 0
     TextureScale: {x: 1, y: 1}
+    Width: 0
+    Height: 0
+    UseMipMap: 0
+    AutoGenerateMips: 0
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
     ExternalTextureName: 
@@ -42,6 +46,10 @@ MonoBehaviour:
     ColorFormat: 8
     DepthBits: 32
     TextureScale: {x: 1, y: 1}
+    Width: 0
+    Height: 0
+    UseMipMap: 0
+    AutoGenerateMips: 0
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
     ExternalTextureName: 
@@ -54,6 +62,10 @@ MonoBehaviour:
     ColorFormat: 8
     DepthBits: 0
     TextureScale: {x: 1, y: 1}
+    Width: 0
+    Height: 0
+    UseMipMap: 0
+    AutoGenerateMips: 0
     ClearBuffer: 1
     ClearColor: {r: 0, g: 0, b: 0, a: 1}
     ExternalTextureName: 

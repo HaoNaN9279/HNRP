@@ -120,15 +120,26 @@ namespace HN.HNRP.Tests
 
             pass.SetupSlots();
 
-            // ── ReflectionProbeAtlasSlot (TextureSlot, Output) ──
+            // ── ReflectionProbeAtlasInputSlot (TextureSlot, Input) ──
 
-            Assert.That(pass.ReflectionProbeAtlasSlot, Is.Not.Null,
-                "ReflectionProbeAtlasSlot should be non-null after SetupSlots.");
-            Assert.That(pass.ReflectionProbeAtlasSlot!.SlotName,
+            Assert.That(pass.ReflectionProbeAtlasInputSlot, Is.Not.Null,
+                "ReflectionProbeAtlasInputSlot should be non-null after SetupSlots.");
+            Assert.That(pass.ReflectionProbeAtlasInputSlot!.SlotName,
                 Is.EqualTo("reflectionProbeAtlas"));
-            Assert.That(pass.ReflectionProbeAtlasSlot.Direction,
+            Assert.That(pass.ReflectionProbeAtlasInputSlot.Direction,
+                Is.EqualTo(SlotDirection.Input));
+            Assert.That(pass.ReflectionProbeAtlasInputSlot,
+                Is.InstanceOf<TextureSlot>());
+
+            // ── ReflectionProbeAtlasOutputSlot (TextureSlot, Output) ──
+
+            Assert.That(pass.ReflectionProbeAtlasOutputSlot, Is.Not.Null,
+                "ReflectionProbeAtlasOutputSlot should be non-null after SetupSlots.");
+            Assert.That(pass.ReflectionProbeAtlasOutputSlot!.SlotName,
+                Is.EqualTo("reflectionProbeAtlasOutput"));
+            Assert.That(pass.ReflectionProbeAtlasOutputSlot.Direction,
                 Is.EqualTo(SlotDirection.Output));
-            Assert.That(pass.ReflectionProbeAtlasSlot,
+            Assert.That(pass.ReflectionProbeAtlasOutputSlot,
                 Is.InstanceOf<TextureSlot>());
 
             // ── ClusterCullingReflectionProbeMaskBufferSlot (ComputeBufferSlot, Output) ──
@@ -163,7 +174,8 @@ namespace HN.HNRP.Tests
         {
             var pass = new ClusterCullingReflectionProbePass("Test");
 
-            Assert.That(pass.ReflectionProbeAtlasSlot, Is.Null);
+            Assert.That(pass.ReflectionProbeAtlasInputSlot, Is.Null);
+            Assert.That(pass.ReflectionProbeAtlasOutputSlot, Is.Null);
             Assert.That(pass.ClusterCullingReflectionProbeMaskBufferSlot, Is.Null);
             Assert.That(pass.ClusterCullingReflectionProbeDatasBufferSlot, Is.Null);
         }

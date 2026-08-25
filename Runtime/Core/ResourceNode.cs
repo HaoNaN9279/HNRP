@@ -131,15 +131,23 @@ namespace HN.HNRP
                 return;
             }
 
-            var desc = new TextureDesc(
-                Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelWidth * Definition.TextureScale.x)),
-                Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelHeight * Definition.TextureScale.y)),
-                false, false)
+            // Fixed-size mode: use Width/Height directly.
+            // Camera-scaled mode: scale camera pixel dimensions.
+            int texWidth = Definition.Width > 0
+                ? Definition.Width
+                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelWidth * Definition.TextureScale.x));
+            int texHeight = Definition.Height > 0
+                ? Definition.Height
+                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelHeight * Definition.TextureScale.y));
+
+            var desc = new TextureDesc(texWidth, texHeight, false, false)
             {
                 colorFormat = Definition.ColorFormat,
                 depthBufferBits = Definition.DepthBits,
                 clearBuffer = Definition.ClearBuffer,
                 clearColor = Definition.ClearColor,
+                useMipMap = Definition.UseMipMap,
+                autoGenerateMips = Definition.AutoGenerateMips,
                 name = ResourceName,
             };
 

@@ -123,14 +123,14 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Per-camera render graph override.
-        /// When set, takes priority over the default render graph defined in <see cref="HNRenderPipelineAsset"/>.
-        /// The selection chain is: <c>pipelineConfigOverride ?? defaultXxxRenderGraph ?? null</c> (skip camera).
+        /// Per-camera render graph view index.
+        /// Used to select which render graph view from <see cref="HNRenderPipelineAsset"/> to use.
+        /// The index corresponds to the position in the render graph view keys.
         /// </summary>
-        public RenderGraphAsset PipelineConfigOverride
+        public int RenderGraphViewIndex
         {
-            get => pipelineConfigOverride;
-            set => pipelineConfigOverride = value;
+            get => renderGraphViewIndex;
+            set => renderGraphViewIndex = value;
         }
 
         public bool Dithering
@@ -177,7 +177,7 @@ namespace HN.HNRP
         private Camera builtinCamera;
 
         [SerializeField]
-        private RenderGraphAsset pipelineConfigOverride;
+        private int renderGraphViewIndex;
 
         [SerializeField]
         private bool dithering = false;

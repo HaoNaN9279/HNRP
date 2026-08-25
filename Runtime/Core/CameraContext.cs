@@ -47,10 +47,18 @@ namespace HN.HNRP
         public CommandBuffer Cmd { get; private set; }
 
         /// <summary>
-        /// The render target identifier for the camera's current color target.
-        /// Set by the pipeline before recording passes.
+        /// Gets or sets a value indicating whether the output should be vertically flipped.
         /// </summary>
-        public RenderTargetIdentifier TargetId { get; set; }
+        public bool Flip { get; set; }
+
+        public CubemapFace TargetFace { get; set; } = CubemapFace.Unknown;
+
+        public int TargetDepthSlice { get; set; } = -1;
+
+        /// <summary>
+        /// The RTHandle wrapping the custom target texture when <see cref="Flip"/> is <c>true</c>.
+        /// </summary>
+        public RTHandle CustomTargetRTHandle { get; set; }
 
         /// <summary>
         /// Visible lights obtained from <see cref="CullingResults"/>.
@@ -115,6 +123,11 @@ namespace HN.HNRP
             {
                 VisibleReflectionProbes.Dispose();
             }
+
+            // CustomTargetRTHandle is intentionally NOT released here: the render
+            // graph commands are submitted to the GPU after this Dispose (in
+            // HNRenderPipeline.Render), so the handle must outlive the frame.
+            // The owning RealtimeProbeRenderer releases it after context.Submit().
         }
     }
 }
