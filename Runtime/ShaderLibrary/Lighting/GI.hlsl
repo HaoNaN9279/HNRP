@@ -133,7 +133,6 @@ float2 GetReflectionProbeAtlasUV(float3 reflectVector, float4 scaleOffset, float
 half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positionWS, half perceptualRoughness, float2 normalizedScreenSpaceUV)
 {
     half3 irradiance = half3(0.0h, 0.0h, 0.0h);
-    half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, REFLECTION_PROBE_ATLAS_MIP_COUNT - 1);
 #if CLUSTER_CULLING_REFLECTION_PROBE
     float totalWeight = 0.0f;
     uint probeIndex;
@@ -150,6 +149,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
         float blendDistance = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].blendDistance;
         float importance = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].importance;
         float intensity = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].intensity;
+        uint mipCount = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].mipCount;
 
         half probeWeight = half(CalculateProbeBoxWeight(positionWS, probeBoxMin, probeBoxMax, blendDistance));
         if (probeWeight > 0.01h)
@@ -158,6 +158,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
             half3 reflectVectorProbe = reflectVector;
             reflectVectorProbe = BoxProjectedCubemapDirection(reflectVector, positionWS, probePositionWS, probeBoxMin, probeBoxMax);
             reflectVectorProbe = normalize(reflectVectorProbe);
+            half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, mipCount - 1);
             float2 uv = GetReflectionProbeAtlasUV(reflectVectorProbe, scaleOffset, mip);
             float3 irradianceColor = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_TrilinearClamp, uv, mip).xyz;
             irradiance += irradianceColor * probeWeight * intensity;

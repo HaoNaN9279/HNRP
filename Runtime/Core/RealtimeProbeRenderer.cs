@@ -342,7 +342,6 @@ namespace HN.HNRP
                 renderer.Render(renderGraph, context);
             }
 
-            m_Pool.ReturnCamera(camera);
             cameraContext.Dispose();
         }
 
@@ -378,15 +377,24 @@ namespace HN.HNRP
 
         private static RenderTexture GetProbeTarget(ReflectionProbe probe)
         {
-            if (probe.realtimeTexture != null)
+            var format = probe.hdr ? RenderTextureFormat.RGB111110Float : RenderTextureFormat.ARGB32;
+            var existing = probe.realtimeTexture;
+
+            // 现有 RT 尺寸/格式/维度均匹配才复用；否则说明 probe 的
+            // resolution/hdr 已变化，需按新参数重建 cubemap。
+            if (existing != null &&
+                existing.dimension == TextureDimension.Cube &&
+                existing.width == probe.resolution &&
+                existing.height == probe.resolution &&
+                existing.format == format)
             {
-                return probe.realtimeTexture;
+                return existing;
             }
 
             var descriptor = new RenderTextureDescriptor(
                 probe.resolution,
                 probe.resolution,
-                probe.hdr ? RenderTextureFormat.RGB111110Float : RenderTextureFormat.ARGB32,
+                format,
                 0)
             {
                 dimension = TextureDimension.Cube,

@@ -73,6 +73,21 @@ namespace HN.HNRP
         public int Height;
 
         /// <summary>
+        /// The texture dimension of the allocated texture./>.
+        /// </summary>
+        public FilterMode FilterMode;
+
+        /// <summary>
+        /// The wrap mode of the allocated texture./>.
+        /// </summary>
+        public TextureWrapMode WrapMode;
+
+        /// <summary>
+        /// The texture dimension of the allocated texture./>.
+        /// </summary>
+        public TextureDimension TextureDimension;
+
+        /// <summary>
         /// Whether the allocated texture should have mipmaps.
         /// Default is <c>false</c>.
         /// </summary>

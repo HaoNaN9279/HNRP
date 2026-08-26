@@ -20,10 +20,7 @@ namespace HN.HNRP
     /// </summary>
     public sealed class RealtimeProbeCameraPool : IDisposable
     {
-        /// <summary>
-        /// Cameras currently idle and available for reuse.
-        /// </summary>
-        private readonly List<Camera> m_FreeCameras = new();
+        private Camera m_Camera;
 
         /// <summary>
         /// Probe faces already rendered this frame. Keyed by
@@ -39,10 +36,13 @@ namespace HN.HNRP
         private readonly Dictionary<int, RTHandle> m_ProbeFaceHandles = new();
 
         /// <summary>
-        /// Probe textures rendered this frame. Keyed by probe instance id.
-        /// Cleared by <see cref="BeginFrame"/>.
+        /// Cached cubemap instance ids for each face handle, keyed by
+        /// <c>probeInstanceId * 6 + face</c>. Used to detect when a probe's
+        /// realtime cubemap is rebuilt (its instance id changes) so the stale
+        /// <see cref="RTHandle"/> can be discarded and recreated against the
+        /// new cubemap.
         /// </summary>
-        private readonly Dictionary<int, Texture> m_RenderedProbeTextures = new();
+        private readonly Dictionary<int, int> m_ProbeFaceCubemapIds = new();
 
         /// <summary>
         /// Gets a camera from the pool, creating one when the pool is empty.
@@ -51,28 +51,12 @@ namespace HN.HNRP
         /// <returns>A camera for rendering a probe face.</returns>
         public Camera GetCamera()
         {
-            if (m_FreeCameras.Count > 0)
+            if (m_Camera == null)
             {
-                Camera pooled = m_FreeCameras[m_FreeCameras.Count - 1];
-                m_FreeCameras.RemoveAt(m_FreeCameras.Count - 1);
-                return pooled;
+                m_Camera = CreateCamera();
             }
 
-            return CreateCamera();
-        }
-
-        /// <summary>
-        /// Returns a camera to the pool for later reuse.
-        /// </summary>
-        /// <param name="camera">The camera to return. Null is ignored.</param>
-        public void ReturnCamera(Camera camera)
-        {
-            if (camera == null)
-            {
-                return;
-            }
-
-            m_FreeCameras.Add(camera);
+            return m_Camera;
         }
 
         /// <summary>
@@ -111,12 +95,25 @@ namespace HN.HNRP
             int key = Encode(probeInstanceId, face);
             if (m_ProbeFaceHandles.TryGetValue(key, out RTHandle existing))
             {
-                return existing;
+                // A cached handle is only valid while the cubemap identity is
+                // unchanged. Unity rebuilds probe.realtimeTexture when probe
+                // parameters change, so a stale handle (holding the destroyed
+                // RenderTexture's instance id) must be recreated.
+                if (m_ProbeFaceCubemapIds.TryGetValue(key, out int cachedInstanceId) &&
+                    cachedInstanceId == cubemap.GetInstanceID())
+                {
+                    return existing;
+                }
+
+                existing?.Release();
+                m_ProbeFaceHandles.Remove(key);
+                m_ProbeFaceCubemapIds.Remove(key);
             }
-            
+
             var targetId = new RenderTargetIdentifier(cubemap, 0, (CubemapFace)face, 0);
             var handle = RTHandles.Alloc(targetId, "RealtimeProbeFace" + key);
             m_ProbeFaceHandles[key] = handle;
+            m_ProbeFaceCubemapIds[key] = cubemap.GetInstanceID();
             return handle;
         }
 
@@ -127,7 +124,6 @@ namespace HN.HNRP
         public void BeginFrame()
         {
             m_RenderedFaces.Clear();
-            m_RenderedProbeTextures.Clear();
         }
 
         /// <summary>
@@ -144,15 +140,10 @@ namespace HN.HNRP
         /// </summary>
         public void Dispose()
         {
-            foreach (Camera camera in m_FreeCameras)
+            if (m_Camera != null)
             {
-                if (camera != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(camera.gameObject);
-                }
+                UnityEngine.Object.DestroyImmediate(m_Camera.gameObject);
             }
-
-            m_FreeCameras.Clear();
 
             foreach (RTHandle handle in m_ProbeFaceHandles.Values)
             {
@@ -160,8 +151,8 @@ namespace HN.HNRP
             }
 
             m_ProbeFaceHandles.Clear();
+            m_ProbeFaceCubemapIds.Clear();
             m_RenderedFaces.Clear();
-            m_RenderedProbeTextures.Clear();
         }
 
         private static int Encode(int probeInstanceId, int face)

@@ -75,18 +75,20 @@ namespace HN.HNRP
             }
 
             TextureHandle backBuffer;
-            if (
-                cameraContext.Camera.cameraType != CameraType.Game
-                && cameraContext.Camera.cameraType != CameraType.SceneView
-                && cameraContext.CustomTargetRTHandle != null
-            )
+            if (cameraContext.Camera.cameraType == CameraType.Reflection)
             {
-                backBuffer = renderGraph.ImportTexture(cameraContext.CustomTargetRTHandle);
+                if(cameraContext.CustomTargetRTHandle != null)
+                {
+                    backBuffer = renderGraph.ImportTexture(cameraContext.CustomTargetRTHandle);
+                }
+                else
+                {
+                    backBuffer = renderGraph.ImportBackbuffer(new RenderTargetIdentifier(BuiltinRenderTextureType.CurrentActive));
+                }
             }
             else
             {
-                backBuffer = renderGraph.ImportBackbuffer(
-                    new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
+                backBuffer = renderGraph.ImportBackbuffer(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
             }
 
             TextureHandle inputHandle = colorTargetSlot.ReadHandle();

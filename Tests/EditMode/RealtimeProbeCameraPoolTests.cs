@@ -32,57 +32,7 @@ namespace HN.HNRP.Tests
             }
             finally
             {
-                pool.ReturnCamera(cam);
-            }
-        }
-
-        /// <summary>
-        /// Verifies that a returned camera is reused by the next
-        /// <see cref="RealtimeProbeCameraPool.GetCamera"/> call instead of creating a
-        /// new one.
-        /// </summary>
-        [Test]
-        public void GetCamera_ReusesReturnedCamera()
-        {
-            using var pool = new RealtimeProbeCameraPool();
-
-            Camera first = pool.GetCamera();
-            pool.ReturnCamera(first);
-
-            Camera second = pool.GetCamera();
-
-            try
-            {
-                Assert.That(second, Is.SameAs(first),
-                    "Returned cameras should be reused from the pool.");
-            }
-            finally
-            {
-                pool.ReturnCamera(second);
-            }
-        }
-
-        /// <summary>
-        /// Verifies that two concurrent <see cref="RealtimeProbeCameraPool.GetCamera"/>
-        /// calls (without returning) produce distinct cameras.
-        /// </summary>
-        [Test]
-        public void GetCamera_CreatesNewWhenPoolEmpty()
-        {
-            using var pool = new RealtimeProbeCameraPool();
-
-            Camera first = pool.GetCamera();
-            Camera second = pool.GetCamera();
-
-            try
-            {
-                Assert.That(first, Is.Not.SameAs(second),
-                    "Concurrent GetCamera calls should create distinct cameras.");
-            }
-            finally
-            {
-                pool.ReturnCamera(first);
-                pool.ReturnCamera(second);
+                
             }
         }
 
@@ -103,7 +53,7 @@ namespace HN.HNRP.Tests
             }
             finally
             {
-                pool.ReturnCamera(cam);
+                
             }
         }
 
@@ -124,7 +74,7 @@ namespace HN.HNRP.Tests
             }
             finally
             {
-                pool.ReturnCamera(cam);
+                
             }
         }
 
@@ -205,7 +155,6 @@ namespace HN.HNRP.Tests
             var pool = new RealtimeProbeCameraPool();
 
             Camera cam = pool.GetCamera();
-            pool.ReturnCamera(cam);
 
             pool.Dispose();
 

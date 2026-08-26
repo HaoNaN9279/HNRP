@@ -38,6 +38,8 @@ struct ClusterCullingReflectionProbeDatas
     float3 positionWS;
     float intensity;
     float4 scaleOffset;
+    float mipCount;
+    float3 unused;
 };
 
 StructuredBuffer<ClusterCullingReflectionProbeDatas> _ClusterCullingReflectionProbeDatasBuffer;

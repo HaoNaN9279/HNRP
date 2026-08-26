@@ -140,11 +140,11 @@ void ClusterCullingReflectionProbeCS(uint3 id : SV_DispatchThreadID)
             // 判断probe与cluster是否相交
             if(
                 clusterMinWS.x < probeMaxWS.x
-                || clusterMinWS.y < probeMaxWS.y
-                || clusterMinWS.z < probeMaxWS.z
-                || clusterMaxWS.x > probeMinWS.x
-                || clusterMaxWS.y > probeMinWS.y
-                || clusterMaxWS.z > probeMinWS.z
+                && clusterMinWS.y < probeMaxWS.y
+                && clusterMinWS.z < probeMaxWS.z
+                && clusterMaxWS.x > probeMinWS.x
+                && clusterMaxWS.y > probeMinWS.y
+                && clusterMaxWS.z > probeMinWS.z
             )
             {
                 UpdateHeader(header, probeIndex);

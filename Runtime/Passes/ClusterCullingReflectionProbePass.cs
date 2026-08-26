@@ -260,8 +260,9 @@ namespace HN.HNRP
                         importance = probe.importance,
                         intensity = probe.intensity,
                         scaleOffset = scaleOffsetUV,
+                        mipCount = Mathf.Log(probe.resolution, 2.0f),
                     };
-
+                    
                     scaleOffsetsInt[probeIndex] = scaleOffsetInt;
                     scaleOffsetsUV[probeIndex] = scaleOffsetUV;
                     probeTextures[probeIndex] = entry.Texture;
@@ -810,6 +811,13 @@ namespace HN.HNRP
         /// The scale and offset for sampling the probe cubemap.
         /// </summary>
         public Vector4 scaleOffset;
+
+        /// <summary>
+        /// The mip count of current probe cubemap. The probe cubemap with different resolution has different mip count.
+        /// </summary>
+        public float mipCount;
+
+        public Vector3 unused;
     }
 
     /// <summary>
