@@ -87,10 +87,6 @@ namespace HN.HNRP
         private const int ReflectionProbeAtlasTexelPadding = 2;
         private const int AtlasResolutionLevels = 5;
         private const uint MaxOffsetMask = 1u << 25;
-        private const GraphicsFormat ReflectionProbeAtlasFormat = GraphicsFormat.B10G11R11_UFloatPack32;
-        private const TextureDimension ReflectionProbeAtlasDimension = TextureDimension.Tex2D;
-        private const FilterMode ReflectionProbeAtlasFilterMode = FilterMode.Trilinear;
-        private const TextureWrapMode ReflectionProbeAtlasWrapMode = TextureWrapMode.Clamp;
         private const int MaxClusterMaskWords = 4096 * 4;
         private const string ClusterCullingKernelName = "ClusterCullingReflectionProbeCS";
 
@@ -503,7 +499,7 @@ namespace HN.HNRP
         private static int AtlasLevelForResolution(int resolution)
         {
             int log2 = (int)(Mathf.Log(resolution, 2) + 0.5f);
-            int level = 12 - log2;
+            int level = 11 - log2;
             return level >= 0 && level < AtlasResolutionLevels ? level : -1;
         }
 

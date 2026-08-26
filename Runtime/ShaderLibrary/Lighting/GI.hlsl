@@ -159,7 +159,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
             reflectVectorProbe = BoxProjectedCubemapDirection(reflectVector, positionWS, probePositionWS, probeBoxMin, probeBoxMax);
             reflectVectorProbe = normalize(reflectVectorProbe);
             float2 uv = GetReflectionProbeAtlasUV(reflectVectorProbe, scaleOffset, mip);
-            float3 irradianceColor = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_ReflectionProbeAtlas, uv, mip).xyz;
+            float3 irradianceColor = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_TrilinearClamp, uv, mip).xyz;
             irradiance += irradianceColor * probeWeight * intensity;
             totalWeight += probeWeight;
         }

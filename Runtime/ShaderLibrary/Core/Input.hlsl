@@ -60,7 +60,6 @@ CBUFFER_END
 StructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
 
 TEXTURE2D(_ReflectionProbeAtlas);
-SAMPLER(sampler_ReflectionProbeAtlas);
 
 #endif
 
