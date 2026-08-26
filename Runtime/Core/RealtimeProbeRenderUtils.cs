@@ -152,12 +152,12 @@ namespace HN.HNRP
 
         private static readonly Quaternion[] s_FaceRotations =
         {
-            Quaternion.LookRotation(Vector3.right, Vector3.down),     // +X
-            Quaternion.LookRotation(Vector3.left, Vector3.down),      // -X
-            Quaternion.LookRotation(Vector3.up, Vector3.forward),     // +Y
-            Quaternion.LookRotation(Vector3.down, Vector3.back),      // -Y
-            Quaternion.LookRotation(Vector3.forward, Vector3.down),   // +Z
-            Quaternion.LookRotation(Vector3.back, Vector3.down),      // -Z
+            Quaternion.LookRotation(Vector3.right, Vector3.up),     // +X
+            Quaternion.LookRotation(Vector3.left, Vector3.up),      // -X
+            Quaternion.LookRotation(Vector3.up, Vector3.back),      // +Y
+            Quaternion.LookRotation(Vector3.down, Vector3.forward), // -Y
+            Quaternion.LookRotation(Vector3.forward, Vector3.up),   // +Z
+            Quaternion.LookRotation(Vector3.back, Vector3.up),      // -Z
         };
     }
 }

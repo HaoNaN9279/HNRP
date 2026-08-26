@@ -301,7 +301,7 @@ namespace HN.HNRP
                 RuntimeResources = asset.runtimeResources,
                 TargetFace = (CubemapFace)face,
                 TargetDepthSlice = 0,
-                Flip = false,
+                Flip = true,
                 CustomTargetRTHandle = customTargetHandle,
             };
 
