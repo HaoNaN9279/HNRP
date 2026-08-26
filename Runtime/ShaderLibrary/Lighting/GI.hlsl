@@ -110,8 +110,8 @@ float CalculateProbeWeight(float3 positionWS, float4 probeBoxMin, float4 probeBo
 
 float CalculateProbeBoxWeight(float3 positionWS, float3 probeBoxMin, float3 probeBoxMax, float blendDistance)
 {
-    float3 weightDir = min(saturate(positionWS - probeBoxMin.xyz - blendDistance), saturate(probeBoxMax.xyz - positionWS - blendDistance));
-    return saturate(min(weightDir.x, min(weightDir.y, weightDir.z)));
+    float3 weightDir = max(saturate(positionWS - probeBoxMin.xyz - blendDistance), saturate(probeBoxMax.xyz - positionWS - blendDistance));
+    return saturate(max(weightDir.x, max(weightDir.y, weightDir.z)));
 }
 
 half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
