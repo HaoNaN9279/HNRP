@@ -328,9 +328,16 @@ namespace HN.HNRP
         {
             // A slot connected to a resource node reads the node's handle directly.
             // This bypasses the pass-to-pass handle chain (connectedOutput) entirely.
+            // Strongly-typed interface dispatch avoids boxing the handle struct.
             if (ConnectedResource != null)
             {
-                return (T)ConnectedResource.GetHandle();
+                if (ConnectedResource is IResourceHandleProvider<T> provider)
+                {
+                    return provider.GetHandle();
+                }
+
+                // Type mismatch is rejected earlier by ConnectResource; unreachable in practice.
+                return default;
             }
 
             if (Direction == SlotDirection.Output)

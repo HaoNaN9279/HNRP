@@ -42,14 +42,14 @@ namespace HN.HNRP.Tests
         #region ResourceDefinition Defaults
 
         /// <summary>
-        /// A fresh <see cref="ResourceDefinition"/> carries the documented defaults:
+        /// A fresh <see cref="TextureResourceDefinition"/> carries the documented defaults:
         /// R8G8B8A8 color format, no depth, full-resolution scale, clear enabled,
-        /// black clear color, opaque list kind, and layer mask <c>0x00000001</c>.
+        /// and black clear color.
         /// </summary>
         [Test]
-        public void ResourceDefinition_HasDocumentedDefaults()
+        public void TextureResourceDefinition_HasDocumentedDefaults()
         {
-            var def = new ResourceDefinition();
+            var def = new TextureResourceDefinition();
 
             Assert.That(def.ResourceName, Is.Null,
                 "ResourceName has no default value.");
@@ -63,6 +63,17 @@ namespace HN.HNRP.Tests
                 "Default ClearBuffer should be true.");
             Assert.That(def.ClearColor, Is.EqualTo(Color.black),
                 "Default ClearColor should be black.");
+        }
+
+        /// <summary>
+        /// A fresh <see cref="RendererListResourceDefinition"/> carries the documented
+        /// defaults: opaque list kind and layer mask <c>0x00000001</c>.
+        /// </summary>
+        [Test]
+        public void RendererListResourceDefinition_HasDocumentedDefaults()
+        {
+            var def = new RendererListResourceDefinition();
+
             Assert.That(def.ListKind, Is.EqualTo(RenderListKind.Opaque),
                 "Default ListKind should be Opaque.");
             Assert.That(def.RenderingLayerMask, Is.EqualTo(0x00000001u),
@@ -106,7 +117,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void TextureResourceNode_GetHandle_Unresolved_ReturnsDefault()
         {
-            var node = new TextureResourceNode();
+            var node = new TextureResourceNode(new TextureResourceDefinition());
 
             Assert.That(node.GetHandle(), Is.EqualTo(default(TextureHandle)),
                 "An unresolved texture node should expose a default handle.");
@@ -124,7 +135,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void ComputeBufferResourceNode_GetHandle_Unresolved_ReturnsDefault()
         {
-            var node = new ComputeBufferResourceNode();
+            var node = new ComputeBufferResourceNode(new ComputeBufferResourceDefinition());
 
             Assert.That(node.GetHandle(), Is.EqualTo(default(ComputeBufferHandle)),
                 "An unresolved compute buffer node should expose a default handle.");
@@ -142,7 +153,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void RendererListResourceNode_GetHandle_ReturnsDefault()
         {
-            var node = new RendererListResourceNode();
+            var node = new RendererListResourceNode(new RendererListResourceDefinition());
 
             Assert.That(node.GetHandle(), Is.EqualTo(default(RendererListHandle)));
         }
@@ -203,16 +214,12 @@ namespace HN.HNRP.Tests
         [Test]
         public void TextureResourceNode_Resolve_ExternalTextureMissing_KeepsDefaultHandle()
         {
-            var node = new TextureResourceNode
-            {
-                ResourceName = "UnknownExternalTex",
-                Definition = new ResourceDefinition
+            var node = new TextureResourceNode(
+                new TextureResourceDefinition
                 {
                     ResourceName = "UnknownExternalTex",
-                    ResourceKind = ResourceKind.Texture,
                     ExternalTextureName = "doesNotExist",
-                },
-            };
+                });
 
             var resources = ScriptableObject.CreateInstance<HNRenderPipelineRuntimeResources>();
             var camera = CreateTestCamera();
@@ -259,7 +266,7 @@ namespace HN.HNRP.Tests
         public void ConnectResource_OnOutputSlot_Throws()
         {
             var output = new TextureSlot("TexOut", SlotDirection.Output);
-            var node = new TextureResourceNode();
+            var node = new TextureResourceNode(new TextureResourceDefinition());
 
             Assert.Throws<InvalidOperationException>(() => output.ConnectResource(node));
         }
@@ -274,13 +281,13 @@ namespace HN.HNRP.Tests
         public void ConnectResource_TypeMismatch_Throws()
         {
             var input = new TextureSlot("TexIn", SlotDirection.Input);
-            var bufferNode = new ComputeBufferResourceNode();
+            var bufferNode = new ComputeBufferResourceNode(new ComputeBufferResourceDefinition());
 
             Assert.Throws<ArgumentException>(() => input.ConnectResource(bufferNode),
                 "A texture input slot must reject a compute buffer resource node.");
 
             var bufferInput = new ComputeBufferSlot("BufIn", SlotDirection.Input);
-            var textureNode = new TextureResourceNode();
+            var textureNode = new TextureResourceNode(new TextureResourceDefinition());
             Assert.Throws<ArgumentException>(() => bufferInput.ConnectResource(textureNode),
                 "A compute buffer input slot must reject a texture resource node.");
         }
@@ -293,7 +300,7 @@ namespace HN.HNRP.Tests
         public void ConnectResource_Success_SetsConnectedState()
         {
             var input = new TextureSlot("TexIn", SlotDirection.Input);
-            var node = new TextureResourceNode();
+            var node = new TextureResourceNode(new TextureResourceDefinition());
 
             input.ConnectResource(node);
 
@@ -315,7 +322,7 @@ namespace HN.HNRP.Tests
         public void ReadHandle_ConnectedResource_ReturnsNodeHandle()
         {
             var input = new TextureSlot("TexIn", SlotDirection.Input);
-            var node = new TextureResourceNode();
+            var node = new TextureResourceNode(new TextureResourceDefinition());
             input.ConnectResource(node);
 
             Assert.DoesNotThrow(() => input.ReadHandle());

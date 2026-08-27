@@ -2,6 +2,8 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -381,7 +383,7 @@ namespace HN.HNRP.Editor
                 drawHeaderCallback = DrawResourcesHeader,
                 drawElementCallback = DrawResourceElement,
                 elementHeightCallback = GetResourceElementHeight,
-                onAddCallback = OnAddResource,
+                onAddDropdownCallback = OnAddResourceDropdown,
             };
         }
 
@@ -398,36 +400,93 @@ namespace HN.HNRP.Editor
                 return;
             }
 
+            var asset = (RenderGraphAsset)target;
+            ResourceDefinition def = index < asset.Resources.Count ? asset.Resources[index] : null;
+            if (def == null)
+            {
+                return;
+            }
+
             SerializedProperty nameProp = element.FindPropertyRelative("ResourceName");
-            SerializedProperty kindProp = element.FindPropertyRelative("ResourceKind");
 
             float singleLine = EditorGUIUtility.singleLineHeight;
             float padding = 2f;
             float halfWidth = (rect.width - padding) / 2f;
 
+            // Row 1: Name | Kind（类型标签由具体子类派生，非序列化字段）
             var row1NameRect = new Rect(rect.x, rect.y + padding, halfWidth, singleLine);
             var row1KindRect = new Rect(rect.x + halfWidth + padding, rect.y + padding, halfWidth, singleLine);
 
             EditorGUI.PropertyField(row1NameRect, nameProp, new GUIContent("Name"));
-            EditorGUI.PropertyField(row1KindRect, kindProp, new GUIContent("Kind"));
+            EditorGUI.LabelField(row1KindRect, def.Kind.ToString());
+
+            // Row 2: Preset dropdown
+            var presetRect = new Rect(rect.x, rect.y + singleLine + padding, rect.width, singleLine);
+            DrawPresetPopup(presetRect, index, def);
         }
 
         private float GetResourceElementHeight(int index)
         {
-            return EditorGUIUtility.singleLineHeight + 4f;
+            return (EditorGUIUtility.singleLineHeight * 2) + 6f;
         }
 
-        private void OnAddResource(ReorderableList list)
+        /// <summary>
+        /// 绘制预设下拉菜单。选中后把预设参数值拷贝进当前定义（值复制）。
+        /// </summary>
+        private void DrawPresetPopup(Rect rect, int index, ResourceDefinition def)
+        {
+            IReadOnlyList<IResourcePreset> presets = def.Presets;
+            if (presets == null || presets.Count == 0)
+            {
+                return;
+            }
+
+            var names = new string[presets.Count];
+            for (int i = 0; i < presets.Count; i++)
+            {
+                names[i] = presets[i].Name;
+            }
+
+            int selected = EditorGUI.Popup(rect, "Preset", -1, names);
+            if (selected < 0)
+            {
+                return;
+            }
+
+            var asset = (RenderGraphAsset)target;
+            Undo.RecordObject(asset, "Apply Resource Preset");
+            presets[selected].ApplyTo(asset.Resources[index]);
+            EditorUtility.SetDirty(asset);
+            serializedObject.Update();
+        }
+
+        /// <summary>
+        /// Add 按钮下拉菜单：选择要新增的资源类型。
+        /// </summary>
+        private void OnAddResourceDropdown(Rect buttonRect, ReorderableList list)
+        {
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("Texture"), false,
+                () => AddResource(() => new TextureResourceDefinition()));
+            menu.AddItem(new GUIContent("Compute Buffer"), false,
+                () => AddResource(() => new ComputeBufferResourceDefinition()));
+            menu.AddItem(new GUIContent("Renderer List"), false,
+                () => AddResource(() => new RendererListResourceDefinition()));
+            menu.DropDown(buttonRect);
+        }
+
+        /// <summary>
+        /// 通过工厂创建指定类型的资源定义并追加到列表末尾。
+        /// </summary>
+        private void AddResource(Func<ResourceDefinition> factory)
         {
             int index = m_ResourcesProp.arraySize;
             m_ResourcesProp.InsertArrayElementAtIndex(index);
 
-            // Initialize defaults.
             SerializedProperty element = m_ResourcesProp.GetArrayElementAtIndex(index);
             if (element != null)
             {
-                element.FindPropertyRelative("ResourceName").stringValue = string.Empty;
-                element.FindPropertyRelative("ResourceKind").enumValueIndex = 0;
+                element.managedReferenceValue = factory();
             }
 
             serializedObject.ApplyModifiedProperties();

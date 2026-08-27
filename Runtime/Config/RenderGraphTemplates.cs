@@ -84,14 +84,13 @@ namespace HN.HNRP
                 },
                 new List<ResourceDefinition>
                 {
-                    new ResourceDefinition { ResourceName = "ColorBuffer", ResourceKind = ResourceKind.Texture },
-                    new ResourceDefinition { ResourceName = "DepthBuffer", ResourceKind = ResourceKind.Texture, DepthBits = UnityEngine.Rendering.DepthBits.Depth32 },
-                    new ResourceDefinition { ResourceName = "OpaqueRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
-                    new ResourceDefinition { ResourceName = "TransparentRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
-                    new ResourceDefinition
+                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
+                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
+                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
+                    new RendererListResourceDefinition { ResourceName = "TransparentRendererList", ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
+                    new TextureResourceDefinition
                     {
                         ResourceName = "ReflectionProbeAtlas",
-                        ResourceKind = ResourceKind.Texture,
                         Width = 4096,
                         Height = 4096,
                         ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32,
@@ -144,11 +143,11 @@ namespace HN.HNRP
                 },
                 new List<ResourceDefinition>
                 {
-                    new ResourceDefinition { ResourceName = "ColorBuffer", ResourceKind = ResourceKind.Texture },
-                    new ResourceDefinition { ResourceName = "DepthBuffer", ResourceKind = ResourceKind.Texture, DepthBits = UnityEngine.Rendering.DepthBits.Depth32 },
-                    new ResourceDefinition { ResourceName = "OpaqueRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
-                    new ResourceDefinition { ResourceName = "TransparentRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
-                    new ResourceDefinition { ResourceName = "ReflectionProbeAtlas", ResourceKind = ResourceKind.Texture, ExternalTextureName = "emptyTexture"},
+                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
+                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
+                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
+                    new RendererListResourceDefinition { ResourceName = "TransparentRendererList", ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
+                    new TextureResourceDefinition { ResourceName = "ReflectionProbeAtlas", ExternalTextureName = "emptyTexture"},
                 },
                 new List<ResourceConnection>
                 {
@@ -176,9 +175,9 @@ namespace HN.HNRP
                 },
                 new List<ResourceDefinition>
                 {
-                    new ResourceDefinition { ResourceName = "ColorBuffer", ResourceKind = ResourceKind.Texture },
-                    new ResourceDefinition { ResourceName = "DepthBuffer", ResourceKind = ResourceKind.Texture, DepthBits = UnityEngine.Rendering.DepthBits.Depth32 },
-                    new ResourceDefinition { ResourceName = "OpaqueRendererList", ResourceKind = ResourceKind.RendererList, ListKind = RenderListKind.Opaque },
+                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
+                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
+                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque },
                 },
                 new List<ResourceConnection>
                 {

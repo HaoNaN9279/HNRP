@@ -76,7 +76,7 @@ namespace HN.HNRP
         [SerializeField]
         private List<SlotConnection> m_Connections = new();
 
-        [SerializeField]
+        [SerializeReference]
         private List<ResourceDefinition> m_Resources = new();
 
         [SerializeField]
@@ -219,12 +219,12 @@ namespace HN.HNRP
                     continue;
                 }
 
-                ResourceNode node = CreateResourceNode(def);
+                ResourceNode node = def.CreateNode();
                 if (node == null)
                 {
                     Debug.LogWarning(
                         $"RenderGraphAsset.Build: Could not create resource node for " +
-                        $"'{def.ResourceName}' (kind '{def.ResourceKind}').");
+                        $"'{def.ResourceName}' (kind '{def.Kind}').");
                     continue;
                 }
 
@@ -320,39 +320,6 @@ namespace HN.HNRP
 
             // ── Phase 3: Topologically sort passes (dependency order) ──
             return TopologicalSort(passMap);
-        }
-
-        /// <summary>
-        /// Creates the concrete <see cref="ResourceNode"/> subclass matching the
-        /// definition's <see cref="ResourceKind"/>.
-        /// </summary>
-        /// <param name="def">The resource definition to materialize.</param>
-        /// <returns>
-        /// A <see cref="TextureResourceNode"/>, <see cref="ComputeBufferResourceNode"/>,
-        /// or <see cref="RendererListResourceNode"/>, or <c>null</c> for unknown kinds.
-        /// </returns>
-        private static ResourceNode CreateResourceNode(ResourceDefinition def)
-        {
-            ResourceNode node;
-            switch (def.ResourceKind)
-            {
-                case ResourceKind.Texture:
-                    node = new TextureResourceNode();
-                    break;
-                case ResourceKind.ComputeBuffer:
-                    node = new ComputeBufferResourceNode();
-                    break;
-                case ResourceKind.RendererList:
-                    node = new RendererListResourceNode();
-                    break;
-                default:
-                    return null;
-            }
-
-            node.ResourceName = def.ResourceName;
-            node.Kind = def.ResourceKind;
-            node.Definition = def;
-            return node;
         }
 
         /// <summary>

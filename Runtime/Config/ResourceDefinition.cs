@@ -3,145 +3,56 @@
 // </copyright>
 
 using System;
-using UnityEngine;
-using UnityEngine.Experimental.Rendering;
-using UnityEngine.Rendering;
+using System.Collections.Generic;
 
 namespace HN.HNRP
 {
     /// <summary>
-    /// Serializable asset-level definition of a render graph resource node.
-    /// Describes how the runtime resource is allocated (or imported) each frame.
+    /// 渲染图资源节点的抽象基类定义。每种资源类型（纹理 / ComputeBuffer / RendererList）
+    /// 由独立的具体子类承载其参数，互不混用。
     /// </summary>
     /// <remarks>
-    /// Only the fields relevant to <see cref="ResourceKind"/> are used:
-    /// <list type="bullet">
-    ///   <item><b>Texture</b> — <see cref="ColorFormat"/>, <see cref="DepthBits"/>, <see cref="TextureScale"/>, <see cref="ClearBuffer"/>, <see cref="ClearColor"/>, or <see cref="ExternalTextureName"/> for externally imported textures.</item>
-    ///   <item><b>ComputeBuffer</b> — <see cref="BufferCount"/>, <see cref="BufferStride"/>.</item>
-    ///   <item><b>RendererList</b> — <see cref="ListKind"/>, <see cref="RenderingLayerMask"/>.</item>
-    /// </list>
+    /// <para>
+    /// 序列化通过 <see cref="RenderGraphAsset"/> 上的
+    /// <c>[SerializeReference] List&lt;ResourceDefinition&gt;</c> 实现多态，
+    /// 因此本类型为纯 <c>[Serializable]</c> class，非 ScriptableObject。
+    /// </para>
+    /// <para>
+    /// 具体子类负责：<see cref="Kind"/> 类型标签、<see cref="CreateNode"/> 工厂、
+    /// <see cref="CopyFrom"/> 参数拷贝（预设套用的基础）、<see cref="Presets"/> 预设集合。
+    /// </para>
     /// </remarks>
     [Serializable]
-    public class ResourceDefinition
+    public abstract class ResourceDefinition
     {
         /// <summary>
-        /// The name used to match this definition against
-        /// <see cref="ResourceConnection.ResourceName"/> entries.
-        /// Must be non-null and unique within the render graph asset.
+        /// 资源名，用于匹配 <see cref="ResourceConnection.ResourceName"/>。
+        /// 必须非空且在渲染图资源内唯一。
         /// </summary>
         public string ResourceName;
 
         /// <summary>
-        /// The kind of resource this definition describes.
+        /// 该资源定义的稳定类型标签（由具体子类派生返回）。
+        /// 用于编辑器显示与日志，不再用于序列化分派。
         /// </summary>
-        public ResourceKind ResourceKind;
-
-        // ── Texture (only when ResourceKind == Texture) ──
+        public abstract ResourceKind Kind { get; }
 
         /// <summary>
-        /// The color format of the allocated texture.
-        /// Ignored for depth-only textures (use <see cref="DepthBits"/> instead).
+        /// 创建对应的运行时 <see cref="ResourceNode"/> 实例。
+        /// 替代原先按 <see cref="ResourceKind"/> switch 的创建逻辑。
         /// </summary>
-        public GraphicsFormat ColorFormat = GraphicsFormat.R8G8B8A8_UNorm;
+        /// <returns>与定义类型匹配的资源节点。</returns>
+        public abstract ResourceNode CreateNode();
 
         /// <summary>
-        /// The depth buffer bit count. <see cref="DepthBits.None"/> for a
-        /// non-depth texture.
+        /// 从同类型的另一个定义拷贝全部参数。
         /// </summary>
-        public DepthBits DepthBits = DepthBits.None;
+        /// <param name="source">源定义（须与目标同具体类型）。</param>
+        public abstract void CopyFrom(ResourceDefinition source);
 
         /// <summary>
-        /// Scale factor applied to the camera's pixel dimensions when sizing
-        /// the allocated texture. Default is full resolution.
-        /// Ignored when <see cref="Width"/> and <see cref="Height"/> are positive
-        /// (fixed-size texture mode).
+        /// 该类型可用的预设集合。编辑器下拉菜单据此列出可选预设。
         /// </summary>
-        public Vector2 TextureScale = Vector2.one;
-
-        /// <summary>
-        /// Fixed texture width in pixels. When positive (along with
-        /// <see cref="Height"/>), the texture uses fixed dimensions instead
-        /// of camera-scaled dimensions. Default is 0 (camera-scaled mode).
-        /// </summary>
-        public int Width;
-
-        /// <summary>
-        /// Fixed texture height in pixels. When positive (along with
-        /// <see cref="Width"/>), the texture uses fixed dimensions instead
-        /// of camera-scaled dimensions. Default is 0 (camera-scaled mode).
-        /// </summary>
-        public int Height;
-
-        /// <summary>
-        /// The texture dimension of the allocated texture./>.
-        /// </summary>
-        public FilterMode FilterMode;
-
-        /// <summary>
-        /// The wrap mode of the allocated texture./>.
-        /// </summary>
-        public TextureWrapMode WrapMode;
-
-        /// <summary>
-        /// The texture dimension of the allocated texture./>.
-        /// </summary>
-        public TextureDimension TextureDimension;
-
-        /// <summary>
-        /// Whether the allocated texture should have mipmaps.
-        /// Default is <c>false</c>.
-        /// </summary>
-        public bool UseMipMap;
-
-        /// <summary>
-        /// Whether the allocated texture should have its mipmaps automatically generated.
-        /// </summary>
-        public bool AutoGenerateMips;
-
-        /// <summary>
-        /// Whether the allocated texture should be cleared before first use.
-        /// The clear is inlined by the render graph into the first pass that
-        /// writes the resource.
-        /// </summary>
-        public bool ClearBuffer = true;
-
-        /// <summary>
-        /// The clear color used when <see cref="ClearBuffer"/> is <c>true</c>.
-        /// </summary>
-        public Color ClearColor = Color.black;
-
-        /// <summary>
-        /// External texture name (e.g. "emptyTexture"). When non-empty the
-        /// texture resource is imported at runtime from
-        /// <see cref="HNRenderPipelineRuntimeResources"/> instead of allocating a
-        /// new RenderTexture sized by the camera.
-        /// </summary>
-        public string ExternalTextureName;
-
-        // ── ComputeBuffer (only when ResourceKind == ComputeBuffer) ──
-
-        /// <summary>
-        /// The element count of the allocated compute buffer.
-        /// </summary>
-        public int BufferCount;
-
-        /// <summary>
-        /// The byte stride of each element in the allocated compute buffer.
-        /// </summary>
-        public int BufferStride;
-
-        // ── RendererList (only when ResourceKind == RendererList) ──
-
-        /// <summary>
-        /// Which render-queue scope to use when building the renderer list
-        /// descriptor (opaque or transparent).
-        /// </summary>
-        public RenderListKind ListKind = RenderListKind.Opaque;
-
-        /// <summary>
-        /// The rendering layer mask applied when building the renderer list
-        /// descriptor. Only renderers on matching rendering layers are included.
-        /// </summary>
-        public uint RenderingLayerMask = 0x00000001;
+        public abstract IReadOnlyList<IResourcePreset> Presets { get; }
     }
 }

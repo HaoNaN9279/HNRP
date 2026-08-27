@@ -5,9 +5,9 @@
 namespace HN.HNRP
 {
     /// <summary>
-    /// The kind of a render graph resource node.
-    /// Determines which concrete <see cref="ResourceNode"/> subclass is created
-    /// at build time and which handles it carries at runtime.
+    /// 渲染图资源节点的稳定类型标签。
+    /// 由具体 <see cref="ResourceDefinition"/> 子类派生返回，用于编辑器显示与日志。
+    /// 具体节点类型由定义类型本身决定（见 <see cref="ResourceDefinition.CreateNode"/>）。
     /// </summary>
     public enum ResourceKind
     {

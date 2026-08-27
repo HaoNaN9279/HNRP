@@ -4,7 +4,6 @@
 
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RendererUtils;
@@ -12,90 +11,108 @@ using UnityEngine.Rendering.RendererUtils;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Runtime counterpart of a <see cref="ResourceDefinition"/>.
-    /// Represents a render graph resource (texture, compute buffer, or renderer list)
-    /// referenced by name.
+    /// 强类型渲染图资源句柄提供者。消除 <c>GetHandle()</c> 返回 <see cref="object"/>
+    /// 造成的每帧装箱，让 <see cref="PassSlot{T}.ReadHandle"/> 直接拿到值类型句柄。
+    /// </summary>
+    /// <typeparam name="T">
+    /// 渲染图资源句柄 struct（<see cref="TextureHandle"/> / <see cref="ComputeBufferHandle"/> /
+    /// <see cref="RendererListHandle"/>）。
+    /// </typeparam>
+    public interface IResourceHandleProvider<T>
+    {
+        /// <summary>
+        /// 返回该资源节点的强类型句柄。零装箱。
+        /// </summary>
+        /// <returns>当前的渲染图资源句柄。</returns>
+        T GetHandle();
+    }
+
+    /// <summary>
+    /// 运行时资源节点。对应一个 <see cref="ResourceDefinition"/>，
+    /// 表示按名字引用的渲染图资源（纹理 / 计算缓冲 / 渲染器列表）。
     /// </summary>
     /// <remarks>
-    /// <para><b>Resource model:</b></para>
+    /// <para><b>资源模型：</b></para>
     /// <list type="bullet">
-    ///   <item>A resource has only outputs. It is allocated at the start of the
-    ///   pass chain by <see cref="Resolve"/> and every pass that reads or writes
-    ///   it wires the resource into one of its input slots. Intermediate data
-    ///   produced by a pass flows through <see cref="SlotConnection"/>, not
-    ///   through resource nodes.</item>
-    ///   <item><see cref="ConsumerSlots"/> are the pass input slots that read or
-    ///   write this resource. They are used to derive execution-order
-    ///   dependencies.</item>
-    ///   <item>A texture resource may instead be imported from an external
-    ///   runtime texture (see <see cref="ResourceDefinition.ExternalTextureName"/>)
-    ///   rather than allocated per-frame.</item>
+    ///   <item>资源只有输出。它在 pass 链开始处由 <see cref="Resolve"/> 分配，
+    ///   每个读写它的 pass 把资源接入自己的某个输入槽。</item>
+    ///   <item><see cref="ConsumerSlots"/> 是读写该资源的 pass 输入槽，用于推导执行顺序依赖。</item>
+    ///   <item>纹理资源可改为从外部运行时纹理导入（见
+    ///   <see cref="TextureResourceDefinition.ExternalTextureName"/>），而非每帧分配。</item>
     /// </list>
     /// </remarks>
     public abstract class ResourceNode
     {
         /// <summary>
-        /// The name of this resource. Matches
-        /// <see cref="ResourceDefinition.ResourceName"/>.
+        /// 资源名，匹配 <see cref="ResourceDefinition.ResourceName"/>。
         /// </summary>
         public string ResourceName;
 
         /// <summary>
-        /// The kind of this resource.
+        /// 该节点所构建自的资源定义。
         /// </summary>
-        public ResourceKind Kind;
+        public ResourceDefinition Definition { get; }
 
         /// <summary>
-        /// The asset definition this node was built from.
+        /// 该资源的稳定类型标签。
         /// </summary>
-        public ResourceDefinition Definition;
+        public abstract ResourceKind Kind { get; }
 
         /// <summary>
-        /// The consumer pass input slots that read this resource.
+        /// 读写该资源的 pass 输入槽。
         /// </summary>
         public List<PassSlot> ConsumerSlots = new();
 
         /// <summary>
-        /// Returns the render graph resource handle for this node.
-        /// Consumers call this during <see cref="Pass.Record"/>.
+        /// 初始化资源节点，从定义继承名称。
         /// </summary>
-        /// <returns>
-        /// The <see cref="TextureHandle"/>, <see cref="ComputeBufferHandle"/>, or
-        /// <see cref="RendererListHandle"/> as a boxed <see cref="object"/>.
-        /// The concrete type is guaranteed by the slot's
-        /// <see cref="PassSlot{T}.CanConnectTo(ResourceNode)"/> type check.
-        /// </returns>
-        public abstract object GetHandle();
+        /// <param name="definition">构建该节点的资源定义。</param>
+        protected ResourceNode(ResourceDefinition definition)
+        {
+            Definition = definition;
+            ResourceName = definition.ResourceName;
+        }
 
         /// <summary>
-        /// Resolves the resource handle for the current frame.
-        /// Called once at the start of <see cref="CameraRenderer.Render"/>.
-        /// The base implementation is a no-op; concrete subclasses allocate or
-        /// import their render graph resource here.
+        /// 解析当前帧的资源句柄。在 <see cref="CameraRenderer.Render"/> 开始时调用一次。
+        /// 基类为空实现；具体子类在此分配或导入其渲染图资源。
         /// </summary>
-        /// <param name="renderGraph">The render graph to allocate the resource in.</param>
-        /// <param name="ctx">The per-camera rendering context.</param>
+        /// <param name="renderGraph">分配资源的目标渲染图。</param>
+        /// <param name="ctx">每相机渲染上下文。</param>
         public virtual void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
         }
     }
 
     /// <summary>
-    /// A <see cref="ResourceNode"/> carrying a <see cref="TextureHandle"/>.
+    /// 携带 <see cref="TextureHandle"/> 的资源节点。
     /// </summary>
-    public sealed class TextureResourceNode : ResourceNode
+    public sealed class TextureResourceNode : ResourceNode, IResourceHandleProvider<TextureHandle>
     {
+        private readonly TextureResourceDefinition m_Definition;
         private TextureHandle m_Handle;
 
         /// <summary>
-        /// Cached RTHandle wrapper around the imported external texture.
-        /// Allocated once and reused every frame (the external texture is a
-        /// pipeline-owned singleton, e.g. <c>emptyTexture</c>).
+        /// 包裹导入外部纹理的缓存 RTHandle。分配一次后每帧复用
+        /// （外部纹理是管线拥有的单例，如 <c>emptyTexture</c>）。
         /// </summary>
         private RTHandle m_ImportedRTHandle;
 
+        /// <summary>
+        /// 初始化纹理资源节点。
+        /// </summary>
+        /// <param name="definition">纹理资源定义。</param>
+        public TextureResourceNode(TextureResourceDefinition definition)
+            : base(definition)
+        {
+            m_Definition = definition;
+        }
+
         /// <inheritdoc />
-        public override object GetHandle()
+        public override ResourceKind Kind => ResourceKind.Texture;
+
+        /// <inheritdoc />
+        public TextureHandle GetHandle()
         {
             return m_Handle;
         }
@@ -103,11 +120,10 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
-            // External texture import: the texture comes from the pipeline's
-            // runtime resources rather than being allocated per-frame.
-            if (!string.IsNullOrEmpty(Definition.ExternalTextureName))
+            // 外部纹理导入：纹理来自管线运行时资源而非每帧分配。
+            if (!string.IsNullOrEmpty(m_Definition.ExternalTextureName))
             {
-                Texture tex = ctx.RuntimeResources?.GetExternalTexture(Definition.ExternalTextureName);
+                Texture tex = ctx.RuntimeResources?.GetExternalTexture(m_Definition.ExternalTextureName);
                 if (tex != null)
                 {
                     if (m_ImportedRTHandle == null)
@@ -121,7 +137,7 @@ namespace HN.HNRP
 
                 Debug.LogWarning(
                     $"TextureResourceNode.Resolve: External texture " +
-                    $"'{Definition.ExternalTextureName}' for resource '{ResourceName}' was not " +
+                    $"'{m_Definition.ExternalTextureName}' for resource '{ResourceName}' was not " +
                     $"found in the pipeline runtime resources. Leaving the default handle.");
                 return;
             }
@@ -131,23 +147,23 @@ namespace HN.HNRP
                 return;
             }
 
-            // Fixed-size mode: use Width/Height directly.
-            // Camera-scaled mode: scale camera pixel dimensions.
-            int texWidth = Definition.Width > 0
-                ? Definition.Width
-                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelWidth * Definition.TextureScale.x));
-            int texHeight = Definition.Height > 0
-                ? Definition.Height
-                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelHeight * Definition.TextureScale.y));
+            // 固定尺寸模式：直接使用 Width/Height。
+            // 相机缩放模式：缩放相机像素尺寸。
+            int texWidth = m_Definition.Width > 0
+                ? m_Definition.Width
+                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelWidth * m_Definition.TextureScale.x));
+            int texHeight = m_Definition.Height > 0
+                ? m_Definition.Height
+                : Mathf.Max(1, Mathf.RoundToInt(ctx.Camera.pixelHeight * m_Definition.TextureScale.y));
 
             var desc = new TextureDesc(texWidth, texHeight, false, false)
             {
-                colorFormat = Definition.ColorFormat,
-                depthBufferBits = Definition.DepthBits,
-                clearBuffer = Definition.ClearBuffer,
-                clearColor = Definition.ClearColor,
-                useMipMap = Definition.UseMipMap,
-                autoGenerateMips = Definition.AutoGenerateMips,
+                colorFormat = m_Definition.ColorFormat,
+                depthBufferBits = m_Definition.DepthBits,
+                clearBuffer = m_Definition.ClearBuffer,
+                clearColor = m_Definition.ClearColor,
+                useMipMap = m_Definition.UseMipMap,
+                autoGenerateMips = m_Definition.AutoGenerateMips,
                 name = ResourceName,
             };
 
@@ -156,14 +172,28 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// A <see cref="ResourceNode"/> carrying a <see cref="ComputeBufferHandle"/>.
+    /// 携带 <see cref="ComputeBufferHandle"/> 的资源节点。
     /// </summary>
-    public sealed class ComputeBufferResourceNode : ResourceNode
+    public sealed class ComputeBufferResourceNode : ResourceNode, IResourceHandleProvider<ComputeBufferHandle>
     {
+        private readonly ComputeBufferResourceDefinition m_Definition;
         private ComputeBufferHandle m_Handle;
 
+        /// <summary>
+        /// 初始化计算缓冲资源节点。
+        /// </summary>
+        /// <param name="definition">计算缓冲资源定义。</param>
+        public ComputeBufferResourceNode(ComputeBufferResourceDefinition definition)
+            : base(definition)
+        {
+            m_Definition = definition;
+        }
+
         /// <inheritdoc />
-        public override object GetHandle()
+        public override ResourceKind Kind => ResourceKind.ComputeBuffer;
+
+        /// <inheritdoc />
+        public ComputeBufferHandle GetHandle()
         {
             return m_Handle;
         }
@@ -172,7 +202,7 @@ namespace HN.HNRP
         public override void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
             m_Handle = renderGraph.CreateComputeBuffer(
-                new ComputeBufferDesc(Definition.BufferCount, Definition.BufferStride)
+                new ComputeBufferDesc(m_Definition.BufferCount, m_Definition.BufferStride)
                 {
                     name = ResourceName,
                 });
@@ -180,16 +210,29 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// A <see cref="ResourceNode"/> carrying a <see cref="RendererListHandle"/>.
-    /// Renderer lists are always resolved from the camera's culling results each
-    /// frame and have no producer pass concept.
+    /// 携带 <see cref="RendererListHandle"/> 的资源节点。
+    /// 渲染器列表每帧从相机裁剪结果解析，没有生产者 pass 概念。
     /// </summary>
-    public sealed class RendererListResourceNode : ResourceNode
+    public sealed class RendererListResourceNode : ResourceNode, IResourceHandleProvider<RendererListHandle>
     {
+        private readonly RendererListResourceDefinition m_Definition;
         private RendererListHandle m_Handle;
 
+        /// <summary>
+        /// 初始化渲染器列表资源节点。
+        /// </summary>
+        /// <param name="definition">渲染器列表资源定义。</param>
+        public RendererListResourceNode(RendererListResourceDefinition definition)
+            : base(definition)
+        {
+            m_Definition = definition;
+        }
+
         /// <inheritdoc />
-        public override object GetHandle()
+        public override ResourceKind Kind => ResourceKind.RendererList;
+
+        /// <inheritdoc />
+        public RendererListHandle GetHandle()
         {
             return m_Handle;
         }
@@ -197,26 +240,24 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Resolve(RenderGraph renderGraph, CameraContext ctx)
         {
-            // Without valid culling results we cannot build a renderer list
-            // descriptor — an invalid descriptor throws during render graph
-            // compilation. Leave the handle default; consumer passes skip
-            // recording when the handle is invalid.
+            // 无有效裁剪结果则无法构建渲染器列表描述符——无效描述符会在渲染图编译时抛异常。
+            // 保持句柄默认；消费 pass 在句柄无效时跳过录制。
             if (!ctx.HasCullingResults || ctx.Camera == null)
             {
                 return;
             }
 
-            RendererListDesc desc = Definition.ListKind == RenderListKind.Opaque
+            RendererListDesc desc = m_Definition.ListKind == RenderListKind.Opaque
                 ? HNRenderPipelineUtils.GetOpaqueRendererListDesc(
                     ShaderPassNames.AllForwardNames,
                     ctx.CullingResults,
                     ctx.Camera,
-                    Definition.RenderingLayerMask)
+                    m_Definition.RenderingLayerMask)
                 : HNRenderPipelineUtils.GetTransparentRendererListDesc(
                     ShaderPassNames.AllForwardNames,
                     ctx.CullingResults,
                     ctx.Camera,
-                    Definition.RenderingLayerMask);
+                    m_Definition.RenderingLayerMask);
 
             m_Handle = renderGraph.CreateRendererList(desc);
         }

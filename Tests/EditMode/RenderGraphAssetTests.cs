@@ -372,20 +372,17 @@ namespace HN.HNRP.Tests
         public void Build_MaterializesResourceNodes_FromDefinitions()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Resources.Add(new ResourceDefinition
+            asset.Resources.Add(new TextureResourceDefinition
             {
                 ResourceName = "ColorBuffer",
-                ResourceKind = ResourceKind.Texture,
             });
-            asset.Resources.Add(new ResourceDefinition
+            asset.Resources.Add(new ComputeBufferResourceDefinition
             {
                 ResourceName = "LightDatas",
-                ResourceKind = ResourceKind.ComputeBuffer,
             });
-            asset.Resources.Add(new ResourceDefinition
+            asset.Resources.Add(new RendererListResourceDefinition
             {
                 ResourceName = "OpaqueList",
-                ResourceKind = ResourceKind.RendererList,
             });
 
             List<Pass> result = asset.Build(renderer: null);
@@ -454,10 +451,9 @@ namespace HN.HNRP.Tests
             asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "FirstConsumer"));
             asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "SecondConsumer"));
 
-            asset.Resources.Add(new ResourceDefinition
+            asset.Resources.Add(new TextureResourceDefinition
             {
                 ResourceName = "SharedTex",
-                ResourceKind = ResourceKind.Texture,
             });
 
             asset.ResourceConnections.Add(new ResourceConnection

@@ -179,8 +179,8 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// The Reflection template declares the 7-pass reflection pipeline, 4
-        /// resources, and 4 resource connections. It contains no cluster probe pass
+        /// The Reflection template declares the 7-pass reflection pipeline, 5
+        /// resources, and 6 resource connections. It contains no cluster probe pass
         /// and no <c>EmptyTexture</c> resource: the Reflection graph renders a probe
         /// face but must not render reflection probes itself.
         /// </summary>
@@ -193,10 +193,10 @@ namespace HN.HNRP.Tests
                 "Reflection template should declare exactly 7 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(11),
                 "Reflection template should declare exactly 11 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(4),
-                "Reflection template should declare exactly 4 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(4),
-                "Reflection template should declare exactly 4 resource connections.");
+            Assert.That(asset.Resources.Count, Is.EqualTo(5),
+                "Reflection template should declare exactly 5 resources.");
+            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(6),
+                "Reflection template should declare exactly 6 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Reflection template should use PerPixel SH evaluation.");

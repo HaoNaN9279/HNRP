@@ -111,86 +111,11 @@ MonoBehaviour:
     m_TargetPass: forwardOpaque
     m_TargetSlot: ProbeDatas
   m_Resources:
-  - ResourceName: ColorBuffer
-    ResourceKind: 0
-    ColorFormat: 8
-    DepthBits: 0
-    TextureScale: {x: 1, y: 1}
-    Width: 0
-    Height: 0
-    UseMipMap: 0
-    AutoGenerateMips: 0
-    ClearBuffer: 1
-    ClearColor: {r: 0, g: 0, b: 0, a: 1}
-    ExternalTextureName: 
-    BufferCount: 0
-    BufferStride: 0
-    ListKind: 0
-    RenderingLayerMask: 1
-  - ResourceName: DepthBuffer
-    ResourceKind: 0
-    ColorFormat: 8
-    DepthBits: 32
-    TextureScale: {x: 1, y: 1}
-    Width: 0
-    Height: 0
-    UseMipMap: 0
-    AutoGenerateMips: 0
-    ClearBuffer: 1
-    ClearColor: {r: 0, g: 0, b: 0, a: 1}
-    ExternalTextureName: 
-    BufferCount: 0
-    BufferStride: 0
-    ListKind: 0
-    RenderingLayerMask: 1
-  - ResourceName: OpaqueRendererList
-    ResourceKind: 2
-    ColorFormat: 8
-    DepthBits: 0
-    TextureScale: {x: 1, y: 1}
-    Width: 0
-    Height: 0
-    UseMipMap: 0
-    AutoGenerateMips: 0
-    ClearBuffer: 1
-    ClearColor: {r: 0, g: 0, b: 0, a: 1}
-    ExternalTextureName: 
-    BufferCount: 0
-    BufferStride: 0
-    ListKind: 0
-    RenderingLayerMask: 1
-  - ResourceName: TransparentRendererList
-    ResourceKind: 2
-    ColorFormat: 8
-    DepthBits: 0
-    TextureScale: {x: 1, y: 1}
-    Width: 0
-    Height: 0
-    UseMipMap: 0
-    AutoGenerateMips: 0
-    ClearBuffer: 1
-    ClearColor: {r: 0, g: 0, b: 0, a: 1}
-    ExternalTextureName: 
-    BufferCount: 0
-    BufferStride: 0
-    ListKind: 1
-    RenderingLayerMask: 1
-  - ResourceName: ReflectionProbeAtlas
-    ResourceKind: 0
-    ColorFormat: 74
-    DepthBits: 0
-    TextureScale: {x: 1, y: 1}
-    Width: 4096
-    Height: 4096
-    UseMipMap: 1
-    AutoGenerateMips: 0
-    ClearBuffer: 1
-    ClearColor: {r: 0, g: 0, b: 0, a: 1}
-    ExternalTextureName: 
-    BufferCount: 0
-    BufferStride: 0
-    ListKind: 0
-    RenderingLayerMask: 1
+  - rid: 2663563119090466816
+  - rid: 2663563119090466817
+  - rid: 2663563119090466818
+  - rid: 2663563119090466819
+  - rid: 2663563119090466820
   m_ResourceConnections:
   - ResourceName: ColorBuffer
     PassName: forwardOpaque
@@ -210,3 +135,69 @@ MonoBehaviour:
   m_Settings:
     SHEvalMode: 2
     AllowHDR: 1
+  references:
+    version: 2
+    RefIds:
+    - rid: 2663563119090466816
+      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        ResourceName: ColorBuffer
+        ColorFormat: 8
+        DepthBits: 0
+        TextureScale: {x: 1, y: 1}
+        Width: 0
+        Height: 0
+        FilterMode: 0
+        WrapMode: 0
+        TextureDimension: 0
+        UseMipMap: 0
+        AutoGenerateMips: 0
+        ClearBuffer: 1
+        ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        ExternalTextureName: 
+    - rid: 2663563119090466817
+      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        ResourceName: DepthBuffer
+        ColorFormat: 8
+        DepthBits: 32
+        TextureScale: {x: 1, y: 1}
+        Width: 0
+        Height: 0
+        FilterMode: 0
+        WrapMode: 0
+        TextureDimension: 0
+        UseMipMap: 0
+        AutoGenerateMips: 0
+        ClearBuffer: 1
+        ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        ExternalTextureName: 
+    - rid: 2663563119090466818
+      type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        ResourceName: OpaqueRendererList
+        ListKind: 0
+        RenderingLayerMask: 1
+    - rid: 2663563119090466819
+      type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        ResourceName: TransparentRendererList
+        ListKind: 1
+        RenderingLayerMask: 1
+    - rid: 2663563119090466820
+      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        ResourceName: ReflectionProbeAtlas
+        ColorFormat: 74
+        DepthBits: 0
+        TextureScale: {x: 1, y: 1}
+        Width: 4096
+        Height: 4096
+        FilterMode: 2
+        WrapMode: 1
+        TextureDimension: 2
+        UseMipMap: 1
+        AutoGenerateMips: 0
+        ClearBuffer: 1
+        ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        ExternalTextureName: 
