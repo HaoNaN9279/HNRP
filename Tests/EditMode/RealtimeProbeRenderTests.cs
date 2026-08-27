@@ -10,15 +10,15 @@ namespace HN.HNRP.Tests
 {
     /// <summary>
     /// Tests for realtime reflection probe rendering logic:
-    /// <see cref="RealtimeProbeRenderUtils"/> (face scheduling, mode filtering) and
-    /// <see cref="RealtimeProbeRenderer"/> (collection, refresh mode gating, dedup).
+    /// <see cref="ReflectionProbeRenderUtils"/> (face scheduling, mode filtering) and
+    /// <see cref="ReflectionProbeRenderer"/> (collection, refresh mode gating, dedup).
     /// </summary>
     public sealed class RealtimeProbeRenderTests
     {
         #region GetFacesToRender — time slicing strategies
 
         /// <summary>
-        /// Verifies that <see cref="RealtimeProbeRenderUtils.GetFacesToRender"/>
+        /// Verifies that <see cref="ReflectionProbeRenderUtils.GetFacesToRender"/>
         /// returns all six faces on the probe's phase frame for
         /// <see cref="ReflectionProbeTimeSlicingMode.AllFacesAtOnce"/>.
         /// </summary>
@@ -28,7 +28,7 @@ namespace HN.HNRP.Tests
             const int probeId = 3;
             const int frameCount = 3; // (3 + 3) % 6 == 0
 
-            int[] faces = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] faces = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.AllFacesAtOnce, probeId, frameCount, 0);
 
             Assert.That(faces, Is.EqualTo(new[] { 0, 1, 2, 3, 4, 5 }),
@@ -45,7 +45,7 @@ namespace HN.HNRP.Tests
             const int probeId = 3;
             const int frameCount = 4; // (4 + 3) % 6 != 0
 
-            int[] faces = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] faces = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.AllFacesAtOnce, probeId, frameCount, 0);
 
             Assert.That(faces, Is.Empty,
@@ -59,11 +59,11 @@ namespace HN.HNRP.Tests
         [Test]
         public void IndividualFaces_ReturnsOneFace_RotatesEachCall()
         {
-            int[] first = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] first = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.IndividualFaces, 1, 0, 0);
-            int[] second = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] second = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.IndividualFaces, 1, 0, 1);
-            int[] wrapped = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] wrapped = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.IndividualFaces, 1, 0, 6);
 
             Assert.That(first, Is.EqualTo(new[] { 0 }), "First call renders face 0.");
@@ -78,7 +78,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void NoTimeSlicing_ReturnsAllFaces_EveryFrame()
         {
-            int[] faces = RealtimeProbeRenderUtils.GetFacesToRender(
+            int[] faces = ReflectionProbeRenderUtils.GetFacesToRender(
                 ReflectionProbeTimeSlicingMode.NoTimeSlicing, 1, 123, 0);
 
             Assert.That(faces, Is.EqualTo(new[] { 0, 1, 2, 3, 4, 5 }),
@@ -90,7 +90,7 @@ namespace HN.HNRP.Tests
         #region IsRealtimeProbe
 
         /// <summary>
-        /// Verifies <see cref="RealtimeProbeRenderUtils.IsRealtimeProbe"/> returns
+        /// Verifies <see cref="ReflectionProbeRenderUtils.IsRealtimeProbe"/> returns
         /// <c>true</c> only for probes in <see cref="ReflectionProbeMode.Realtime"/>.
         /// </summary>
         [Test]
@@ -102,7 +102,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.That(RealtimeProbeRenderUtils.IsRealtimeProbe(probe), Is.True);
+                Assert.That(ReflectionProbeRenderUtils.IsRealtimeProbe(probe), Is.True);
             }
             finally
             {
@@ -122,7 +122,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.That(RealtimeProbeRenderUtils.IsRealtimeProbe(probe), Is.False);
+                Assert.That(ReflectionProbeRenderUtils.IsRealtimeProbe(probe), Is.False);
             }
             finally
             {
@@ -143,7 +143,7 @@ namespace HN.HNRP.Tests
         {
             var probe = default(VisibleReflectionProbe);
 
-            Assert.That(RealtimeProbeRenderUtils.GetProbeInstanceId(probe), Is.EqualTo(0),
+            Assert.That(ReflectionProbeRenderUtils.GetProbeInstanceId(probe), Is.EqualTo(0),
                 "A default VisibleReflectionProbe should have instance id 0.");
         }
 
@@ -157,8 +157,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void CollectRealtimeProbe_ZeroInstanceId_Ignored()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             renderer.CollectRealtimeProbe(0);
 
@@ -172,8 +172,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void CollectRealtimeProbe_RealtimeProbe_Collected()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -198,8 +198,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void CollectRealtimeProbe_BakedProbe_Ignored()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -224,8 +224,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void CollectRealtimeProbe_DuplicateInstanceId_Deduplicated()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -246,14 +246,14 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Verifies that <see cref="RealtimeProbeRenderer.BeginFrame"/> clears
+        /// Verifies that <see cref="ReflectionProbeRenderer.BeginFrame"/> clears
         /// collected requests.
         /// </summary>
         [Test]
         public void BeginFrame_ClearsPendingRequests()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -286,8 +286,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void RefreshModeEveryFrame_RendersEveryFrame()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -312,8 +312,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void RefreshModeOnAwake_RendersOnce_ThenSkips()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();
@@ -343,8 +343,8 @@ namespace HN.HNRP.Tests
         [Test]
         public void RefreshModeViaScripting_NeverRenders()
         {
-            using var pool = new RealtimeProbeCameraPool();
-            using var renderer = new RealtimeProbeRenderer(pool);
+            using var pool = new ReflectionProbeCameraPool();
+            using var renderer = new ReflectionProbeRenderer(pool);
 
             var go = new GameObject("Probe");
             var probe = go.AddComponent<ReflectionProbe>();

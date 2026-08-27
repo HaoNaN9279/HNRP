@@ -28,9 +28,18 @@ namespace HN.HNRP
         /// Renders realtime reflection probes before all main cameras. Owns the
         /// pooled probe cameras; dispose via <see cref="Dispose(bool)"/>.
         /// </summary>
-        private readonly RealtimeProbeRenderer realtimeProbeRenderer;
+        private readonly ReflectionProbeRenderer reflectionProbeRenderer;
 
         private RuntimeReflectionSystem runtimeReflectionSystem;
+
+        /// <summary>
+        /// The reflection probe currently being baked via
+        /// <see cref="ReflectionProbe.RenderProbe(RenderTexture)"/> (Editor bake/custom flow).
+        /// Set by the editor immediately before calling <c>RenderProbe</c> and cleared after,
+        /// so the triggered reflection camera render can select the probe's render graph view
+        /// instead of the temporary camera's own (default) view index.
+        /// </summary>
+        public static ReflectionProbe BakingReflectionProbe { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="HNRenderPipeline"/> class.
@@ -40,7 +49,7 @@ namespace HN.HNRP
         {
             InstanceAsset = asset;
 
-            realtimeProbeRenderer = new RealtimeProbeRenderer(new RealtimeProbeCameraPool());
+            reflectionProbeRenderer = new ReflectionProbeRenderer(new ReflectionProbeCameraPool());
 
             // Register all [Pass]-decorated pass types before building any render graph.
             // In the Editor this uses reflection to scan assemblies; in Player builds it
@@ -100,7 +109,7 @@ namespace HN.HNRP
                 RenderGraphTemplates.EnsureAll();
             }
 #endif
-
+            
             var cmd = CommandBufferPool.Get("HNRP");
             var parameters = new RenderGraphParameters
             {
@@ -124,14 +133,28 @@ namespace HN.HNRP
             // of this Render call and are reused in Phase C.
             var cameraContexts = new List<CameraContext>();
             var selectedGraphs = new Dictionary<Camera, RenderGraphAsset>();
-            realtimeProbeRenderer.BeginFrame();
+            reflectionProbeRenderer.BeginFrame();
 
             foreach (Camera camera in cameras)
             {
-                var cameraData = camera.GetHNRPAdditionalCameraData();
+                bool isReflectionBake = camera.cameraType == CameraType.Reflection;
 
                 // ── Select RenderGraphAsset ──
-                RenderGraphAsset renderGraphAsset = SelectPipelineConfig(camera, cameraData);
+                RenderGraphAsset renderGraphAsset;
+                if (isReflectionBake)
+                {
+                    // Bake/custom 触发的 reflection 相机（ReflectionProbe.RenderProbe）：
+                    // 不经过主相机的 realtime 探针收集，直接按 bake 中 probe 的
+                    // render graph view 渲染。临时相机不挂 HNAdditionalCameraData。
+                    renderGraphAsset = ReflectionProbeRenderUtils.SelectReflectionRenderGraph(
+                        InstanceAsset, BakingReflectionProbe);
+                }
+                else
+                {
+                    var cameraData = camera.GetHNRPAdditionalCameraData();
+                    renderGraphAsset = SelectPipelineConfig(camera, cameraData);
+                }
+
                 if (renderGraphAsset == null)
                     continue;
 
@@ -151,17 +174,21 @@ namespace HN.HNRP
                     cameraContext.CullingResults = context.Cull(ref cullingParams);
                     cameraContext.HasCullingResults = true;
 
-                    // Populate visible light / reflection probe arrays from the culling
-                    // results so lighting passes (e.g. BuildLightDataPass) can consume them.
-                    // CameraContext.Dispose releases both arrays.
+                    // Populate visible light array so lighting passes
+                    // (e.g. BuildLightDataPass) can consume it.
+                    // CameraContext.Dispose releases the array.
                     cameraContext.VisibleLights = new NativeArray<UnityEngine.Rendering.VisibleLight>(
                         cameraContext.CullingResults.visibleLights, Allocator.TempJob);
-                    cameraContext.VisibleReflectionProbes =
-                        new NativeArray<UnityEngine.Rendering.VisibleReflectionProbe>(
-                            cameraContext.CullingResults.visibleReflectionProbes, Allocator.TempJob);
 
-                    // Collect realtime probes visible to this camera.
-                    realtimeProbeRenderer.CollectRealtimeProbes(cameraContext.VisibleReflectionProbes);
+                    if (!isReflectionBake)
+                    {
+                        cameraContext.VisibleReflectionProbes =
+                            new NativeArray<UnityEngine.Rendering.VisibleReflectionProbe>(
+                                cameraContext.CullingResults.visibleReflectionProbes, Allocator.TempJob);
+
+                        // Collect realtime probes visible to this camera.
+                        reflectionProbeRenderer.CollectReflectionProbes(cameraContext.VisibleReflectionProbes);
+                    }
                 }
 
                 cameraContexts.Add(cameraContext);
@@ -171,7 +198,7 @@ namespace HN.HNRP
             // ── Phase B: render realtime probes before all main cameras ──
             // Each probe face executes in its own RecordAndExecute block (inside
             // RenderProbes) so the per-face camera matrix is active when its passes run.
-            realtimeProbeRenderer.RenderProbes(context, renderGraph, parameters, InstanceAsset);
+            reflectionProbeRenderer.RenderProbes(context, renderGraph, parameters, InstanceAsset);
 
             // Record all camera passes into the graph; RenderGraphExecution.Dispose()
             // (at the end of this block) compiles and executes the recorded passes.
@@ -252,7 +279,7 @@ namespace HN.HNRP
                 cameraContext.Dispose();
             }
 
-            realtimeProbeRenderer.EndFrame();
+            reflectionProbeRenderer.EndFrame();
 
             // RenderGraph records commands into the command buffer; submit them to the context.
             context.ExecuteCommandBuffer(cmd);
@@ -339,7 +366,7 @@ namespace HN.HNRP
             renderGraph.Cleanup();
             renderGraph = null;
 
-            realtimeProbeRenderer.Dispose();
+            reflectionProbeRenderer.Dispose();
 
             ConstantBuffer.ReleaseAll();
         }

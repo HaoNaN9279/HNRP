@@ -40,12 +40,28 @@ namespace HN.HNRP
             set { updateCount = value; }
         }
 
+        /// <summary>
+        /// Per-probe render graph view index.
+        /// Used to select which render graph view from
+        /// <see cref="HNRenderPipelineAsset.reflectionRenderGraphViewBlock"/> to use
+        /// when rendering this probe (realtime face rendering and bake/custom baking).
+        /// The index corresponds to the position in the render graph view keys.
+        /// </summary>
+        public int RenderGraphViewIndex
+        {
+            get { return renderGraphViewIndex; }
+            set { renderGraphViewIndex = value; }
+        }
+
 
         [SerializeField]
         private ReflectionProbe builtinReflectionProbe;
 
         [SerializeField]
         private int updateCount = 0;
+
+        [SerializeField]
+        private int renderGraphViewIndex = 0;
     }
 
 

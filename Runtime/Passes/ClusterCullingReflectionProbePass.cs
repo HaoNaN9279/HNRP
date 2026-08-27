@@ -174,7 +174,7 @@ namespace HN.HNRP
                 var visibleProbes = m_Context.VisibleReflectionProbes;
                 for (int i = 0; i < visibleProbes.Length; i++)
                 {
-                    ReflectionProbe probe = RealtimeProbeRenderUtils.GetReflectionProbe(visibleProbes[i]);
+                    ReflectionProbe probe = ReflectionProbeRenderUtils.GetReflectionProbe(visibleProbes[i]);
                     if (probe == null)
                     {
                         continue;
@@ -186,14 +186,19 @@ namespace HN.HNRP
                     // includes the probe, so non-refresh frames still use the last
                     // rendered cubemap instead of dropping the probe.
                     Texture texture;
-                    if (RealtimeProbeRenderUtils.IsRealtimeProbe(probe))
+                    if (ReflectionProbeRenderUtils.IsRealtimeProbe(probe))
                     {
                         texture = probe.realtimeTexture;
                     }
+                    else if (ReflectionProbeRenderUtils.IsBakedProbe(probe) || ReflectionProbeRenderUtils.IsCustomBakedProbe(probe))
+                    {
+                        texture = probe.customBakedTexture;
+                    }
                     else
                     {
-                        texture = probe.texture;
+                        continue;
                     }
+
                     if (texture == null)
                     {
                         continue;

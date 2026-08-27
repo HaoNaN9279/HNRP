@@ -1,4 +1,4 @@
-// <copyright file="RealtimeProbeRenderUtils.cs" company="HN">
+// <copyright file="ReflectionProbeRenderUtils.cs" company="HN">
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
@@ -14,7 +14,7 @@ namespace HN.HNRP
     /// face scheduling, realtime-mode filtering, and reflection probe lookup from
     /// <see cref="VisibleReflectionProbe"/> culling data.
     /// </summary>
-    public static class RealtimeProbeRenderUtils
+    public static class ReflectionProbeRenderUtils
     {
         /// <summary>
         /// The six cubemap face indices (<c>0..5</c>).
@@ -103,6 +103,16 @@ namespace HN.HNRP
             return probe != null && probe.mode == ReflectionProbeMode.Realtime;
         }
 
+        public static bool IsBakedProbe(ReflectionProbe probe)
+        {
+            return probe != null && probe.mode == ReflectionProbeMode.Baked;
+        }
+
+        public static bool IsCustomBakedProbe(ReflectionProbe probe)
+        {
+            return probe != null && probe.mode == ReflectionProbeMode.Custom;
+        }
+
         /// <summary>
         /// Reads the probe instance id from a <see cref="VisibleReflectionProbe"/>
         /// culling entry. Unity 2022.3 exposes no public field on this struct, so the
@@ -159,5 +169,37 @@ namespace HN.HNRP
             Quaternion.LookRotation(Vector3.forward, Vector3.up),   // +Z
             Quaternion.LookRotation(Vector3.back, Vector3.up),      // -Z
         };
+
+        /// <summary>
+        /// Selects the <see cref="RenderGraphAsset"/> used to render the given probe,
+        /// honoring the probe's <see cref="HNAdditionalReflectionProbeData.RenderGraphViewIndex"/>.
+        /// Falls back to the first view in the reflection render graph view block when
+        /// the index is out of range or the probe has no additional data.
+        /// </summary>
+        /// <param name="asset">The pipeline asset providing the reflection view block.</param>
+        /// <param name="probe">The probe being rendered (may be <c>null</c>).</param>
+        /// <returns>The selected reflection render graph, or <c>null</c>.</returns>
+        public static RenderGraphAsset SelectReflectionRenderGraph(
+            HNRenderPipelineAsset asset,
+            ReflectionProbe probe)
+        {
+            if (asset == null || asset.reflectionRenderGraphViewBlock == null)
+            {
+                return null;
+            }
+
+            int index = 0;
+            if (probe != null)
+            {
+                HNAdditionalReflectionProbeData data = probe.GetHNAdditionalReflectionProbeData();
+                if (data != null)
+                {
+                    index = data.RenderGraphViewIndex;
+                }
+            }
+
+            return asset.reflectionRenderGraphViewBlock.GetRenderGraphObject(index)
+                ?? asset.reflectionRenderGraphViewBlock.GetRenderGraphObject();
+        }
     }
 }

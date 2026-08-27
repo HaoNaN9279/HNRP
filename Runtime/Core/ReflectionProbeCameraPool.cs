@@ -18,7 +18,7 @@ namespace HN.HNRP
     /// Also manages <see cref="RTHandle"/> instances for probe cubemap faces so
     /// they are not re-allocated every frame.
     /// </summary>
-    public sealed class RealtimeProbeCameraPool : IDisposable
+    public sealed class ReflectionProbeCameraPool : IDisposable
     {
         private Camera m_Camera;
 
@@ -162,7 +162,7 @@ namespace HN.HNRP
 
         private static Camera CreateCamera()
         {
-            var go = new GameObject("RealtimeProbeCamera");
+            var go = new GameObject("ReflectionProbeCamera");
             go.hideFlags = HideFlags.HideAndDontSave;
             Camera camera = go.AddComponent<Camera>();
             camera.cameraType = CameraType.Reflection;

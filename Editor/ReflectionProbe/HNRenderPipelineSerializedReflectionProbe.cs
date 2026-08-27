@@ -52,6 +52,9 @@ namespace HN.HNRP.Editor
                 serializedObject.FindProperty("m_NearClip"),
                 serializedObject.FindProperty("m_FarClip")
             };
+
+            // HNRP specific properties
+            renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
         }
 
         public void Apply()
@@ -89,6 +92,9 @@ namespace HN.HNRP.Editor
         public SerializedProperty cullingMask { get; }
         public SerializedProperty occlusionCulling { get; }
         public SerializedProperty[] nearAndFarClipingPlanes { get; }
+
+        // HNRP specific properties
+        public SerializedProperty renderGraphViewIndex { get; }
 
     }
 }

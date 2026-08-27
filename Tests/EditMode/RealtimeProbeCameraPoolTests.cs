@@ -8,7 +8,7 @@ using UnityEngine;
 namespace HN.HNRP.Tests
 {
     /// <summary>
-    /// Tests for <see cref="RealtimeProbeCameraPool"/>: camera reuse, per-frame
+    /// Tests for <see cref="ReflectionProbeCameraPool"/>: camera reuse, per-frame
     /// rendered-face tracking, and lifecycle.
     /// </summary>
     public sealed class RealtimeProbeCameraPoolTests
@@ -16,13 +16,13 @@ namespace HN.HNRP.Tests
         #region GetCamera
 
         /// <summary>
-        /// Verifies that <see cref="RealtimeProbeCameraPool.GetCamera"/> returns a
+        /// Verifies that <see cref="ReflectionProbeCameraPool.GetCamera"/> returns a
         /// usable <see cref="Camera"/> instance.
         /// </summary>
         [Test]
         public void GetCamera_ReturnsCameraInstance()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             Camera cam = pool.GetCamera();
 
@@ -42,7 +42,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void GetCamera_ReturnsReflectionCameraType()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             Camera cam = pool.GetCamera();
 
@@ -63,7 +63,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void GetCamera_ReturnsDisabledCamera()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             Camera cam = pool.GetCamera();
 
@@ -83,13 +83,13 @@ namespace HN.HNRP.Tests
         #region Rendered-face tracking
 
         /// <summary>
-        /// Verifies <see cref="RealtimeProbeCameraPool.IsFaceRendered"/> /
-        /// <see cref="RealtimeProbeCameraPool.MarkFaceRendered"/> round-trip.
+        /// Verifies <see cref="ReflectionProbeCameraPool.IsFaceRendered"/> /
+        /// <see cref="ReflectionProbeCameraPool.MarkFaceRendered"/> round-trip.
         /// </summary>
         [Test]
         public void IsFaceRendered_MarkFaceRendered_RoundTrip()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             const int probeId = 42;
             const int face = 3;
@@ -109,7 +109,7 @@ namespace HN.HNRP.Tests
         [Test]
         public void MarkFaceRendered_SameProbeDifferentFaces_Independent()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             const int probeId = 7;
 
@@ -121,13 +121,13 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Verifies that <see cref="RealtimeProbeCameraPool.BeginFrame"/> clears the
+        /// Verifies that <see cref="ReflectionProbeCameraPool.BeginFrame"/> clears the
         /// rendered-face set so faces render again next frame.
         /// </summary>
         [Test]
         public void BeginFrame_ClearsRenderedFaces()
         {
-            using var pool = new RealtimeProbeCameraPool();
+            using var pool = new ReflectionProbeCameraPool();
 
             const int probeId = 5;
             const int face = 2;
@@ -146,13 +146,13 @@ namespace HN.HNRP.Tests
         #region Dispose
 
         /// <summary>
-        /// Verifies that <see cref="RealtimeProbeCameraPool.Dispose"/> destroys all
+        /// Verifies that <see cref="ReflectionProbeCameraPool.Dispose"/> destroys all
         /// pooled camera game objects.
         /// </summary>
         [Test]
         public void Dispose_DestroysCameraGameObjects()
         {
-            var pool = new RealtimeProbeCameraPool();
+            var pool = new ReflectionProbeCameraPool();
 
             Camera cam = pool.GetCamera();
 

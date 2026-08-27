@@ -79,11 +79,15 @@ namespace HN.HNRP
             {
                 if(cameraContext.CustomTargetRTHandle != null)
                 {
+                    // Realtime probe 面渲染：HNRP 自己驱动面，用显式 RTHandle 指向具体面。
                     backBuffer = renderGraph.ImportTexture(cameraContext.CustomTargetRTHandle);
                 }
                 else
                 {
-                    backBuffer = renderGraph.ImportBackbuffer(new RenderTargetIdentifier(BuiltinRenderTextureType.CurrentActive));
+                    // Bake/custom 路径由 ReflectionProbe.RenderProbe / Camera.RenderToCubemap
+                    // 驱动：Unity 内部把相机 target 设为临时 cubemap RT 并逐面渲染，SRP 应输出到
+                    // camera.targetTexture（CameraTarget），face 保持 Unity 已绑定的当前面。
+                    backBuffer = renderGraph.ImportBackbuffer(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
                 }
             }
             else

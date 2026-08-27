@@ -164,6 +164,7 @@ namespace HN.HNRP.Editor
 
         internal readonly AnimBool showProbeModeRealtimeOptions = new AnimBool();
         internal readonly AnimBool showProbeModeCustomOptions = new AnimBool();
+        internal readonly AnimBool showProbeModeBakedOptions = new AnimBool();
 
         private ReflectionProbe reflectionProbe => target as ReflectionProbe;
         private HNRenderPipelineSerializedReflectionProbe serializedReflectionProbe;

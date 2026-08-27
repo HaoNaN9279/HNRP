@@ -12,7 +12,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Renders realtime reflection probes before all main cameras.
+    /// Renders reflection reflection probes before all main cameras.
     /// Collects visible realtime probes from camera culling results, decides which
     /// cubemap faces to render this frame from each probe's
     /// <see cref="ReflectionProbe.timeSlicingMode"/> and
@@ -21,7 +21,7 @@ namespace HN.HNRP
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Faces are rendered with pooled cameras owned by <see cref="RealtimeProbeCameraPool"/>;
+    /// Faces are rendered with pooled cameras owned by <see cref="ReflectionProbeCameraPool"/>;
     /// the pool also records which probe faces were already rendered this frame so
     /// probes visible to multiple cameras are rendered only once.
     /// </para>
@@ -30,12 +30,12 @@ namespace HN.HNRP
     /// Reflection render graph template contains no cluster-culling probe pass.
     /// </para>
     /// </remarks>
-    public sealed class RealtimeProbeRenderer : IDisposable
+    public sealed class ReflectionProbeRenderer : IDisposable
     {
         /// <summary>
         /// The camera pool used for face rendering and per-frame dedup.
         /// </summary>
-        private readonly RealtimeProbeCameraPool m_Pool;
+        private readonly ReflectionProbeCameraPool m_Pool;
 
         /// <summary>
         /// Realtime probes visible this frame, keyed by probe instance id.
@@ -55,10 +55,10 @@ namespace HN.HNRP
         private readonly HashSet<int> m_InitializedProbes = new();
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="RealtimeProbeRenderer"/> class.
+        /// Initializes a new instance of the <see cref="ReflectionProbeRenderer"/> class.
         /// </summary>
         /// <param name="pool">The camera pool used for face rendering.</param>
-        public RealtimeProbeRenderer(RealtimeProbeCameraPool pool)
+        public ReflectionProbeRenderer(ReflectionProbeCameraPool pool)
         {
             m_Pool = pool;
         }
@@ -79,17 +79,17 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Collects realtime probes from a camera's visible reflection probe culling
+        /// Collects reflection probes from a camera's visible reflection probe culling
         /// results. Duplicate probes (visible to multiple cameras) are collected once.
         /// </summary>
         /// <param name="visibleProbes">Visible reflection probes from a camera's
         /// culling results.</param>
-        public void CollectRealtimeProbes(NativeArray<VisibleReflectionProbe> visibleProbes)
+        public void CollectReflectionProbes(NativeArray<VisibleReflectionProbe> visibleProbes)
         {
             for (int i = 0; i < visibleProbes.Length; i++)
             {
                 CollectRealtimeProbe(
-                    RealtimeProbeRenderUtils.GetProbeInstanceId(visibleProbes[i]));
+                    ReflectionProbeRenderUtils.GetProbeInstanceId(visibleProbes[i]));
             }
         }
 
@@ -106,7 +106,7 @@ namespace HN.HNRP
             }
 
             var probe = UnityEngine.Resources.InstanceIDToObject(probeInstanceId) as ReflectionProbe;
-            if (probe == null || !RealtimeProbeRenderUtils.IsRealtimeProbe(probe))
+            if (probe == null || !ReflectionProbeRenderUtils.IsRealtimeProbe(probe))
             {
                 return;
             }
@@ -115,7 +115,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Renders all collected realtime probes. Called before main camera rendering
+        /// Renders all collected reflection probes. Called before main camera rendering
         /// so probe faces execute first. Each cubemap face is recorded and executed in
         /// its own <c>RecordAndExecute</c> block: the camera matrix set by
         /// <c>SetupCameraProperties</c> is only applied when the block executes, so
@@ -139,7 +139,7 @@ namespace HN.HNRP
             {
                 return;
             }
-
+            
             foreach (KeyValuePair<int, ReflectionProbe> request in m_Requests)
             {
                 RenderProbe(context, renderGraph, parameters, asset, request.Value);
@@ -258,7 +258,7 @@ namespace HN.HNRP
                      probe.timeSlicingMode == ReflectionProbeTimeSlicingMode.IndividualFaces)
             {
                 int progress = GetFaceProgress(probeId);
-                m_FaceProgress[probeId] = RealtimeProbeRenderUtils.AdvanceIndividualFace(progress);
+                m_FaceProgress[probeId] = ReflectionProbeRenderUtils.AdvanceIndividualFace(progress);
             }
         }
 
@@ -267,10 +267,10 @@ namespace HN.HNRP
             if (probe.refreshMode == ReflectionProbeRefreshMode.OnAwake)
             {
                 // OnAwake renders all faces once.
-                return RealtimeProbeRenderUtils.AllFaces;
+                return ReflectionProbeRenderUtils.AllFaces;
             }
 
-            return RealtimeProbeRenderUtils.GetFacesToRender(
+            return ReflectionProbeRenderUtils.GetFacesToRender(
                 probe.timeSlicingMode,
                 probeId,
                 Time.frameCount,
@@ -338,7 +338,7 @@ namespace HN.HNRP
                     GlobalPropertyIDs.ShaderVariablesGlobal);
 
                 var renderer = new CameraRenderer(cameraContext);
-                renderer.Build(asset.reflectionRenderGraphViewBlock.GetRenderGraphObject());
+                renderer.Build(ReflectionProbeRenderUtils.SelectReflectionRenderGraph(asset, probe));
                 renderer.Render(renderGraph, context);
             }
 
@@ -362,7 +362,7 @@ namespace HN.HNRP
             RenderTexture target)
         {
             camera.transform.position = probe.transform.position;
-            camera.transform.rotation = RealtimeProbeRenderUtils.GetFaceRotation(face);
+            camera.transform.rotation = ReflectionProbeRenderUtils.GetFaceRotation(face);
             camera.cameraType = CameraType.Reflection;
             camera.targetTexture = target;
             camera.nearClipPlane = probe.nearClipPlane;
