@@ -322,12 +322,9 @@ namespace HN.HNRP
             do
             {
                 tileWidth <<= 1;
-                clusterSizeXY =
-                    (screenResolution + tileWidth - 1) / tileWidth;
-                int tileCountPerSlice =
-                    clusterSizeXY.x * clusterSizeXY.y;
-                sliceCount =
-                    MAX_CLUSTER_MASK_WORDS / tileCountPerSlice - 1;
+                clusterSizeXY = (screenResolution + tileWidth - 1) / Mathf.Max(1, tileWidth - 1);
+                int tileCountPerSlice = clusterSizeXY.x * clusterSizeXY.y;
+                sliceCount = MAX_CLUSTER_MASK_WORDS / Mathf.Max(1, tileCountPerSlice - 1);
             }
             while (sliceCount < CLUSTER_MIN_Z_SLIZE
                    || sliceCount > CLUSTER_MAX_Z_SLICE);
