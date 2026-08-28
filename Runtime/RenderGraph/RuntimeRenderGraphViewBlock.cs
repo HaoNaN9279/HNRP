@@ -16,7 +16,7 @@ namespace HN.HNRP
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.MainGameView;
 
-        private const string DefaultGameViewName = "MainGameView";
+        public const string DefaultGameViewName = "MainGameView";
     }
 
 
@@ -31,6 +31,6 @@ namespace HN.HNRP
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.Reflection;
 
-        private const string DefaultReflectionViewName = "DefaultReflectionView";
+        public const string DefaultReflectionViewName = "DefaultReflectionView";
     }
 }

@@ -16,7 +16,7 @@ namespace HN.HNRP
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.SceneView;
 
-        private const string defaultSceneViewName = "DefaultSceneView";
+        public const string defaultSceneViewName = "DefaultSceneView";
     }
 
 
@@ -31,6 +31,6 @@ namespace HN.HNRP
 
         public override RenderGraphViewType ViewType => RenderGraphViewType.Preview;
 
-        private const string defaultPreviewViewName = "DefaultPreviewView";
+        public const string defaultPreviewViewName = "DefaultPreviewView";
     }
 }

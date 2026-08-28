@@ -22,7 +22,7 @@ namespace HN.HNRP
         /// <see cref="GraphicsSettings.currentRenderPipeline"/>), this instance
         /// reference is set at construction time and works in EditMode tests.
         /// </summary>
-        public HNRenderPipelineAsset InstanceAsset { get; }
+        public static HNRenderPipelineAsset InstanceAsset;
 
         /// <summary>
         /// Renders realtime reflection probes before all main cameras. Owns the
@@ -137,11 +137,34 @@ namespace HN.HNRP
 
             foreach (Camera camera in cameras)
             {
-                bool isReflectionBake = camera.cameraType == CameraType.Reflection;
-
                 // ── Select RenderGraphAsset ──
                 RenderGraphAsset renderGraphAsset;
-                if (isReflectionBake)
+
+                if (camera.cameraType == CameraType.Preview)
+                {
+                    string cameraName = camera.name;
+                    if (cameraName == PREVIEW_CAMERA_NAME)
+                    {
+                        renderGraphAsset = InstanceAsset.gameViewRenderGraphViewBlock.GetRenderGraphObject();
+                    }
+                    else if (cameraName == PREVIEW_SCENE_CAMERA_NAME)
+                    {
+                        renderGraphAsset = InstanceAsset.previewRenderGraphViewBlock.GetRenderGraphObject();
+                    }
+                    else
+                    {
+                        if(camera.TryGetComponent<HNRenderpipelinePreviewCameraSettings>(out var previewCameraSettings))
+                        {
+                            renderGraphAsset = previewCameraSettings.GetPreviewCameraGraphView();
+                        }
+                        else
+                        {
+                            renderGraphAsset = InstanceAsset.previewRenderGraphViewBlock.GetRenderGraphObject();
+                        }
+                    }
+                }
+
+                if (camera.cameraType == CameraType.Reflection)
                 {
                     // Bake/custom 触发的 reflection 相机（ReflectionProbe.RenderProbe）：
                     // 不经过主相机的 realtime 探针收集，直接按 bake 中 probe 的
@@ -180,7 +203,7 @@ namespace HN.HNRP
                     cameraContext.VisibleLights = new NativeArray<UnityEngine.Rendering.VisibleLight>(
                         cameraContext.CullingResults.visibleLights, Allocator.TempJob);
 
-                    if (!isReflectionBake)
+                    if (camera.cameraType != CameraType.Reflection)
                     {
                         cameraContext.VisibleReflectionProbes =
                             new NativeArray<UnityEngine.Rendering.VisibleReflectionProbe>(
@@ -399,5 +422,8 @@ namespace HN.HNRP
         private static bool s_RTHandlesInitialized;
 
         internal const int defaultRenderingLayerMask = 0x00000001;
+
+        private const string PREVIEW_CAMERA_NAME = "Preview Camera";
+        private const string PREVIEW_SCENE_CAMERA_NAME = "Preview Scene Camera";
     }
 }
