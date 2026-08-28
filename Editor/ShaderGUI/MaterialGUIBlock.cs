@@ -67,6 +67,37 @@ namespace HN.HNRP.Editor
             }
         }
 
+        protected void SetKeywordByInt(Material material, string floatPropertyName, int value, string keyword)
+        {
+            if (material.HasProperty(floatPropertyName) && (int)material.GetFloat(floatPropertyName) == value)
+            {
+                material.EnableKeyword(keyword);
+            }
+            else
+            {
+                material.DisableKeyword(keyword);
+            }
+        }
+
+        protected void SetKeywordByEnum(Material material, string enumPropertyName, string[] keywords)
+        {
+            if(material.HasProperty(enumPropertyName))
+            {
+                int enumValue = (int)material.GetFloat(enumPropertyName);
+                for (int i = 0; i < keywords.Length; i++)
+                {
+                    if (i == enumValue)
+                    {
+                        material.EnableKeyword(keywords[i]);
+                    }
+                    else
+                    {
+                        material.DisableKeyword(keywords[i]);
+                    }
+                }
+            }
+        }
+
         protected void DrawPopup(MaterialEditor materialEditor, MaterialProperty property, GUIContent label, string[] options)
         {
             if (property == null)

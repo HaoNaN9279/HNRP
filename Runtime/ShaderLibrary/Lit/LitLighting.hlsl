@@ -15,6 +15,7 @@ struct LightingData
 struct LightingOutputData
 {
     float3 lightingColor;
+    float alpha;
 };
 
 void BuildPreBRDFData(LitVaryings litVaryings, out PreBRDFData preBRDFData)
@@ -37,13 +38,16 @@ void BuildBRDFLightingData(PreBRDFData preBRDFData, BRDFData brdfData, LightingI
     InitializeBRDFLightingData(brdfData.normalWS, preBRDFData.viewDirectionWS, lightingInputData.mainLight, brdfLightingData);
 }
 
-void BuildLightingData(BRDFData brdfData, LightingInputData lightingInputData, BRDFLightingData brdfLightingData, out LightingData lightingData)
+void BuildLightingData(LitSurfaceData litSurfaceData, BRDFData brdfData, LightingInputData lightingInputData, BRDFLightingData brdfLightingData, out LightingData lightingData)
 {
     ZERO_INITIALIZE(LightingData, lightingData);
 
     float3 mainLightRadiance = DirectLightingDiffuseRadiance(lightingInputData.mainLight, brdfLightingData.saturateNdotL);
     float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
     lightingData.mainDirectLight = DirectLightingPBR(brdfData.diffuse, mainLightRadiance, brdfData.specular, mainLightSpecularTerm);
+#if _ALPHAPREMULTIPLY_ON
+    lightingData.mainDirectLight.diffuse *= litSurfaceData.alpha;
+#endif
 
     uint lightCount = GetAdditionalLightsCount();
     float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
@@ -77,6 +81,7 @@ void BuildLightingOutputData(LitSurfaceData litSurfaceData, LightingData lightin
         + lightingData.indirectLight.specular.rgb
         ;
     lightingOutputData.lightingColor.rgb += litSurfaceData.emission.rgb;
+    lightingOutputData.alpha = litSurfaceData.alpha;
 }
 
 #endif

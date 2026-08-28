@@ -61,6 +61,7 @@ namespace HN.HNRP
 
     public static class MaterialLitKeywords
     {
+        public static readonly string alphaPremultiply = "_ALPHAPREMULTIPLY_ON";
         public static readonly string alphaTest = "_ALPHATEST_ON";
         public static readonly string basemap = "_BASEMAP";
         public static readonly string normalMap = "_NORMALMAP";

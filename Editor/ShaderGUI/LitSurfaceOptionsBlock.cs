@@ -141,46 +141,56 @@ namespace HN.HNRP.Editor
             var srcBlendA = BlendMode.One;
             var dstBlendA = BlendMode.OneMinusSrcAlpha;
 
-            switch (blendMode)
+            if ((MaterialGUI.SurfaceType)surfaceTypeProperty.floatValue == MaterialGUI.SurfaceType.Opaque)
             {
-                // srcRGB * srcAlpha + dstRGB * (1 - srcAlpha)
-                // preserve spec:
-                // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
-                case MaterialGUI.BlendMode.Alpha:
-                    srcBlendRGB = BlendMode.SrcAlpha;
-                    dstBlendRGB = BlendMode.OneMinusSrcAlpha;
-                    srcBlendA = BlendMode.One;
-                    dstBlendA = dstBlendRGB;
-                    break;
+                srcBlendRGB = BlendMode.One;
+                dstBlendRGB = BlendMode.Zero;
+                srcBlendA = BlendMode.One;
+                dstBlendA = BlendMode.Zero;
+            }
+            else if((MaterialGUI.SurfaceType)surfaceTypeProperty.floatValue == MaterialGUI.SurfaceType.Transparent)
+            {
+                switch (blendMode)
+                {
+                    // srcRGB * srcAlpha + dstRGB * (1 - srcAlpha)
+                    // preserve spec:
+                    // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
+                    case MaterialGUI.BlendMode.Alpha:
+                        srcBlendRGB = BlendMode.SrcAlpha;
+                        dstBlendRGB = BlendMode.OneMinusSrcAlpha;
+                        srcBlendA = BlendMode.One;
+                        dstBlendA = dstBlendRGB;
+                        break;
 
-                // srcRGB < srcAlpha, (alpha multiplied in asset)
-                // srcRGB * 1 + dstRGB * (1 - srcAlpha)
-                case MaterialGUI.BlendMode.Premultiply:
-                    srcBlendRGB = BlendMode.One;
-                    dstBlendRGB = BlendMode.OneMinusSrcAlpha;
-                    srcBlendA = srcBlendRGB;
-                    dstBlendA = dstBlendRGB;
-                    break;
+                    // srcRGB < srcAlpha, (alpha multiplied in asset)
+                    // srcRGB * 1 + dstRGB * (1 - srcAlpha)
+                    case MaterialGUI.BlendMode.Premultiply:
+                        srcBlendRGB = BlendMode.One;
+                        dstBlendRGB = BlendMode.OneMinusSrcAlpha;
+                        srcBlendA = srcBlendRGB;
+                        dstBlendA = dstBlendRGB;
+                        break;
 
-                // srcRGB * srcAlpha + dstRGB * 1, (alpha controls amount of addition)
-                // preserve spec:
-                // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
-                case MaterialGUI.BlendMode.Additive:
-                    srcBlendRGB = BlendMode.SrcAlpha;
-                    dstBlendRGB = BlendMode.One;
-                    srcBlendA = BlendMode.One;
-                    dstBlendA = dstBlendRGB;
-                    break;
+                    // srcRGB * srcAlpha + dstRGB * 1, (alpha controls amount of addition)
+                    // preserve spec:
+                    // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
+                    case MaterialGUI.BlendMode.Additive:
+                        srcBlendRGB = BlendMode.SrcAlpha;
+                        dstBlendRGB = BlendMode.One;
+                        srcBlendA = BlendMode.One;
+                        dstBlendA = dstBlendRGB;
+                        break;
 
-                // srcRGB * 0 + dstRGB * srcRGB
-                // in shader alpha controls amount of multiplication, lerp(1, srcRGB, srcAlpha)
-                // Multiply affects color only, keep existing alpha.
-                case MaterialGUI.BlendMode.Multiply:
-                    srcBlendRGB = BlendMode.DstColor;
-                    dstBlendRGB = BlendMode.Zero;
-                    srcBlendA = BlendMode.Zero;
-                    dstBlendA = BlendMode.One;
-                    break;
+                    // srcRGB * 0 + dstRGB * srcRGB
+                    // in shader alpha controls amount of multiplication, lerp(1, srcRGB, srcAlpha)
+                    // Multiply affects color only, keep existing alpha.
+                    case MaterialGUI.BlendMode.Multiply:
+                        srcBlendRGB = BlendMode.DstColor;
+                        dstBlendRGB = BlendMode.Zero;
+                        srcBlendA = BlendMode.Zero;
+                        dstBlendA = BlendMode.One;
+                        break;
+                }
             }
 
             if (material.HasProperty(MaterialPropertys.srcBlend))
@@ -203,6 +213,7 @@ namespace HN.HNRP.Editor
 
         protected void SetMaterialKeywords(Material material)
         {
+            SetKeywordByInt(material, MaterialPropertys.blendMode, (int)MaterialGUI.BlendMode.Premultiply, MaterialLitKeywords.alphaPremultiply);
             SetKeywordByFloat(material, MaterialPropertys.alphaClip, MaterialLitKeywords.alphaTest);
         }
 

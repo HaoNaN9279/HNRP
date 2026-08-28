@@ -58,7 +58,7 @@ float4 FragMain(PackedVaryings packedVaryings)
 
     LightingData lightingData;
     ZERO_INITIALIZE(LightingData, lightingData);
-    BuildLightingData(brdfData, lightingInputData, brdfLightingData, lightingData);
+    BuildLightingData(litSurfaceData, brdfData, lightingInputData, brdfLightingData, lightingData);
 
     LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
@@ -73,7 +73,7 @@ float4 FragMain(PackedVaryings packedVaryings)
     // float3 test3 = float3(frac(lightingInputData.normalizedScreenSpaceUV.x * 8), frac(lightingInputData.normalizedScreenSpaceUV.y * 8), 0);
     // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
-    float4 outColor = float4(lightingOutputData.lightingColor.rgb, 1);
+    float4 outColor = float4(lightingOutputData.lightingColor.rgb, lightingOutputData.alpha);
     // float4 outColor = float4(lightingData.indirectLight.specular.r, lightingData.indirectLight.specular.g, lightingData.indirectLight.specular.b, 1);
     return outColor;
 }

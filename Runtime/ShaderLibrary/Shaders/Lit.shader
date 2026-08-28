@@ -60,6 +60,7 @@ Shader "HNRP/Lit"
             // Material Keywords
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _ALPHAPREMULTIPLY_ON
             #pragma shader_feature_local _BASEMAP
             #pragma shader_feature_local _MASKMAP
             #pragma shader_feature_local _EMISSIONMAP
