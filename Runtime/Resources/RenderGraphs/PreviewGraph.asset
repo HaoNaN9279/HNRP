@@ -13,21 +13,17 @@ MonoBehaviour:
   m_Name: PreviewGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - m_PassType: Draw Object
-    m_InstanceName: opaque
-    m_Config: {fileID: 0}
-  - m_PassType: Render Output
-    m_InstanceName: finalBlit
-    m_Config: {fileID: 0}
+  - rid: 2663563119090466920
+  - rid: 2663563119090466921
   m_Connections:
   - m_SourcePass: opaque
     m_SourceSlot: ColorTargetOutput
     m_TargetPass: finalBlit
     m_TargetSlot: ColorTarget
   m_Resources:
-  - rid: 2663563119090466826
-  - rid: 2663563119090466827
-  - rid: 2663563119090466828
+  - rid: 2663563119090466922
+  - rid: 2663563119090466923
+  - rid: 2663563119090466924
   m_ResourceConnections:
   - ResourceName: ColorBuffer
     PassName: opaque
@@ -44,7 +40,20 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466826
+    - rid: 2663563119090466920
+      type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: opaque
+        m_IsEnabled: 1
+        <RenderingLayerMask>k__BackingField: 1
+        <SetLightGlobals>k__BackingField: 1
+    - rid: 2663563119090466921
+      type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: finalBlit
+        m_IsEnabled: 1
+        <Flip>k__BackingField: 0
+    - rid: 2663563119090466922
       type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: ColorBuffer
@@ -61,7 +70,7 @@ MonoBehaviour:
         ClearBuffer: 1
         ClearColor: {r: 0, g: 0, b: 0, a: 1}
         ExternalTextureName: 
-    - rid: 2663563119090466827
+    - rid: 2663563119090466923
       type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: DepthBuffer
@@ -78,7 +87,7 @@ MonoBehaviour:
         ClearBuffer: 1
         ClearColor: {r: 0, g: 0, b: 0, a: 1}
         ExternalTextureName: 
-    - rid: 2663563119090466828
+    - rid: 2663563119090466924
       type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: OpaqueRendererList

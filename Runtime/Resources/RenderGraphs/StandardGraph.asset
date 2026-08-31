@@ -13,30 +13,14 @@ MonoBehaviour:
   m_Name: StandardGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - m_PassType: Build Light Data
-    m_InstanceName: buildLight
-    m_Config: {fileID: 0}
-  - m_PassType: Cluster Culling Probe
-    m_InstanceName: clusterProbe
-    m_Config: {fileID: 0}
-  - m_PassType: Cluster Culling Light
-    m_InstanceName: clusterLight
-    m_Config: {fileID: 0}
-  - m_PassType: Draw Object
-    m_InstanceName: forwardOpaque
-    m_Config: {fileID: 0}
-  - m_PassType: Builtin Sky
-    m_InstanceName: sky
-    m_Config: {fileID: 0}
-  - m_PassType: Draw Object
-    m_InstanceName: transparency
-    m_Config: {fileID: 0}
-  - m_PassType: Editor Wire Overlay
-    m_InstanceName: wireOverlay
-    m_Config: {fileID: 0}
-  - m_PassType: Render Output
-    m_InstanceName: finalBlit
-    m_Config: {fileID: 0}
+  - rid: 2663563119090466895
+  - rid: 2663563119090466896
+  - rid: 2663563119090466897
+  - rid: 2663563119090466898
+  - rid: 2663563119090466899
+  - rid: 2663563119090466900
+  - rid: 2663563119090466901
+  - rid: 2663563119090466902
   m_Connections:
   - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTargetOutput
@@ -111,11 +95,11 @@ MonoBehaviour:
     m_TargetPass: forwardOpaque
     m_TargetSlot: ProbeDatas
   m_Resources:
-  - rid: 2663563119090466816
-  - rid: 2663563119090466817
-  - rid: 2663563119090466818
-  - rid: 2663563119090466819
-  - rid: 2663563119090466820
+  - rid: 2663563119090466903
+  - rid: 2663563119090466904
+  - rid: 2663563119090466905
+  - rid: 2663563119090466906
+  - rid: 2663563119090466907
   m_ResourceConnections:
   - ResourceName: ColorBuffer
     PassName: forwardOpaque
@@ -138,7 +122,52 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466816
+    - rid: 2663563119090466895
+      type: {class: BuildLightDataPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: buildLight
+        m_IsEnabled: 1
+    - rid: 2663563119090466896
+      type: {class: ClusterCullingReflectionProbePass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: clusterProbe
+        m_IsEnabled: 1
+    - rid: 2663563119090466897
+      type: {class: ClusterCullingLightPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: clusterLight
+        m_IsEnabled: 1
+    - rid: 2663563119090466898
+      type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: forwardOpaque
+        m_IsEnabled: 1
+        <RenderingLayerMask>k__BackingField: 1
+        <SetLightGlobals>k__BackingField: 1
+    - rid: 2663563119090466899
+      type: {class: BuiltinSkyPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: sky
+        m_IsEnabled: 1
+    - rid: 2663563119090466900
+      type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: transparency
+        m_IsEnabled: 1
+        <RenderingLayerMask>k__BackingField: 1
+        <SetLightGlobals>k__BackingField: 1
+    - rid: 2663563119090466901
+      type: {class: EditorWireOverlayPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: wireOverlay
+        m_IsEnabled: 1
+    - rid: 2663563119090466902
+      type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        m_PassName: finalBlit
+        m_IsEnabled: 1
+        <Flip>k__BackingField: 0
+    - rid: 2663563119090466903
       type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: ColorBuffer
@@ -155,7 +184,7 @@ MonoBehaviour:
         ClearBuffer: 1
         ClearColor: {r: 0, g: 0, b: 0, a: 1}
         ExternalTextureName: 
-    - rid: 2663563119090466817
+    - rid: 2663563119090466904
       type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: DepthBuffer
@@ -172,19 +201,19 @@ MonoBehaviour:
         ClearBuffer: 1
         ClearColor: {r: 0, g: 0, b: 0, a: 1}
         ExternalTextureName: 
-    - rid: 2663563119090466818
+    - rid: 2663563119090466905
       type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: OpaqueRendererList
         ListKind: 0
         RenderingLayerMask: 1
-    - rid: 2663563119090466819
+    - rid: 2663563119090466906
       type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: TransparentRendererList
         ListKind: 1
         RenderingLayerMask: 1
-    - rid: 2663563119090466820
+    - rid: 2663563119090466907
       type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
       data:
         ResourceName: ReflectionProbeAtlas

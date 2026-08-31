@@ -2,6 +2,7 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
@@ -145,31 +146,29 @@ namespace HN.HNRP.Tests
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/PreviewGraph");
             Assume.That(asset, Is.Not.Null, "PreviewGraph asset must exist for this test.");
 
-            List<PassDefinition> passes = asset.Passes;
+            List<Pass> passes = asset.Passes;
 
             // Collect all pass types for easy checking.
-            var passTypeNames = new HashSet<string>();
-            foreach (PassDefinition def in passes)
+            var passTypes = new HashSet<Type>();
+            foreach (Pass pass in passes)
             {
-                passTypeNames.Add(def.PassType);
+                passTypes.Add(pass.GetType());
             }
 
-            Assert.That(passTypeNames.Contains("Build Light Data"), Is.False,
+            Assert.That(passTypes.Contains(typeof(BuildLightDataPass)), Is.False,
                 "PreviewGraph should NOT include Build Light Data (lighting is skipped).");
-            Assert.That(passTypeNames.Contains("Cluster Culling Light"), Is.False,
+            Assert.That(passTypes.Contains(typeof(ClusterCullingLightPass)), Is.False,
                 "PreviewGraph should NOT include Cluster Culling Light.");
-            Assert.That(passTypeNames.Contains("Cluster Culling Probe"), Is.False,
+            Assert.That(passTypes.Contains(typeof(ClusterCullingReflectionProbePass)), Is.False,
                 "PreviewGraph should NOT include Cluster Culling Probe.");
-            Assert.That(passTypeNames.Contains("Builtin Sky"), Is.False,
+            Assert.That(passTypes.Contains(typeof(BuiltinSkyPass)), Is.False,
                 "PreviewGraph should NOT include Builtin Sky.");
-            Assert.That(passTypeNames.Contains("Transparency"), Is.False,
-                "PreviewGraph should NOT include Transparency.");
-            Assert.That(passTypeNames.Contains("Editor Wire Overlay"), Is.False,
+            Assert.That(passTypes.Contains(typeof(EditorWireOverlayPass)), Is.False,
                 "PreviewGraph should NOT include Editor Wire Overlay.");
 
-            Assert.That(passTypeNames.Contains("Draw Object"), Is.True,
+            Assert.That(passTypes.Contains(typeof(DrawObjectPass)), Is.True,
                 "PreviewGraph should include Draw Object (the opaque pass).");
-            Assert.That(passTypeNames.Contains("Render Output"), Is.True,
+            Assert.That(passTypes.Contains(typeof(RenderOutputPass)), Is.True,
                 "PreviewGraph should include Render Output (the final blit pass).");
         }
 

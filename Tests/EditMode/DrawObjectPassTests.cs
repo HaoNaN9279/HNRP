@@ -191,9 +191,8 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// <see cref="DrawObjectPass.RenderingLayerMask"/> is writable — configs
-        /// such as <c>ForwardOpaqueConfig</c> / <c>TransparencyConfig</c> copy
-        /// their layer mask onto the pass through this property.
+        /// <see cref="DrawObjectPass.RenderingLayerMask"/> is writable — the
+        /// parameter is serialized on the pass itself.
         /// </summary>
         [Test]
         public void RenderingLayerMask_CanBeSet()

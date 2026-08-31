@@ -74,30 +74,9 @@ namespace HN.HNRP.Tests
                 base.Cleanup();
                 CleanupCalled = true;
             }
-        }
-
-        /// <summary>
-        /// Minimal config subclass for GetConfig tests.
-        /// </summary>
-        private sealed class TestPassConfig : PassConfigBase
-        {
-            /// <summary>
-            /// A test value field to verify independent copies.
-            /// </summary>
-            [SerializeField]
-            private int m_TestValue;
-
-            /// <summary>
-            /// Gets or sets the test value.
-            /// </summary>
-            public int TestValue
-            {
-                get => m_TestValue;
-                set => m_TestValue = value;
-            }
 
             /// <inheritdoc />
-            public override void ApplyToPass(Pass pass)
+            public override void CopyFrom(Pass source)
             {
             }
         }
@@ -127,8 +106,8 @@ namespace HN.HNRP.Tests
         public void Build_FromTemplate_InstantiatesPasses()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("CameraRendererTestPass", "PassA"));
-            asset.Passes.Add(PassDefinition.Create("CameraRendererTestPass", "PassB"));
+            asset.Passes.Add(new TestPass("PassA"));
+            asset.Passes.Add(new TestPass("PassB"));
 
             var camera = new GameObject("TestCamera").AddComponent<Camera>();
             var ctx = new CameraContext(camera, default);
@@ -141,11 +120,11 @@ namespace HN.HNRP.Tests
                 Assert.That(renderer.Passes, Is.Not.Null,
                     "Pass list should be non-null after Build.");
                 Assert.That(renderer.Passes.Count, Is.EqualTo(2),
-                    "Build should create two passes from two definitions.");
+                    "Build should create two passes from two templates.");
                 Assert.That(renderer.Passes[0].PassName, Is.EqualTo("PassA"),
-                    "First pass should use the InstanceName from its definition.");
+                    "First pass should use the PassName from its template.");
                 Assert.That(renderer.Passes[1].PassName, Is.EqualTo("PassB"),
-                    "Second pass should use the InstanceName from its definition.");
+                    "Second pass should use the PassName from its template.");
                 Assert.That(renderer.CurrentTemplate, Is.SameAs(asset),
                     "CurrentTemplate should reference the built asset.");
             }
@@ -247,65 +226,6 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region GetConfig — Independent Copy
-
-        /// <summary>
-        /// <see cref="CameraRenderer.GetConfig{T}"/> returns a
-        /// <see cref="ScriptableObject.Instantiate"/> copy that is independent
-        /// of the original asset's config.
-        /// </summary>
-        [Test]
-        public void GetConfig_ReturnsIndependentCopy()
-        {
-            // Create a config with a known value.
-            var config = ScriptableObject.CreateInstance<TestPassConfig>();
-            config.TestValue = 42;
-
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(
-                PassDefinition.Create("CameraRendererTestPass", "ConfigPass", config));
-
-            var camera = new GameObject("TestCamera").AddComponent<Camera>();
-            var ctx = new CameraContext(camera, default);
-            var renderer = new CameraRenderer(ctx);
-
-            try
-            {
-                renderer.Build(asset);
-
-                PassConfigBase copy = renderer.GetConfig<TestPass>("ConfigPass");
-
-                Assert.That(copy, Is.Not.Null,
-                    "GetConfig should return a non-null copy.");
-                Assert.That(copy, Is.Not.SameAs(config),
-                    "GetConfig should return a NEW instance, not the original.");
-                Assert.That(copy, Is.InstanceOf<TestPassConfig>(),
-                    "The copy should be of the correct config type.");
-
-                var typedCopy = (TestPassConfig)copy;
-                Assert.That(typedCopy.TestValue, Is.EqualTo(42),
-                    "The copy should preserve the original's value fields.");
-
-                // Mutate the copy — the original should be unaffected.
-                typedCopy.TestValue = 99;
-                Assert.That(config.TestValue, Is.EqualTo(42),
-                    "Modifying the copy should NOT affect the original (independent).");
-                Assert.That(typedCopy.TestValue, Is.EqualTo(99),
-                    "The copy should reflect locally made changes.");
-
-                UnityEngine.Object.DestroyImmediate(copy);
-            }
-            finally
-            {
-                UnityEngine.Object.DestroyImmediate(asset);
-                UnityEngine.Object.DestroyImmediate(config);
-                UnityEngine.Object.DestroyImmediate(camera.gameObject);
-                ctx.Dispose();
-            }
-        }
-
-        #endregion
-
         #region SetPassEnabled — Toggle Execution
 
         /// <summary>
@@ -377,12 +297,12 @@ namespace HN.HNRP.Tests
         {
             // First template: one pass.
             var asset1 = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset1.Passes.Add(PassDefinition.Create("CameraRendererTestPass", "Pass1"));
+            asset1.Passes.Add(new TestPass("Pass1"));
 
             // Second template: two passes.
             var asset2 = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset2.Passes.Add(PassDefinition.Create("CameraRendererTestPass", "Alpha"));
-            asset2.Passes.Add(PassDefinition.Create("CameraRendererTestPass", "Beta"));
+            asset2.Passes.Add(new TestPass("Alpha"));
+            asset2.Passes.Add(new TestPass("Beta"));
 
             var camera = new GameObject("TestCamera").AddComponent<Camera>();
             var ctx = new CameraContext(camera, default);

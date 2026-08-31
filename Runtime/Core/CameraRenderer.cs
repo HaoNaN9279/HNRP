@@ -192,55 +192,6 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Gets a per-camera independent copy of the <see cref="PassConfigBase"/>
-        /// for the specified pass.
-        /// </summary>
-        /// <typeparam name="T">The expected pass type (used to locate the pass).</typeparam>
-        /// <param name="name">The instance name of the pass.</param>
-        /// <returns>
-        /// A new <see cref="ScriptableObject.Instantiate"/> copy of the config,
-        /// or <c>null</c> if the pass has no associated config or the pass
-        /// is not found.
-        /// </returns>
-        /// <remarks>
-        /// <para>
-        /// <b>Shallow copy limitation:</b> <see cref="ScriptableObject.Instantiate"/>
-        /// creates a new ScriptableObject instance, but any object-type fields
-        /// (e.g., <see cref="Material"/>, <see cref="Shader"/>, <see cref="Texture"/>)
-        /// within the config are still shared references, not deep copies.
-        /// This means changes to referenced assets through one copy will be
-        /// visible through all copies. Only value-type fields and top-level
-        /// reference reassignments are independent.
-        /// </para>
-        /// <para>
-        /// To obtain a truly deep copy, the specific <see cref="PassConfigBase"/>
-        /// subclass should implement its own deep-copy logic.
-        /// </para>
-        /// </remarks>
-        public PassConfigBase GetConfig<T>(string name)
-            where T : Pass
-        {
-            if (CurrentTemplate == null)
-            {
-                return null;
-            }
-
-            // Walk the template's pass definitions to find the matching one.
-            foreach (PassDefinition def in CurrentTemplate.Passes)
-            {
-                if (def.InstanceName == name && def.Config != null)
-                {
-                    // Verify the pass type is registered (basic sanity check).
-                    // This does not validate that the instantiated pass IS type T —
-                    // it only checks the template definition metadata.
-                    return ScriptableObject.Instantiate(def.Config);
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
         /// Toggles whether a pass is enabled.
         /// When disabled, the pass is skipped during <see cref="Render"/>.
         /// </summary>

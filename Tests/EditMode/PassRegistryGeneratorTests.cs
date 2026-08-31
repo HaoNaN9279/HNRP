@@ -33,6 +33,11 @@ namespace HN.HNRP.Tests
             public override void Record(UnityEngine.Experimental.Rendering.RenderGraphModule.RenderGraph renderGraph)
             {
             }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
         }
 
         /// <summary>

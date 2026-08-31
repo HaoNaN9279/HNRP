@@ -116,7 +116,7 @@ namespace HN.HNRP.Tests
 
             foreach (string passName in new[] { "buildLight", "forwardOpaque", "finalBlit" })
             {
-                Assert.That(asset.Passes.Any(p => p.InstanceName == passName), Is.True,
+                Assert.That(asset.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Standard template should declare a '{passName}' pass.");
             }
 
@@ -167,7 +167,7 @@ namespace HN.HNRP.Tests
 
             foreach (string passName in new[] { "opaque", "finalBlit" })
             {
-                Assert.That(asset.Passes.Any(p => p.InstanceName == passName), Is.True,
+                Assert.That(asset.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Preview template should declare a '{passName}' pass.");
             }
 
@@ -205,13 +205,13 @@ namespace HN.HNRP.Tests
 
             foreach (string passName in new[] { "buildLight", "forwardOpaque", "transparency", "finalBlit" })
             {
-                Assert.That(asset.Passes.Any(p => p.InstanceName == passName), Is.True,
+                Assert.That(asset.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Reflection template should declare a '{passName}' pass.");
             }
 
             // No reflection probe cluster-culling pass and no EmptyTexture resource:
             // the Reflection graph renders a probe face but must not render probes.
-            Assert.That(asset.Passes.Any(p => p.InstanceName == "clusterProbe"), Is.False,
+            Assert.That(asset.Passes.Any(p => p.PassName == "clusterProbe"), Is.False,
                 "Reflection template must not declare a cluster probe pass.");
             Assert.That(asset.Resources.Any(r => r.ResourceName == "EmptyTexture"), Is.False,
                 "Reflection template should not declare an EmptyTexture resource.");

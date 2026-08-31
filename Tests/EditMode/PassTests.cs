@@ -45,6 +45,11 @@ namespace HN.HNRP.Tests
                 base.Cleanup();
                 CleanupCalled = true;
             }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
         }
 
         [Test]

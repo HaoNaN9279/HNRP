@@ -2,11 +2,15 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using HN.HNRP;
 using HN.HNRP.Editor;
+using Object = UnityEngine.Object;
 
 namespace HN.HNRP.Tests
 {
@@ -17,6 +21,47 @@ namespace HN.HNRP.Tests
     /// </summary>
     public sealed class RenderGraphAssetEditorTests
     {
+        #region Test Subclasses
+
+        /// <summary>
+        /// Minimal pass for editor serialized-property tests.
+        /// </summary>
+        [Pass("EditorTestPass")]
+        private sealed class TestPass : Pass
+        {
+            /// <summary>
+            /// Parameterless constructor used by <c>managedReferenceValue</c> tests.
+            /// </summary>
+            public TestPass()
+                : base("EditorTestPass")
+            {
+            }
+
+            public TestPass(string name)
+                : base(name)
+            {
+            }
+
+            public override void SetupSlots()
+            {
+            }
+
+            public override void Initialize(CameraContext context)
+            {
+            }
+
+            public override void Record(RenderGraph renderGraph)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
+        }
+
+        #endregion
+
         #region Setup
 
         private RenderGraphAsset m_Asset;
@@ -44,7 +89,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// A <see cref="SerializedObject"/> wrapping a <see cref="RenderGraphAsset"/>
-        /// can find the <c>m_Passes</c> property and its <see cref="PassDefinition"/>
+        /// can find the <c>m_Passes</c> property and its <see cref="Pass"/>
         /// serialized fields.
         /// </summary>
         [Test]
@@ -62,7 +107,7 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Adding a <see cref="PassDefinition"/> to <c>m_Passes</c> via
+        /// Adding a <see cref="Pass"/> to <c>m_Passes</c> via
         /// <see cref="SerializedProperty"/> correctly initializes its fields
         /// and reflects in the underlying <see cref="RenderGraphAsset"/>.
         /// </summary>
@@ -76,30 +121,25 @@ namespace HN.HNRP.Tests
             passesProp.InsertArrayElementAtIndex(0);
             SerializedProperty element = passesProp.GetArrayElementAtIndex(0);
 
-            element.FindPropertyRelative("m_PassType").stringValue = "TestPassA";
-            element.FindPropertyRelative("m_InstanceName").stringValue = "MyPass";
-            element.FindPropertyRelative("m_Config").objectReferenceValue = null;
+            element.managedReferenceValue = new TestPass();
+            element.FindPropertyRelative("m_PassName").stringValue = "MyPass";
 
             so.ApplyModifiedProperties();
 
             Assert.That(m_Asset.Passes.Count, Is.EqualTo(1),
-                "Asset should contain one PassDefinition after adding.");
-            Assert.That(m_Asset.Passes[0].PassType, Is.EqualTo("TestPassA"),
-                "PassType should match the serialized value.");
-            Assert.That(m_Asset.Passes[0].InstanceName, Is.EqualTo("MyPass"),
-                "InstanceName should match the serialized value.");
-            Assert.That(m_Asset.Passes[0].Config, Is.Null,
-                "Config should be null by default.");
+                "Asset should contain one Pass after adding.");
+            Assert.That(m_Asset.Passes[0].PassName, Is.EqualTo("MyPass"),
+                "PassName should match the serialized value.");
         }
 
         /// <summary>
-        /// Removing a <see cref="PassDefinition"/> from <c>m_Passes</c> via
+        /// Removing a <see cref="Pass"/> from <c>m_Passes</c> via
         /// <see cref="SerializedProperty"/> correctly reduces the list size.
         /// </summary>
         [Test]
         public void PassesList_RemoveElement_ReflectsInAsset()
         {
-            m_Asset.Passes.Add(PassDefinition.Create("TestPassA", "ToRemove"));
+            m_Asset.Passes.Add(new TestPass("ToRemove"));
             var so = new SerializedObject(m_Asset);
             var passesProp = so.FindProperty("m_Passes");
 
@@ -110,26 +150,26 @@ namespace HN.HNRP.Tests
             so.ApplyModifiedProperties();
 
             Assert.That(m_Asset.Passes.Count, Is.Zero,
-                "Asset should have zero PassDefinitions after removal.");
+                "Asset should have zero Passes after removal.");
         }
 
         /// <summary>
-        /// Modifying <see cref="PassDefinition"/> fields via
+        /// Modifying <see cref="Pass"/> fields via
         /// <see cref="SerializedProperty"/> propagates to the underlying asset.
         /// </summary>
         [Test]
         public void PassesList_ModifyElement_ReflectsInAsset()
         {
-            m_Asset.Passes.Add(PassDefinition.Create("TestPassA", "Original"));
+            m_Asset.Passes.Add(new TestPass("Original"));
             var so = new SerializedObject(m_Asset);
             var passesProp = so.FindProperty("m_Passes");
 
             SerializedProperty element = passesProp.GetArrayElementAtIndex(0);
-            element.FindPropertyRelative("m_InstanceName").stringValue = "Modified";
+            element.FindPropertyRelative("m_PassName").stringValue = "Modified";
             so.ApplyModifiedProperties();
 
-            Assert.That(m_Asset.Passes[0].InstanceName, Is.EqualTo("Modified"),
-                "InstanceName should reflect the modification.");
+            Assert.That(m_Asset.Passes[0].PassName, Is.EqualTo("Modified"),
+                "PassName should reflect the modification.");
         }
 
         #endregion
@@ -281,17 +321,17 @@ namespace HN.HNRP.Tests
         {
             var so = new SerializedObject(m_Asset);
 
-            // ── Add two PassDefinitions ──
+            // ── Add two Pass templates ──
             var passesProp = so.FindProperty("m_Passes");
             passesProp.InsertArrayElementAtIndex(0);
             var pass0 = passesProp.GetArrayElementAtIndex(0);
-            pass0.FindPropertyRelative("m_PassType").stringValue = "TestPassA";
-            pass0.FindPropertyRelative("m_InstanceName").stringValue = "Alpha";
+            pass0.managedReferenceValue = new TestPass();
+            pass0.FindPropertyRelative("m_PassName").stringValue = "Alpha";
 
             passesProp.InsertArrayElementAtIndex(1);
             var pass1 = passesProp.GetArrayElementAtIndex(1);
-            pass1.FindPropertyRelative("m_PassType").stringValue = "TestPassB";
-            pass1.FindPropertyRelative("m_InstanceName").stringValue = "Beta";
+            pass1.managedReferenceValue = new TestPass();
+            pass1.FindPropertyRelative("m_PassName").stringValue = "Beta";
 
             // ── Add one SlotConnection ──
             var connProp = so.FindProperty("m_Connections");
@@ -313,10 +353,8 @@ namespace HN.HNRP.Tests
             // ── Verify Passes ──
             Assert.That(m_Asset.Passes.Count, Is.EqualTo(2),
                 "Should have two passes after roundtrip.");
-            Assert.That(m_Asset.Passes[0].PassType, Is.EqualTo("TestPassA"));
-            Assert.That(m_Asset.Passes[0].InstanceName, Is.EqualTo("Alpha"));
-            Assert.That(m_Asset.Passes[1].PassType, Is.EqualTo("TestPassB"));
-            Assert.That(m_Asset.Passes[1].InstanceName, Is.EqualTo("Beta"));
+            Assert.That(m_Asset.Passes[0].PassName, Is.EqualTo("Alpha"));
+            Assert.That(m_Asset.Passes[1].PassName, Is.EqualTo("Beta"));
 
             // ── Verify Connections ──
             Assert.That(m_Asset.Connections.Count, Is.EqualTo(1),

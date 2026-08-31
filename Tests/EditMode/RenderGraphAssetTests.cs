@@ -2,11 +2,13 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using HN.HNRP;
+using Object = UnityEngine.Object;
 
 namespace HN.HNRP.Tests
 {
@@ -34,6 +36,14 @@ namespace HN.HNRP.Tests
             {
             }
 
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestPassA()
+            {
+            }
+
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -46,6 +56,11 @@ namespace HN.HNRP.Tests
 
             /// <inheritdoc />
             public override void Record(RenderGraph renderGraph)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
             {
             }
         }
@@ -65,6 +80,14 @@ namespace HN.HNRP.Tests
             {
             }
 
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestPassB()
+            {
+            }
+
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -77,6 +100,11 @@ namespace HN.HNRP.Tests
 
             /// <inheritdoc />
             public override void Record(RenderGraph renderGraph)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
             {
             }
         }
@@ -99,6 +127,15 @@ namespace HN.HNRP.Tests
                 IsEnabled = false;
             }
 
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestPassDisabled()
+            {
+                IsEnabled = false;
+            }
+
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -113,12 +150,15 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
         }
 
         /// <summary>
-        /// Minimal pass with a registered texture input slot.
-        /// Registered as <c>"TestTextureConsumer"</c>. Used to verify resource-node
-        /// based topology (consumers of the same resource are chained in order).
+        /// Definition for <see cref="TestTextureConsumerPass"/>.
         /// </summary>
         [Pass("TestTextureConsumer")]
         private sealed class TestTextureConsumerPass : Pass
@@ -137,6 +177,14 @@ namespace HN.HNRP.Tests
             {
             }
 
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestTextureConsumerPass()
+            {
+            }
+
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -151,6 +199,11 @@ namespace HN.HNRP.Tests
 
             /// <inheritdoc />
             public override void Record(RenderGraph renderGraph)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
             {
             }
         }
@@ -181,8 +234,8 @@ namespace HN.HNRP.Tests
         public void Build_InstantiatesPasses()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", "Alpha"));
-            asset.Passes.Add(PassDefinition.Create("TestPassB", "Beta"));
+            asset.Passes.Add(new TestPassA("Alpha"));
+            asset.Passes.Add(new TestPassB("Beta"));
 
             List<Pass> result = asset.Build(renderer: null);
 
@@ -192,14 +245,14 @@ namespace HN.HNRP.Tests
                 "Build should return exactly two passes for two definitions.");
 
             Assert.That(result[0].PassName, Is.EqualTo("Alpha"),
-                "First pass should have the InstanceName from its definition.");
+                "First pass should have the PassName from its template.");
             Assert.That(result[0].GetType(), Is.EqualTo(typeof(TestPassA)),
                 "First pass should be of type TestPassA.");
             Assert.That(result[0].IsEnabled, Is.True,
                 "Newly created passes should be enabled by default.");
 
             Assert.That(result[1].PassName, Is.EqualTo("Beta"),
-                "Second pass should have the InstanceName from its definition.");
+                "Second pass should have the PassName from its template.");
             Assert.That(result[1].GetType(), Is.EqualTo(typeof(TestPassB)),
                 "Second pass should be of type TestPassB.");
             Assert.That(result[1].IsEnabled, Is.True,
@@ -229,20 +282,21 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// <see cref="RenderGraphAsset.Build"/> skips definitions whose
-        /// <see cref="PassDefinition.InstanceName"/> is <c>null</c> or empty.
+        /// <see cref="RenderGraphAsset.Build"/> skips passes whose
+        /// <see cref="Pass.PassName"/> is <c>null</c> or empty.
         /// </summary>
         [Test]
-        public void Build_SkipsDefinitionsWithNullInstanceName()
+        public void Build_SkipsPassesWithNullPassName()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", null));
-            asset.Passes.Add(PassDefinition.Create("TestPassA", string.Empty));
-            asset.Passes.Add(PassDefinition.Create("TestPassB", "Valid"));
+            asset.Passes.Add(new TestPassA(null));
+            asset.Passes.Add(new TestPassA(string.Empty));
+            asset.Passes.Add(new TestPassB("Valid"));
 
             List<Pass> result = asset.Build(renderer: null);
 
             Assert.That(result.Count, Is.EqualTo(1),
-                "Build should skip definitions with null/empty InstanceName.");
+                "Build should skip passes with null/empty PassName.");
             Assert.That(result[0].PassName, Is.EqualTo("Valid"),
                 "Only the valid definition should be instantiated.");
 
@@ -262,8 +316,8 @@ namespace HN.HNRP.Tests
         public void Build_ConnectsSlots_ByName()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", "SourcePass"));
-            asset.Passes.Add(PassDefinition.Create("TestPassB", "TargetPass"));
+            asset.Passes.Add(new TestPassA("SourcePass"));
+            asset.Passes.Add(new TestPassB("TargetPass"));
             asset.Connections.Add(SlotConnection.Create(
                 sourcePass: "SourcePass",
                 sourceSlot: "ColorOutput",
@@ -304,7 +358,7 @@ namespace HN.HNRP.Tests
         public void Build_HandlesMissingConnectionTarget_DoesNotThrow()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", "OnlyPass"));
+            asset.Passes.Add(new TestPassA("OnlyPass"));
             asset.Connections.Add(SlotConnection.Create("OnlyPass", "Out", "GhostPass", "In"));
 
             List<Pass> result = asset.Build(renderer: null);
@@ -332,9 +386,9 @@ namespace HN.HNRP.Tests
         public void Build_ReturnsEnabledPassesOnly()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", "EnabledAlpha"));
-            asset.Passes.Add(PassDefinition.Create("TestPassDisabled", "DisabledPass"));
-            asset.Passes.Add(PassDefinition.Create("TestPassB", "EnabledBeta"));
+            asset.Passes.Add(new TestPassA("EnabledAlpha"));
+            asset.Passes.Add(new TestPassDisabled("DisabledPass"));
+            asset.Passes.Add(new TestPassB("EnabledBeta"));
 
             List<Pass> result = asset.Build(renderer: null);
 
@@ -415,7 +469,7 @@ namespace HN.HNRP.Tests
         public void Build_InvalidResourceConnection_DoesNotThrow()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestPassA", "OnlyPass"));
+            asset.Passes.Add(new TestPassA("OnlyPass"));
             asset.ResourceConnections.Add(new ResourceConnection
             {
                 ResourceName = "GhostResource",
@@ -448,8 +502,8 @@ namespace HN.HNRP.Tests
         public void Build_ResourceConnection_ConnectsConsumerSlotsToNode()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "FirstConsumer"));
-            asset.Passes.Add(PassDefinition.Create("TestTextureConsumer", "SecondConsumer"));
+            asset.Passes.Add(new TestTextureConsumerPass("FirstConsumer"));
+            asset.Passes.Add(new TestTextureConsumerPass("SecondConsumer"));
 
             asset.Resources.Add(new TextureResourceDefinition
             {

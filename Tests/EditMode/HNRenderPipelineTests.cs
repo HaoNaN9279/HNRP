@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -54,6 +55,14 @@ namespace HN.HNRP.Tests
             {
             }
 
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestPass()
+            {
+            }
+
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -71,17 +80,22 @@ namespace HN.HNRP.Tests
             {
                 RecordCalled = true;
             }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
         }
 
         /// <summary>
-        /// Creates a <see cref="RenderGraphAsset"/> with a single test pass definition.
+        /// Creates a <see cref="RenderGraphAsset"/> with a single test pass template.
         /// </summary>
         /// <param name="passName">The instance name for the pass.</param>
         /// <returns>A new RenderGraphAsset with one pass.</returns>
         private static RenderGraphAsset CreateTemplate(string passName)
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(PassDefinition.Create("HNRenderPipelineTestPass", passName));
+            asset.Passes.Add(new TestPass(passName));
             return asset;
         }
 
