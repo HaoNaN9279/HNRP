@@ -149,6 +149,61 @@ namespace HN.HNRP.Tests
             Assert.That(pass.DepthTargetOutputSlot, Is.Null);
         }
 
+        /// <summary>
+        /// <see cref="DrawObjectPass"/> owns its resource allocation parameters:
+        /// a full-resolution LDR color target, a 32-bit depth target, and an
+        /// opaque renderer list by default (ADR-017).
+        /// </summary>
+        [Test]
+        public void ResourceParams_HaveDocumentedDefaults()
+        {
+            var pass = new DrawObjectPass("TestDrawObject");
+
+            Assert.That(pass.ColorTargetParams.ColorFormat,
+                Is.EqualTo(UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm),
+                "Color target should default to R8G8B8A8.");
+            Assert.That(pass.DepthTargetParams.DepthBits,
+                Is.EqualTo(UnityEngine.Rendering.DepthBits.Depth32),
+                "Depth target should default to 32-bit depth.");
+            Assert.That(pass.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
+                "Renderer list should default to opaque.");
+            Assert.That(pass.RendererListParams.RenderingLayerMask, Is.EqualTo(0x00000001u),
+                "Renderer list layer mask should default to 0x00000001.");
+        }
+
+        /// <summary>
+        /// <see cref="DrawObjectPass.CopyFrom"/> copies the resource parameters
+        /// and light-globals flag between instances.
+        /// </summary>
+        [Test]
+        public void CopyFrom_CopiesResourceParams()
+        {
+            var source = new DrawObjectPass("Source")
+            {
+                RendererListParams = new RendererListParams
+                {
+                    ListKind = RenderListKind.Transparent,
+                    RenderingLayerMask = 0x00000007,
+                },
+                SetLightGlobals = false,
+            };
+            TextureResourceParams sourceDepth = source.DepthTargetParams;
+            sourceDepth.DepthBits = UnityEngine.Rendering.DepthBits.Depth16;
+            source.DepthTargetParams = sourceDepth;
+
+            var clone = new DrawObjectPass("Clone");
+            clone.CopyFrom(source);
+
+            Assert.That(clone.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Transparent),
+                "CopyFrom should copy the renderer list kind.");
+            Assert.That(clone.RendererListParams.RenderingLayerMask, Is.EqualTo(0x00000007u),
+                "CopyFrom should copy the rendering layer mask.");
+            Assert.That(clone.DepthTargetParams.DepthBits, Is.EqualTo(UnityEngine.Rendering.DepthBits.Depth16),
+                "CopyFrom should copy the depth target parameters.");
+            Assert.That(clone.SetLightGlobals, Is.False,
+                "CopyFrom should copy the light-globals flag.");
+        }
+
         #endregion
 
         #region Instance Properties

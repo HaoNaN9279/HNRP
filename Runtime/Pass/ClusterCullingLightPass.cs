@@ -250,6 +250,18 @@ namespace HN.HNRP
                     (camera.worldToCameraMatrix * camera.projectionMatrix)
                     .inverse;
 
+                // ── Store per-frame values on the pooled pass data so the
+                // render function closure only captures `this` (zero allocation) ──
+
+                passData.clusterSize = clusterSize;
+                passData.clusterZScaleOffset = clusterZScaleOffset;
+                passData.wordsPerCluster = wordsPerCluster;
+                passData.catchedLightCount = catchedLightCount;
+                passData.cameraOrthographic = camera.orthographic;
+                passData.clipToView = clipToView;
+                passData.viewToClip = viewToClip;
+                passData.clipToWorld = clipToWorld;
+
                 // ── Render function ──
 
                 builder.SetRenderFunc(
@@ -270,40 +282,40 @@ namespace HN.HNRP
                             data.clusterCullingLightCS,
                             PropertyIDs.cullingParams0,
                             new Vector4(
-                                clusterZScaleOffset.x,
-                                clusterZScaleOffset.y,
-                                wordsPerCluster,
-                                camera.orthographic ? 1.0f : 0.0f));
+                                data.clusterZScaleOffset.x,
+                                data.clusterZScaleOffset.y,
+                                data.wordsPerCluster,
+                                data.cameraOrthographic ? 1.0f : 0.0f));
                         ctx.cmd.SetComputeVectorParam(
                             data.clusterCullingLightCS,
                             PropertyIDs.cullingParams1,
                             new Vector4(
-                                clusterSize.x,
-                                clusterSize.y,
-                                clusterSize.z,
-                                catchedLightCount));
+                                data.clusterSize.x,
+                                data.clusterSize.y,
+                                data.clusterSize.z,
+                                data.catchedLightCount));
 
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingLightCS,
                             PropertyIDs.cullingClipToViewMatrix,
-                            clipToView);
+                            data.clipToView);
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingLightCS,
                             PropertyIDs.cullingViewToClipMatrix,
-                            viewToClip);
+                            data.viewToClip);
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingLightCS,
                             PropertyIDs.cullingClipToWorldMatrix,
-                            clipToWorld);
+                            data.clipToWorld);
 
                         int threadGroup = (clusterCount + 63) / 64;
                         int threadGroupY =
-                            (threadGroup + clusterSize.y - 1) / clusterSize.y;
+                            (threadGroup + data.clusterSize.y - 1) / data.clusterSize.y;
 
                         ctx.cmd.DispatchCompute(
                             data.clusterCullingLightCS,
                             data.clusterCullingLightKernel,
-                            clusterSize.y,
+                            data.clusterSize.y,
                             threadGroupY,
                             1);
 
@@ -415,6 +427,46 @@ namespace HN.HNRP
             /// Global constant buffer parameters for cluster culling light.
             /// </summary>
             public ClusterCullingLightParams clusterCullingLightParams;
+
+            /// <summary>
+            /// The cluster grid dimensions for this frame.
+            /// </summary>
+            public int3 clusterSize;
+
+            /// <summary>
+            /// The Z-axis scale (x) and offset (y) for cluster depth slices.
+            /// </summary>
+            public float2 clusterZScaleOffset;
+
+            /// <summary>
+            /// Number of uint words per cluster mask.
+            /// </summary>
+            public int wordsPerCluster;
+
+            /// <summary>
+            /// The number of lights culled this frame.
+            /// </summary>
+            public int catchedLightCount;
+
+            /// <summary>
+            /// Whether the current camera is orthographic.
+            /// </summary>
+            public bool cameraOrthographic;
+
+            /// <summary>
+            /// The clip-to-view matrix.
+            /// </summary>
+            public Matrix4x4 clipToView;
+
+            /// <summary>
+            /// The view-to-clip matrix.
+            /// </summary>
+            public Matrix4x4 viewToClip;
+
+            /// <summary>
+            /// The clip-to-world matrix.
+            /// </summary>
+            public Matrix4x4 clipToWorld;
         }
 
         // ── Constants ──

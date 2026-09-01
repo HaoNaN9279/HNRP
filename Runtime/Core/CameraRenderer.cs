@@ -41,15 +41,6 @@ namespace HN.HNRP
         public List<Pass> Passes { get; private set; } = new();
 
         /// <summary>
-        /// The runtime <see cref="ResourceNode"/> instances copied from the template
-        /// during <see cref="Build"/>. Resolved each frame at the start of
-        /// <see cref="Render"/> before any pass records.
-        /// </summary>
-        public IReadOnlyList<ResourceNode> ResourceNodes => m_ResourceNodes;
-
-        private List<ResourceNode> m_ResourceNodes = new();
-
-        /// <summary>
         /// The per-camera rendering context that passes reference during execution.
         /// </summary>
         public CameraContext Context { get; set; }
@@ -98,7 +89,6 @@ namespace HN.HNRP
 
             CurrentTemplate = template;
             Passes = template.Build(this) ?? new List<Pass>();
-            m_ResourceNodes = new List<ResourceNode>(template.ResourceNodes);
 
             WireManualConnections();
         }
@@ -290,15 +280,6 @@ namespace HN.HNRP
             if (Context != null)
             {
                 Context.Context = context;
-
-                // Resolve resource nodes before any pass records. Nodes without a
-                // producer allocate their render graph handle here; produced nodes
-                // are read from the producer slot at record time. Resource handles
-                // are stable across frames — pass slot handles are reset per pass.
-                foreach (ResourceNode node in m_ResourceNodes)
-                {
-                    node.Resolve(renderGraph, Context);
-                }
             }
 
             // ── Phase 1–3: Execute each enabled pass ──

@@ -173,12 +173,13 @@ namespace HN.HNRP
 
             // ── Render function: draw wire overlay (same logic as legacy EditorWireOverlayPass) ──
 
+            passData.camera = camera;
             builder.SetRenderFunc(
                 (EditorWireOverlayPassData data, RenderGraphContext ctx) =>
                 {
                     ctx.renderContext.ExecuteCommandBuffer(ctx.cmd);
                     ctx.cmd.Clear();
-                    ctx.renderContext.DrawWireOverlay(camera);
+                    ctx.renderContext.DrawWireOverlay(data.camera);
                 });
 #endif
         }
@@ -200,6 +201,11 @@ namespace HN.HNRP
             /// The color target texture handle.
             /// </summary>
             public TextureHandle colorTarget;
+
+            /// <summary>
+            /// The camera whose wire overlay is drawn.
+            /// </summary>
+            public Camera camera;
         }
     }
 }

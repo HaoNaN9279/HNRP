@@ -208,6 +208,58 @@ namespace HN.HNRP.Tests
             }
         }
 
+        /// <summary>
+        /// Pass with an output slot used to verify slot-connection wiring
+        /// through <see cref="RenderGraphAsset.Build"/>.
+        /// </summary>
+        [Pass("TestTextureProducer")]
+        private sealed class TestTextureProducerPass : Pass
+        {
+            /// <summary>
+            /// Gets the registered texture output slot.
+            /// </summary>
+            public TextureSlot Output { get; private set; }
+
+            /// <summary>
+            /// Initializes a new instance with the given name.
+            /// </summary>
+            /// <param name="name">The pass instance name.</param>
+            public TestTextureProducerPass(string name)
+                : base(name)
+            {
+            }
+
+            /// <summary>
+            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
+            /// runtime cloning.
+            /// </summary>
+            public TestTextureProducerPass()
+            {
+            }
+
+            /// <inheritdoc />
+            public override void SetupSlots()
+            {
+                Output = new TextureSlot("Out", SlotDirection.Output);
+                RegisterSlot(Output);
+            }
+
+            /// <inheritdoc />
+            public override void Initialize(CameraContext context)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void Record(RenderGraph renderGraph)
+            {
+            }
+
+            /// <inheritdoc />
+            public override void CopyFrom(Pass source)
+            {
+            }
+        }
+
         #endregion
 
         #region Setup
@@ -414,149 +466,47 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Resource Nodes
+        #region Build — Slot Connections & Topological Order
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> materializes each valid
-        /// <see cref="ResourceDefinition"/> into the matching concrete
-        /// <see cref="ResourceNode"/> subclass, exposed through
-        /// <see cref="RenderGraphAsset.ResourceNodes"/>.
+        /// <see cref="RenderGraphAsset.Build"/> wires an output slot of one pass
+        /// to an input slot of another through a <see cref="SlotConnection"/>,
+        /// making the target input slot connected so the consumer can read the
+        /// producer's handle during <see cref="Pass.Record"/>.
         /// </summary>
         [Test]
-        public void Build_MaterializesResourceNodes_FromDefinitions()
+        public void Build_SlotConnection_WiresOutputToInput()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Resources.Add(new TextureResourceDefinition
-            {
-                ResourceName = "ColorBuffer",
-            });
-            asset.Resources.Add(new ComputeBufferResourceDefinition
-            {
-                ResourceName = "LightDatas",
-            });
-            asset.Resources.Add(new RendererListResourceDefinition
-            {
-                ResourceName = "OpaqueList",
-            });
-
-            List<Pass> result = asset.Build(renderer: null);
-
-            Assert.That(asset.ResourceNodes, Is.Not.Null,
-                "ResourceNodes should be non-null after Build.");
-            Assert.That(asset.ResourceNodes.Count, Is.EqualTo(3),
-                "Build should materialize one node per valid resource definition.");
-
-            Assert.That(asset.ResourceNodes[0], Is.InstanceOf<TextureResourceNode>(),
-                "A Texture definition should produce a TextureResourceNode.");
-            Assert.That(asset.ResourceNodes[0].ResourceName, Is.EqualTo("ColorBuffer"));
-            Assert.That(asset.ResourceNodes[1], Is.InstanceOf<ComputeBufferResourceNode>(),
-                "A ComputeBuffer definition should produce a ComputeBufferResourceNode.");
-            Assert.That(asset.ResourceNodes[2], Is.InstanceOf<RendererListResourceNode>(),
-                "A RendererList definition should produce a RendererListResourceNode.");
-
-            Assert.That(result, Is.Not.Null,
-                "Build should still return a non-null (possibly empty) pass list.");
-
-            Object.DestroyImmediate(asset);
-        }
-
-        /// <summary>
-        /// A <see cref="ResourceConnection"/> that references an unknown
-        /// <see cref="ResourceDefinition"/> name must not throw — Build logs a
-        /// warning and continues with the remaining passes.
-        /// </summary>
-        [Test]
-        public void Build_InvalidResourceConnection_DoesNotThrow()
-        {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA("OnlyPass"));
-            asset.ResourceConnections.Add(new ResourceConnection
-            {
-                ResourceName = "GhostResource",
-                PassName = "OnlyPass",
-                SlotName = "In",
-            });
-
-            Assert.DoesNotThrow(() => asset.Build(renderer: null),
-                "Build must tolerate resource connections to unknown resources.");
-
-            Assert.That(asset.ResourceNodes.Count, Is.EqualTo(0),
-                "No resource definitions means no runtime resource nodes.");
-
-            Object.DestroyImmediate(asset);
-        }
-
-        #endregion
-
-        #region Build — Resource Connections & Topological Order
-
-        /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> connects every valid
-        /// <see cref="ResourceConnection"/> as a resource → pass input slot
-        /// edge (the producer direction was removed). The consumer's input slot
-        /// becomes connected, its <see cref="PassSlot.ConnectedResource"/> points
-        /// at the materialized node, and the node tracks both consumers. Passes
-        /// sharing a resource are chained in definition order.
-        /// </summary>
-        [Test]
-        public void Build_ResourceConnection_ConnectsConsumerSlotsToNode()
-        {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestTextureConsumerPass("FirstConsumer"));
-            asset.Passes.Add(new TestTextureConsumerPass("SecondConsumer"));
-
-            asset.Resources.Add(new TextureResourceDefinition
-            {
-                ResourceName = "SharedTex",
-            });
-
-            asset.ResourceConnections.Add(new ResourceConnection
-            {
-                ResourceName = "SharedTex",
-                PassName = "FirstConsumer",
-                SlotName = "In",
-            });
-            asset.ResourceConnections.Add(new ResourceConnection
-            {
-                ResourceName = "SharedTex",
-                PassName = "SecondConsumer",
-                SlotName = "In",
-            });
+            asset.Passes.Add(new TestTextureProducerPass("Producer"));
+            asset.Passes.Add(new TestTextureConsumerPass("Consumer"));
+            asset.Connections.Add(SlotConnection.Create(
+                sourcePass: "Producer",
+                sourceSlot: "Out",
+                targetPass: "Consumer",
+                targetSlot: "In"));
 
             List<Pass> result = asset.Build(renderer: null);
 
             Assert.That(result.Count, Is.EqualTo(2),
-                "Both consumers should be built and enabled.");
+                "Both passes should be built and enabled.");
 
-            int firstIndex = result.FindIndex(p => p.PassName == "FirstConsumer");
-            int secondIndex = result.FindIndex(p => p.PassName == "SecondConsumer");
+            var producer = result.Find(p => p.PassName == "Producer") as TestTextureProducerPass;
+            var consumer = result.Find(p => p.PassName == "Consumer") as TestTextureConsumerPass;
+            Assert.That(producer, Is.Not.Null);
+            Assert.That(consumer, Is.Not.Null);
 
-            Assert.That(firstIndex, Is.GreaterThanOrEqualTo(0),
-                "FirstConsumer pass should be present.");
-            Assert.That(secondIndex, Is.GreaterThanOrEqualTo(0),
-                "SecondConsumer pass should be present.");
-            Assert.That(firstIndex, Is.LessThan(secondIndex),
-                "Passes sharing a resource must be chained in definition order.");
+            Assert.That(consumer!.Input.IsConnected, Is.True,
+                "The consumer's input slot should be connected through the slot connection.");
+            Assert.That(consumer.Input.HasHandle, Is.False,
+                "The consumer's input has no handle until the producer publishes one.");
 
-            var first = result[firstIndex] as TestTextureConsumerPass;
-            var second = result[secondIndex] as TestTextureConsumerPass;
-            Assert.That(first, Is.Not.Null);
-            Assert.That(second, Is.Not.Null);
+            // Publish a handle on the producer's output and verify the input
+            // slot reflects it (HasHandle becomes true, ReadHandle returns it).
+            producer!.Output.SetHandle(default(TextureHandle));
 
-            Assert.That(first!.Input.IsConnected, Is.True,
-                "The first consumer's input slot should be connected through the resource node.");
-            Assert.That(second!.Input.IsConnected, Is.True,
-                "The second consumer's input slot should be connected through the resource node.");
-
-            Assert.That(first.Input.ConnectedResource, Is.Not.Null,
-                "The consumer's input slot should reference the connected resource node.");
-            Assert.That(first.Input.ConnectedResource, Is.SameAs(second.Input.ConnectedResource),
-                "Both consumer slots should share the same materialized resource node.");
-            Assert.That(first.Input.ConnectedResource!.ResourceName, Is.EqualTo("SharedTex"),
-                "The connected node should be the SharedTex resource node.");
-
-            Assert.That(first.Input.ConnectedResource!.ConsumerSlots.Count, Is.EqualTo(2),
-                "The resource node should track both connected consumer slots.");
+            Assert.That(consumer.Input.HasHandle, Is.False,
+                "A default (invalid) texture handle must be treated as no handle.");
 
             Object.DestroyImmediate(asset);
         }

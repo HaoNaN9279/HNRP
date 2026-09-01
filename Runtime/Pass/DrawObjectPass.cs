@@ -10,13 +10,14 @@ namespace HN.HNRP
 {
     /// <summary>
     /// Generic parameterized object-drawing pass.
-    /// All resources — color / depth targets, light data buffers, reflection probe
-    /// data, and the renderer list — are supplied as <see cref="ResourceNode"/>
-    /// inputs. The pass never allocates its own resources.
+    /// Color / depth targets and the renderer list are consumed from connected
+    /// input slots when available; otherwise the pass allocates them itself from
+    /// its own <see cref="TextureResourceParams"/> / <see cref="RendererListParams"/>
+    /// parameters. Lighting / probe data (light datas, reflection probe atlas,
+    /// cluster culling masks) are optional read-only inputs.
     /// </summary>
     /// <remarks>
-    /// <para><b>Inputs (all optional except <see cref="ColorTargetSlot"/> /
-    /// <see cref="DepthTargetSlot"/> / <see cref="RendererListSlot"/>):</b></para>
+    /// <para><b>Inputs (all optional):</b></para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> — the color buffer written by draw calls.</item>
     ///   <item><b>DepthTarget</b> — the depth buffer written by draw calls.</item>
@@ -28,6 +29,13 @@ namespace HN.HNRP
     ///   <item><b>RendererList</b> — the renderer list to draw.</item>
     /// </list>
     /// <para>
+    /// When a required input slot is <b>not connected</b> or its handle is
+    /// <b>not valid</b>, the pass creates the resource internally (color / depth
+    /// buffers from <see cref="ColorTargetParams"/> / <see cref="DepthTargetParams"/>,
+    /// the renderer list from <see cref="RendererListParams"/>). This makes the
+    /// pass usable as a chain head without external resource nodes.
+    /// </para>
+    /// <para>
     /// When <see cref="SetLightGlobals"/> is <c>true</c> the render function also
     /// binds the probe / light / light-data shader globals (replacing the old
     /// Forward Opaque pass behavior). When <c>false</c> only
@@ -37,10 +45,9 @@ namespace HN.HNRP
     /// <b>Outputs (pass-through for downstream chaining):</b>
     /// </para>
     /// <list type="bullet">
-    ///   <item><b>ColorTargetOutput</b> — pass-through of the input color target
-    ///   so downstream passes can connect without a separate resource node.</item>
-    ///   <item><b>DepthTargetOutput</b> — pass-through of the input depth target
-    ///   so downstream passes can connect without a separate resource node.</item>
+    ///   <item><b>ColorTargetOutput</b> — pass-through of the resolved color target
+    ///   (input or self-allocated) so downstream passes can chain.</item>
+    ///   <item><b>DepthTargetOutput</b> — pass-through of the resolved depth target.</item>
     /// </list>
     /// </remarks>
     [Pass(PassNameConst)]
@@ -54,12 +61,28 @@ namespace HN.HNRP
         // ── Configurable parameters ──
 
         /// <summary>
-        /// The rendering layer mask used for culling.
-        /// Only renderers on matching layers are drawn.
-        /// Default is <c>0x00000001</c> (layer 0).
+        /// Parameters for the color target allocated when the
+        /// <see cref="ColorTargetSlot"/> input is not connected / valid.
+        /// Default: full-resolution LDR.
         /// </summary>
         [SerializeField]
-        private uint m_RenderingLayerMask = 0x00000001;
+        private TextureResourceParams m_ColorTargetParams = TextureResourceParams.CreateDefault();
+
+        /// <summary>
+        /// Parameters for the depth target allocated when the
+        /// <see cref="DepthTargetSlot"/> input is not connected / valid.
+        /// Default: full-resolution 32-bit depth.
+        /// </summary>
+        [SerializeField]
+        private TextureResourceParams m_DepthTargetParams;
+
+        /// <summary>
+        /// Parameters for the renderer list created when the
+        /// <see cref="RendererListSlot"/> input is not connected / valid.
+        /// Default: opaque queue, layer mask <c>0x00000001</c>.
+        /// </summary>
+        [SerializeField]
+        private RendererListParams m_RendererListParams = RendererListParams.CreateDefault();
 
         /// <summary>
         /// Whether the render function should set the probe / light / light-datas
@@ -69,19 +92,41 @@ namespace HN.HNRP
         private bool m_SetLightGlobals = true;
 
         /// <summary>
-        /// Gets or sets the rendering layer mask used for culling.
-        /// Only renderers on matching layers are drawn.
+        /// Gets or sets the color target allocation parameters.
+        /// </summary>
+        public TextureResourceParams ColorTargetParams
+        {
+            get => m_ColorTargetParams;
+            set => m_ColorTargetParams = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the depth target allocation parameters.
+        /// </summary>
+        public TextureResourceParams DepthTargetParams
+        {
+            get => m_DepthTargetParams;
+            set => m_DepthTargetParams = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the renderer list allocation parameters.
+        /// </summary>
+        public RendererListParams RendererListParams
+        {
+            get => m_RendererListParams;
+            set => m_RendererListParams = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the rendering layer mask used when the renderer list is
+        /// allocated locally (via <see cref="RendererListParams"/>).
         /// Default is <c>0x00000001</c> (layer 0).
         /// </summary>
-        /// <remarks>
-        /// Retained for config compatibility. The actual renderer list comes from
-        /// the <see cref="RendererListSlot"/> input (whose resource definition
-        /// carries its own layer mask).
-        /// </remarks>
         public uint RenderingLayerMask
         {
-            get => m_RenderingLayerMask;
-            set => m_RenderingLayerMask = value;
+            get => m_RendererListParams.RenderingLayerMask;
+            set => m_RendererListParams.RenderingLayerMask = value;
         }
 
         /// <summary>
@@ -147,14 +192,14 @@ namespace HN.HNRP
         public RendererListSlot? RendererListSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output color target slot (pass-through of the input
+        /// Gets the output color target slot (pass-through of the resolved
         /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
         /// Available after <see cref="Pass.SetupSlots"/> is called.
         /// </summary>
         public TextureSlot? ColorTargetOutputSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output depth target slot (pass-through of the input
+        /// Gets the output depth target slot (pass-through of the resolved
         /// <see cref="DepthTargetSlot"/> handle for downstream chaining).
         /// Available after <see cref="Pass.SetupSlots"/> is called.
         /// </summary>
@@ -173,6 +218,8 @@ namespace HN.HNRP
         /// </summary>
         public DrawObjectPass()
         {
+            m_DepthTargetParams = TextureResourceParams.CreateDefault();
+            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
         }
 
         /// <summary>
@@ -184,6 +231,8 @@ namespace HN.HNRP
         public DrawObjectPass(string passName)
             : base(passName)
         {
+            m_DepthTargetParams = TextureResourceParams.CreateDefault();
+            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
         }
 
         /// <inheritdoc />
@@ -191,8 +240,10 @@ namespace HN.HNRP
         {
             if (source is DrawObjectPass s)
             {
-                RenderingLayerMask = s.RenderingLayerMask;
-                SetLightGlobals = s.SetLightGlobals;
+                m_ColorTargetParams = s.m_ColorTargetParams;
+                m_DepthTargetParams = s.m_DepthTargetParams;
+                m_RendererListParams = s.m_RendererListParams;
+                m_SetLightGlobals = s.m_SetLightGlobals;
             }
         }
 
@@ -247,33 +298,45 @@ namespace HN.HNRP
                 return;
             }
 
+            Camera camera = cameraContext.Camera;
+            if (camera == null)
+            {
+                return;
+            }
+
             // ── Required inputs: color / depth targets + renderer list ──
+            // Consume a connected input when its handle is valid; otherwise
+            // allocate the resource locally from this pass's parameters.
 
-            if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected || !RendererListSlot.IsConnected)
+            bool useInputColor = ColorTargetSlot.IsConnected && ColorTargetSlot.HasHandle;
+            TextureHandle colorTarget = useInputColor
+                ? ColorTargetSlot.ReadHandle()
+                : renderGraph.CreateTexture(
+                    m_ColorTargetParams.CreateDesc("Color Buffer", camera));
+
+            bool useInputDepth = DepthTargetSlot.IsConnected && DepthTargetSlot.HasHandle;
+            TextureHandle depthTarget = useInputDepth
+                ? DepthTargetSlot.ReadHandle()
+                : renderGraph.CreateTexture(
+                    m_DepthTargetParams.CreateDesc("Depth Buffer", camera));
+
+            if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
                 return;
             }
 
-            TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
-            if (!colorTarget.IsValid())
-            {
-                return;
-            }
+            bool useInputRendererList = RendererListSlot.IsConnected && RendererListSlot.HasHandle;
+            RendererListHandle rendererList = useInputRendererList
+                ? RendererListSlot.ReadHandle()
+                : CreateRendererList(renderGraph);
 
-            TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
-            if (!depthTarget.IsValid())
-            {
-                return;
-            }
-
-            RendererListHandle rendererList = RendererListSlot.ReadHandle();
             if (!rendererList.IsValid())
             {
                 return;
             }
 
-            // Pass-through the input color / depth handles to the output slots so
-            // downstream passes can chain from this pass's outputs.
+            // Pass-through the resolved color / depth handles to the output slots
+            // so downstream passes can chain from this pass's outputs.
             if (ColorTargetOutputSlot != null)
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
@@ -294,51 +357,58 @@ namespace HN.HNRP
 
             // ── Optional inputs: gated independently on connectivity ──
 
-            bool hasLightDatas = LightDatasSlot?.IsConnected == true;
+            bool hasLightDatas = LightDatasSlot?.IsConnected == true && LightDatasSlot.HasHandle;
             if (hasLightDatas)
             {
                 passData.lightDatasBuffer = builder.ReadComputeBuffer(
                     LightDatasSlot.ReadHandle());
             }
 
-            bool hasReflectionProbeAtlas = ReflectionProbeAtlasSlot?.IsConnected == true;
+            bool hasReflectionProbeAtlas = ReflectionProbeAtlasSlot?.IsConnected == true && ReflectionProbeAtlasSlot.HasHandle;
             if (hasReflectionProbeAtlas)
             {
                 passData.reflectionProbeAtlas = builder.ReadTexture(
                     ReflectionProbeAtlasSlot.ReadHandle());
             }
 
-            bool hasProbeMask = ProbeMaskSlot?.IsConnected == true;
+            bool hasProbeMask = ProbeMaskSlot?.IsConnected == true && ProbeMaskSlot.HasHandle;
             if (hasProbeMask)
             {
                 passData.probeMaskBuffer = builder.ReadComputeBuffer(
                     ProbeMaskSlot.ReadHandle());
             }
 
-            bool hasProbeDatas = ProbeDatasSlot?.IsConnected == true;
+            bool hasProbeDatas = ProbeDatasSlot?.IsConnected == true && ProbeDatasSlot.HasHandle;
             if (hasProbeDatas)
             {
                 passData.probeDatasBuffer = builder.ReadComputeBuffer(
                     ProbeDatasSlot.ReadHandle());
             }
 
-            bool hasLightMask = LightMaskSlot?.IsConnected == true;
+            bool hasLightMask = LightMaskSlot?.IsConnected == true && LightMaskSlot.HasHandle;
             if (hasLightMask)
             {
                 passData.lightMaskBuffer = builder.ReadComputeBuffer(
                     LightMaskSlot.ReadHandle());
             }
 
-            // ── Renderer list: read from the resource node input ──
+            // ── Renderer list: read from the resolved handle ──
 
             passData.rendererList = builder.UseRendererList(rendererList);
 
             // ── Render function ──
             // The probe keyword requires all three probe slots connected at record
-            // time (mirrors the original Forward Opaque behavior).
+            // time (mirrors the original Forward Opaque behavior). Per-frame flags
+            // are stored on the pooled pass data so the render function closure
+            // only captures `this` (zero allocation).
 
-            bool setLightGlobals = SetLightGlobals;
+            bool setLightGlobals = m_SetLightGlobals;
             bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
+
+            passData.setLightGlobals = setLightGlobals;
+            passData.enableProbeKeyword = enableProbeKeyword;
+            passData.hasLightMask = hasLightMask;
+            passData.hasLightDatas = hasLightDatas;
 
             // Explicit camera matrices for this pass. SetupCameraProperties on the
             // ScriptableRenderContext only stores the LAST camera's matrix as the
@@ -347,22 +417,19 @@ namespace HN.HNRP
             // draw would use the main camera's view.
             // All passes in HNRP render through RenderGraph which always renders to
             // render textures internally, so renderIntoTexture is always true.
-            Camera passCamera = cameraContext?.Camera;
-            passData.viewMatrix = passCamera != null ? passCamera.worldToCameraMatrix : Matrix4x4.identity;
-            passData.projMatrix = passCamera != null
-                ? GL.GetGPUProjectionMatrix(passCamera.projectionMatrix, true)
-                : Matrix4x4.identity;
+            passData.viewMatrix = camera.worldToCameraMatrix;
+            passData.projMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
 
             builder.SetRenderFunc(
                 (DrawObjectPassData data, RenderGraphContext ctx) =>
                 {
                     ctx.cmd.SetViewProjectionMatrices(data.viewMatrix, data.projMatrix);
 
-                    if (setLightGlobals)
+                    if (data.setLightGlobals)
                     {
                         // Reflection probe shader keyword + globals (all three
                         // probe slots must be connected).
-                        if (enableProbeKeyword)
+                        if (data.enableProbeKeyword)
                         {
                             ctx.cmd.EnableShaderKeyword(
                                 GlobalKeywords.clusterCullingReflectionProbe);
@@ -382,7 +449,7 @@ namespace HN.HNRP
                         }
 
                         // Cluster culling light shader keyword + globals
-                        if (hasLightMask)
+                        if (data.hasLightMask)
                         {
                             ctx.cmd.EnableShaderKeyword(
                                 GlobalKeywords.clusterCullingLight);
@@ -393,7 +460,7 @@ namespace HN.HNRP
 
                         // Light data buffer (set only when the slot is connected —
                         // avoids binding an invalid handle when there is no light pass)
-                        if (hasLightDatas)
+                        if (data.hasLightDatas)
                         {
                             ctx.cmd.SetGlobalBuffer(
                                 BuildLightDataPass.PropertyIDs.LightDatasBuffer,
@@ -409,6 +476,28 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             // No disposable resources held by this pass.
+        }
+
+        // ── Helpers ──
+
+        /// <summary>
+        /// Creates the renderer list locally from <see cref="RendererListParams"/>.
+        /// Returns a default (invalid) handle when culling results are unavailable.
+        /// </summary>
+        /// <param name="renderGraph">The render graph to create the list in.</param>
+        /// <returns>The created renderer list handle, or a default handle.</returns>
+        private RendererListHandle CreateRendererList(RenderGraph renderGraph)
+        {
+            if (!cameraContext.HasCullingResults)
+            {
+                return default;
+            }
+
+            RendererListDesc desc = m_RendererListParams.CreateDesc(
+                ShaderPassNames.AllForwardNames,
+                cameraContext.CullingResults,
+                cameraContext.Camera);
+            return renderGraph.CreateRendererList(desc);
         }
 
         // ── Pass data ──
@@ -457,6 +546,26 @@ namespace HN.HNRP
             /// The renderer list handle.
             /// </summary>
             public RendererListHandle rendererList;
+
+            /// <summary>
+            /// Whether the render function should set lighting globals.
+            /// </summary>
+            public bool setLightGlobals;
+
+            /// <summary>
+            /// Whether the probe keyword + globals should be enabled.
+            /// </summary>
+            public bool enableProbeKeyword;
+
+            /// <summary>
+            /// Whether the cluster culling light mask buffer is bound.
+            /// </summary>
+            public bool hasLightMask;
+
+            /// <summary>
+            /// Whether the light data buffer is bound.
+            /// </summary>
+            public bool hasLightDatas;
 
             /// <summary>
             /// The view matrix for this pass's camera.

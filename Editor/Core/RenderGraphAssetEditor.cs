@@ -26,23 +26,17 @@ namespace HN.HNRP.Editor
 
         private SerializedProperty m_PassesProp;
         private SerializedProperty m_ConnectionsProp;
-        private SerializedProperty m_ResourcesProp;
-        private SerializedProperty m_ResourceConnectionsProp;
         private SerializedProperty m_SettingsProp;
 
         private SerializedProperty m_SHEvalModeProp;
         private SerializedProperty m_AllowHDRProp;
 
         private ReorderableList m_ConnectionsList;
-        private ReorderableList m_ResourceConnectionsList;
 
         private readonly List<bool> m_PassFoldouts = new();
-        private readonly List<bool> m_ResourceFoldouts = new();
 
         private bool m_PassesExpanded = true;
         private bool m_ConnectionsExpanded = true;
-        private bool m_ResourcesExpanded = true;
-        private bool m_ResourceConnectionsExpanded = true;
         private bool m_SettingsExpanded = true;
 
         /// <summary>
@@ -60,7 +54,6 @@ namespace HN.HNRP.Editor
         {
             InitProperties();
             SetupConnectionsList();
-            SetupResourceConnectionsList();
         }
 
         public override void OnInspectorGUI()
@@ -69,7 +62,6 @@ namespace HN.HNRP.Editor
             {
                 InitProperties();
                 SetupConnectionsList();
-                SetupResourceConnectionsList();
                 m_RefreshPending = false;
             }
 
@@ -78,9 +70,7 @@ namespace HN.HNRP.Editor
             DrawScriptField();
             DrawSettingsSection();
             DrawPassesSection();
-            DrawResourcesSection();
             DrawConnectionsSection();
-            DrawResourceConnectionsSection();
 
             if (!m_RefreshPending)
             {
@@ -96,8 +86,6 @@ namespace HN.HNRP.Editor
         {
             m_PassesProp = serializedObject.FindProperty("m_Passes");
             m_ConnectionsProp = serializedObject.FindProperty("m_Connections");
-            m_ResourcesProp = serializedObject.FindProperty("m_Resources");
-            m_ResourceConnectionsProp = serializedObject.FindProperty("m_ResourceConnections");
             m_SettingsProp = serializedObject.FindProperty("m_Settings");
 
             if (m_SettingsProp != null)
@@ -225,72 +213,6 @@ namespace HN.HNRP.Editor
             EditorGUI.indentLevel--;
         }
 
-        private void DrawResourcesSection()
-        {
-            m_ResourcesExpanded = EditorGUILayout.Foldout(
-                m_ResourcesExpanded,
-                $"Resource Nodes ({m_ResourcesProp.arraySize})",
-                toggleOnLabelClick: true);
-
-            if (!m_ResourcesExpanded)
-            {
-                return;
-            }
-
-            EditorGUI.indentLevel++;
-
-            EnsureFoldoutCount(m_ResourceFoldouts, m_ResourcesProp.arraySize);
-
-            for (int i = 0; i < m_ResourcesProp.arraySize; i++)
-            {
-                DrawResourceFoldout(i);
-                if (m_RefreshPending)
-                {
-                    EditorGUI.indentLevel--;
-                    return;
-                }
-            }
-
-            EditorGUI.indentLevel--;
-        }
-
-        private void DrawResourceFoldout(int index)
-        {
-            SerializedProperty element = m_ResourcesProp.GetArrayElementAtIndex(index);
-            if (element == null)
-            {
-                return;
-            }
-
-            var asset = (RenderGraphAsset)target;
-            ResourceDefinition def = index < asset.Resources.Count ? asset.Resources[index] : null;
-
-            string resourceName = def != null ? def.ResourceName : string.Empty;
-            string kind = def != null ? def.Kind.ToString() : "?";
-
-            string title = string.IsNullOrEmpty(resourceName) ? $"Resource {index}" : resourceName;
-
-            EnsureFoldoutCount(m_ResourceFoldouts, m_ResourcesProp.arraySize);
-
-            Action<Vector2> contextAction = (def?.Presets != null && def.Presets.Count > 0)
-                ? (pos => ShowResourcePresetMenu(pos, def))
-                : null;
-
-            m_ResourceFoldouts[index] = CoreEditorUtils.DrawHeaderFoldout(
-                new GUIContent($"{title} ({kind})"),
-                m_ResourceFoldouts[index],
-                contextAction: contextAction);
-
-            if (!m_ResourceFoldouts[index])
-            {
-                return;
-            }
-
-            EditorGUI.indentLevel++;
-            DrawSerializedReferenceFields(element);
-            EditorGUI.indentLevel--;
-        }
-
         private void DrawConnectionsSection()
         {
             m_ConnectionsExpanded = EditorGUILayout.Foldout(
@@ -305,23 +227,6 @@ namespace HN.HNRP.Editor
 
             EditorGUI.indentLevel++;
             m_ConnectionsList.DoLayoutList();
-            EditorGUI.indentLevel--;
-        }
-
-        private void DrawResourceConnectionsSection()
-        {
-            m_ResourceConnectionsExpanded = EditorGUILayout.Foldout(
-                m_ResourceConnectionsExpanded,
-                $"Resource Connections ({m_ResourceConnectionsProp.arraySize})",
-                toggleOnLabelClick: true);
-
-            if (!m_ResourceConnectionsExpanded)
-            {
-                return;
-            }
-
-            EditorGUI.indentLevel++;
-            m_ResourceConnectionsList.DoLayoutList();
             EditorGUI.indentLevel--;
         }
 
@@ -351,28 +256,6 @@ namespace HN.HNRP.Editor
             menu.DropDown(new Rect(position, Vector2.zero));
         }
 
-        /// <summary>
-        /// 弹出 Resource 预设菜单：列出该资源类型的所有预设，选择后套用。
-        /// </summary>
-        private void ShowResourcePresetMenu(Vector2 position, ResourceDefinition def)
-        {
-            IReadOnlyList<IResourcePreset> presets = def?.Presets;
-            if (presets == null || presets.Count == 0)
-            {
-                return;
-            }
-
-            var menu = new GenericMenu();
-            for (int i = 0; i < presets.Count; i++)
-            {
-                int presetIndex = i;
-                menu.AddItem(new GUIContent(presets[i].Name), false,
-                    () => ApplyResourcePreset(def, presetIndex));
-            }
-
-            menu.DropDown(new Rect(position, Vector2.zero));
-        }
-
         private void ApplyPassPreset(PassEditor editor, Pass pass, int presetIndex)
         {
             IReadOnlyList<IPassPreset> presets = editor?.Presets;
@@ -384,21 +267,6 @@ namespace HN.HNRP.Editor
             var asset = (RenderGraphAsset)target;
             Undo.RecordObject(asset, "Apply Pass Preset");
             presets[presetIndex].ApplyTo(pass);
-            EditorUtility.SetDirty(asset);
-            m_RefreshPending = true;
-        }
-
-        private void ApplyResourcePreset(ResourceDefinition def, int presetIndex)
-        {
-            IReadOnlyList<IResourcePreset> presets = def?.Presets;
-            if (presets == null || presetIndex < 0 || presetIndex >= presets.Count)
-            {
-                return;
-            }
-
-            var asset = (RenderGraphAsset)target;
-            Undo.RecordObject(asset, "Apply Resource Preset");
-            presets[presetIndex].ApplyTo(def);
             EditorUtility.SetDirty(asset);
             m_RefreshPending = true;
         }
@@ -496,72 +364,6 @@ namespace HN.HNRP.Editor
         }
 
         private float GetConnectionElementHeight(int index)
-        {
-            return (EditorGUIUtility.singleLineHeight * 2) + 6f;
-        }
-
-        #endregion
-
-        #region ResourceConnection List Setup (read-only)
-
-        private void SetupResourceConnectionsList()
-        {
-            m_ResourceConnectionsList = new ReorderableList(
-                serializedObject, m_ResourceConnectionsProp,
-                draggable: false,
-                displayHeader: true,
-                displayAddButton: false,
-                displayRemoveButton: false)
-            {
-                drawHeaderCallback = DrawResourceConnectionsHeader,
-                drawElementCallback = DrawResourceConnectionElement,
-                elementHeightCallback = GetResourceConnectionElementHeight,
-            };
-        }
-
-        private static void DrawResourceConnectionsHeader(Rect rect)
-        {
-            EditorGUI.LabelField(rect, "Resource Connections");
-        }
-
-        private void DrawResourceConnectionElement(Rect rect, int index, bool isActive, bool isFocused)
-        {
-            SerializedProperty element = m_ResourceConnectionsProp.GetArrayElementAtIndex(index);
-            if (element == null)
-            {
-                return;
-            }
-
-            SerializedProperty resourceProp = element.FindPropertyRelative("ResourceName");
-            SerializedProperty passProp = element.FindPropertyRelative("PassName");
-            SerializedProperty slotProp = element.FindPropertyRelative("SlotName");
-
-            float singleLine = EditorGUIUtility.singleLineHeight;
-            float padding = 2f;
-            float labelWidth = 60f;
-            float fieldWidth = (rect.width - (labelWidth * 2f) - (padding * 3f)) / 2f;
-
-            float col1X = rect.x + labelWidth + padding;
-            float col2X = col1X + fieldWidth + labelWidth + (padding * 2f);
-
-            // Row 1: Resource (full width)
-            var resourceLabelRect = new Rect(rect.x, rect.y + padding, labelWidth, singleLine);
-            var resourceRect = new Rect(col1X, rect.y + padding, rect.width - labelWidth - padding, singleLine);
-
-            EditorGUI.LabelField(resourceLabelRect, "Resource");
-            EditorGUI.PropertyField(resourceRect, resourceProp, GUIContent.none);
-
-            // Row 2: Pass + Slot
-            var passLabelRect = new Rect(rect.x, rect.y + singleLine + padding, labelWidth, singleLine);
-            var passRect = new Rect(col1X, rect.y + singleLine + padding, fieldWidth, singleLine);
-            var slotRect = new Rect(col2X, rect.y + singleLine + padding, fieldWidth, singleLine);
-
-            EditorGUI.LabelField(passLabelRect, "Pass");
-            EditorGUI.PropertyField(passRect, passProp, GUIContent.none);
-            EditorGUI.PropertyField(slotRect, slotProp, GUIContent.none);
-        }
-
-        private float GetResourceConnectionElementHeight(int index)
         {
             return (EditorGUIUtility.singleLineHeight * 2) + 6f;
         }

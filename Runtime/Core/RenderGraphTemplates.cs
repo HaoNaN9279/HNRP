@@ -13,23 +13,27 @@ namespace HN.HNRP
     /// 渲染图模板注册表。未来扩展新模板：在此文件新增一个静态模板实例 + 对应填充方法即可，
     /// 无需改动 <see cref="RenderGraphAsset"/>。
     /// </summary>
+    /// <remarks>
+    /// 渲染资源由各 Pass 自行分配：Pass 消费已连接的输入槽，未连接/无效时
+    /// 用自身参数创建资源（ADR-017）。
+    /// </remarks>
     public static class RenderGraphTemplates
     {
-        /// <summary>标准渲染图模板（8 pass / 18 slot / 4 resource / 4 resource connection，PerPixel+HDR）。</summary>
+        /// <summary>标准渲染图模板（8 pass / 18 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Standard = new RenderGraphTemplate(
             "StandardGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/StandardGraph.asset",
             "RenderGraphs/StandardGraph",
             PopulateStandardGraph);
 
-        /// <summary> 反射渲染图模板（7 pass / 11 slot / 7 resource / 8 resource connection，PerPixel+HDR）。</summary>
+        /// <summary> 反射渲染图模板（7 pass / 11 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Reflection = new RenderGraphTemplate(
             "ReflectionGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/ReflectionGraph.asset",
             "RenderGraphs/ReflectionGraph",
             PopulateReflectionGraph);
 
-        /// <summary>预览渲染图模板（2 pass / 1 slot / 3 resource / 3 resource connection，PerVertex+无HDR）。</summary>
+        /// <summary>预览渲染图模板（2 pass / 1 slot，PerVertex+无HDR）。</summary>
         public static readonly RenderGraphTemplate Preview = new RenderGraphTemplate(
             "PreviewGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/PreviewGraph.asset",
@@ -44,7 +48,7 @@ namespace HN.HNRP
         {
             Standard.Ensure();
             Reflection.Ensure();
-            Preview.Ensure(); 
+            Preview.Ensure();
         }
 
         private static void PopulateStandardGraph(RenderGraphAsset g)
@@ -57,7 +61,14 @@ namespace HN.HNRP
                     new ClusterCullingLightPass("clusterLight"),
                     new DrawObjectPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
-                    new DrawObjectPass("transparency"),
+                    new DrawObjectPass("transparency")
+                    {
+                        RendererListParams = new RendererListParams
+                        {
+                            ListKind = RenderListKind.Transparent,
+                            RenderingLayerMask = 0x00000001,
+                        },
+                    },
                     new EditorWireOverlayPass("wireOverlay"),
                     new RenderOutputPass("finalBlit"),
                 },
@@ -82,35 +93,6 @@ namespace HN.HNRP
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
                 },
-                new List<ResourceDefinition>
-                {
-                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
-                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
-                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
-                    new RendererListResourceDefinition { ResourceName = "TransparentRendererList", ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
-                    new TextureResourceDefinition
-                    {
-                        ResourceName = "ReflectionProbeAtlas",
-                        Width = 4096,
-                        Height = 4096,
-                        ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32,
-                        ClearBuffer = true,
-                        ClearColor = Color.black,
-                        UseMipMap = true,
-                        AutoGenerateMips = false,
-                        FilterMode = FilterMode.Trilinear,
-                        WrapMode = TextureWrapMode.Clamp,
-                        TextureDimension = TextureDimension.Tex2D,
-                    },
-                },
-                new List<ResourceConnection>
-                {
-                    new ResourceConnection { ResourceName = "ColorBuffer", PassName = "forwardOpaque", SlotName = "ColorTarget" },
-                    new ResourceConnection { ResourceName = "DepthBuffer", PassName = "forwardOpaque", SlotName = "DepthTarget" },
-                    new ResourceConnection { ResourceName = "OpaqueRendererList", PassName = "forwardOpaque", SlotName = "RendererList" },
-                    new ResourceConnection { ResourceName = "TransparentRendererList", PassName = "transparency", SlotName = "RendererList" },
-                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "clusterProbe", SlotName = "reflectionProbeAtlas" },
-                },
                 new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
         }
 
@@ -123,7 +105,14 @@ namespace HN.HNRP
                     new ClusterCullingLightPass("clusterLight"),
                     new DrawObjectPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
-                    new DrawObjectPass("transparency"),
+                    new DrawObjectPass("transparency")
+                    {
+                        RendererListParams = new RendererListParams
+                        {
+                            ListKind = RenderListKind.Transparent,
+                            RenderingLayerMask = 0x00000001,
+                        },
+                    },
                     new EditorWireOverlayPass("wireOverlay"),
                     new RenderOutputPass("finalBlit"),
                 },
@@ -141,23 +130,6 @@ namespace HN.HNRP
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
                 },
-                new List<ResourceDefinition>
-                {
-                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
-                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
-                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque, RenderingLayerMask = 1 },
-                    new RendererListResourceDefinition { ResourceName = "TransparentRendererList", ListKind = RenderListKind.Transparent, RenderingLayerMask = 1 },
-                    new TextureResourceDefinition { ResourceName = "ReflectionProbeAtlas", ExternalTextureName = "emptyTexture"},
-                },
-                new List<ResourceConnection>
-                {
-                    new ResourceConnection { ResourceName = "ColorBuffer", PassName = "forwardOpaque", SlotName = "ColorTarget" },
-                    new ResourceConnection { ResourceName = "DepthBuffer", PassName = "forwardOpaque", SlotName = "DepthTarget" },
-                    new ResourceConnection { ResourceName = "OpaqueRendererList", PassName = "forwardOpaque", SlotName = "RendererList" },
-                    new ResourceConnection { ResourceName = "TransparentRendererList", PassName = "transparency", SlotName = "RendererList" },
-                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "forwardOpaque", SlotName = "ReflectionProbeAtlas" },
-                    new ResourceConnection { ResourceName = "ReflectionProbeAtlas", PassName = "transparency", SlotName = "ReflectionProbeAtlas" },
-                },
                 new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
         }
 
@@ -166,24 +138,12 @@ namespace HN.HNRP
             g.SetDefinition(
                 new List<Pass>
                 {
-                    new DrawObjectPass("opaque"),
+                    new DrawObjectPass("opaque") { SetLightGlobals = false },
                     new RenderOutputPass("finalBlit"),
                 },
                 new List<SlotConnection>
                 {
                     SlotConnection.Create("opaque", "ColorTargetOutput", "finalBlit", "ColorTarget"),
-                },
-                new List<ResourceDefinition>
-                {
-                    new TextureResourceDefinition { ResourceName = "ColorBuffer" },
-                    new TextureResourceDefinition { ResourceName = "DepthBuffer", DepthBits = DepthBits.Depth32 },
-                    new RendererListResourceDefinition { ResourceName = "OpaqueRendererList", ListKind = RenderListKind.Opaque },
-                },
-                new List<ResourceConnection>
-                {
-                    new ResourceConnection { ResourceName = "ColorBuffer", PassName = "opaque", SlotName = "ColorTarget" },
-                    new ResourceConnection { ResourceName = "DepthBuffer", PassName = "opaque", SlotName = "DepthTarget" },
-                    new ResourceConnection { ResourceName = "OpaqueRendererList", PassName = "opaque", SlotName = "RendererList" },
                 },
                 new RenderGraphSettings { SHEvalMode = SHEvalMode.PerVertex, AllowHDR = false });
         }

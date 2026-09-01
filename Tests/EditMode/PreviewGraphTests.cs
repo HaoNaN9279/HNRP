@@ -104,11 +104,11 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// After <see cref="RenderGraphAsset.Build"/>, the preview graph's key
-        /// input slots are connected under the new chained model: the opaque
-        /// draw pass reads color / depth / renderer list from resource nodes,
-        /// and <c>finalBlit</c> receives the color target through the
-        /// <c>opaque.ColorTargetOutput</c> slot connection.
+        /// After <see cref="RenderGraphAsset.Build"/>, the preview graph's opaque
+        /// pass owns its color / depth / renderer list resources (its input slots
+        /// are intentionally unconnected — the pass allocates them from its
+        /// parameters, ADR-017), and <c>finalBlit</c> receives the color target
+        /// through the <c>opaque.ColorTargetOutput</c> slot connection.
         /// </summary>
         [Test]
         public void PreviewGraph_ConnectsKeySlots()
@@ -121,12 +121,12 @@ namespace HN.HNRP.Tests
             var opaque = result.Find(p => p.PassName == "opaque") as DrawObjectPass;
             Assert.That(opaque, Is.Not.Null,
                 "PreviewGraph should contain an 'opaque' DrawObjectPass.");
-            Assert.That(opaque!.ColorTargetSlot!.IsConnected, Is.True,
-                "opaque.ColorTarget should be connected through a resource node.");
-            Assert.That(opaque.DepthTargetSlot!.IsConnected, Is.True,
-                "opaque.DepthTarget should be connected through a resource node.");
-            Assert.That(opaque.RendererListSlot!.IsConnected, Is.True,
-                "opaque.RendererList should be connected through a resource node.");
+            Assert.That(opaque!.ColorTargetSlot!.IsConnected, Is.False,
+                "opaque.ColorTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(opaque.DepthTargetSlot!.IsConnected, Is.False,
+                "opaque.DepthTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(opaque.RendererListSlot!.IsConnected, Is.False,
+                "opaque.RendererList should be unconnected — the pass allocates it locally.");
 
             var finalBlit = result.Find(p => p.PassName == "finalBlit") as RenderOutputPass;
             Assert.That(finalBlit, Is.Not.Null,
@@ -174,32 +174,31 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Resource Nodes
+        #region Resource Ownership
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> materializes the preview graph's
-        /// color / depth buffers and opaque renderer list as resource nodes.
+        /// The preview graph's opaque pass owns its render resources through
+        /// parameters (ADR-017): a full-resolution color target, a 32-bit depth
+        /// target, and an opaque renderer list. No separate resource node layer
+        /// exists in the asset.
         /// </summary>
         [Test]
-        public void PreviewGraph_MaterializesResourceNodes()
+        public void PreviewGraph_OpaquePassOwnsResourceParameters()
         {
             var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/PreviewGraph");
             Assume.That(asset, Is.Not.Null, "PreviewGraph asset must exist for this test.");
 
-            asset.Build(renderer: null);
+            var opaque = (DrawObjectPass)asset.Passes.Find(p => p.PassName == "opaque");
+            Assert.That(opaque, Is.Not.Null,
+                "PreviewGraph should declare an 'opaque' DrawObjectPass.");
 
-            IReadOnlyList<ResourceNode> nodes = asset.ResourceNodes;
-            Assert.That(nodes, Is.Not.Null,
-                "ResourceNodes should be non-null after Build.");
-            Assert.That(nodes.Count, Is.GreaterThan(0),
-                "Build should materialize at least one resource node.");
-
-            Assert.That(nodes.Any(n => n.ResourceName == "ColorBuffer"), Is.True,
-                "A ColorBuffer resource node should be present.");
-            Assert.That(nodes.Any(n => n.ResourceName == "DepthBuffer"), Is.True,
-                "A DepthBuffer resource node should be present.");
-            Assert.That(nodes.Any(n => n.ResourceName == "OpaqueRendererList"), Is.True,
-                "An OpaqueRendererList resource node should be present.");
+            Assert.That(opaque.ColorTargetParams.Width, Is.EqualTo(0),
+                "Color target should use camera-scaled size.");
+            Assert.That(opaque.DepthTargetParams.DepthBits,
+                Is.EqualTo(UnityEngine.Rendering.DepthBits.Depth32),
+                "Depth target should be 32-bit.");
+            Assert.That(opaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
+                "Renderer list should be opaque.");
         }
 
         #endregion

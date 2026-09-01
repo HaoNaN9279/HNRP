@@ -13,14 +13,14 @@ MonoBehaviour:
   m_Name: StandardGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - rid: 2663563119090466895
-  - rid: 2663563119090466896
-  - rid: 2663563119090466897
-  - rid: 2663563119090466898
-  - rid: 2663563119090466899
-  - rid: 2663563119090466900
-  - rid: 2663563119090466901
-  - rid: 2663563119090466902
+  - rid: 2663563119090466972
+  - rid: 2663563119090466973
+  - rid: 2663563119090466974
+  - rid: 2663563119090466975
+  - rid: 2663563119090466976
+  - rid: 2663563119090466977
+  - rid: 2663563119090466978
+  - rid: 2663563119090466979
   m_Connections:
   - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTargetOutput
@@ -94,139 +94,123 @@ MonoBehaviour:
     m_SourceSlot: clusterCullingReflectionProbeDatasBuffer
     m_TargetPass: forwardOpaque
     m_TargetSlot: ProbeDatas
-  m_Resources:
-  - rid: 2663563119090466903
-  - rid: 2663563119090466904
-  - rid: 2663563119090466905
-  - rid: 2663563119090466906
-  - rid: 2663563119090466907
-  m_ResourceConnections:
-  - ResourceName: ColorBuffer
-    PassName: forwardOpaque
-    SlotName: ColorTarget
-  - ResourceName: DepthBuffer
-    PassName: forwardOpaque
-    SlotName: DepthTarget
-  - ResourceName: OpaqueRendererList
-    PassName: forwardOpaque
-    SlotName: RendererList
-  - ResourceName: TransparentRendererList
-    PassName: transparency
-    SlotName: RendererList
-  - ResourceName: ReflectionProbeAtlas
-    PassName: clusterProbe
-    SlotName: reflectionProbeAtlas
   m_Settings:
     SHEvalMode: 2
     AllowHDR: 1
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466895
+    - rid: 2663563119090466972
       type: {class: BuildLightDataPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: buildLight
         m_IsEnabled: 1
-    - rid: 2663563119090466896
+    - rid: 2663563119090466973
       type: {class: ClusterCullingReflectionProbePass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: clusterProbe
         m_IsEnabled: 1
-    - rid: 2663563119090466897
+        m_AtlasParams:
+          ColorFormat: 74
+          DepthBits: 0
+          TextureScale: {x: 1, y: 1}
+          Width: 4096
+          Height: 4096
+          FilterMode: 2
+          WrapMode: 1
+          TextureDimension: 2
+          UseMipMap: 1
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+    - rid: 2663563119090466974
       type: {class: ClusterCullingLightPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: clusterLight
         m_IsEnabled: 1
-    - rid: 2663563119090466898
+    - rid: 2663563119090466975
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: forwardOpaque
         m_IsEnabled: 1
-        <RenderingLayerMask>k__BackingField: 1
-        <SetLightGlobals>k__BackingField: 1
-    - rid: 2663563119090466899
+        m_ColorTargetParams:
+          ColorFormat: 8
+          DepthBits: 0
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_DepthTargetParams:
+          ColorFormat: 8
+          DepthBits: 32
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_RendererListParams:
+          ListKind: 0
+          RenderingLayerMask: 1
+        m_SetLightGlobals: 1
+    - rid: 2663563119090466976
       type: {class: BuiltinSkyPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: sky
         m_IsEnabled: 1
-    - rid: 2663563119090466900
+    - rid: 2663563119090466977
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: transparency
         m_IsEnabled: 1
-        <RenderingLayerMask>k__BackingField: 1
-        <SetLightGlobals>k__BackingField: 1
-    - rid: 2663563119090466901
+        m_ColorTargetParams:
+          ColorFormat: 8
+          DepthBits: 0
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_DepthTargetParams:
+          ColorFormat: 8
+          DepthBits: 32
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_RendererListParams:
+          ListKind: 1
+          RenderingLayerMask: 1
+        m_SetLightGlobals: 1
+    - rid: 2663563119090466978
       type: {class: EditorWireOverlayPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: wireOverlay
         m_IsEnabled: 1
-    - rid: 2663563119090466902
+    - rid: 2663563119090466979
       type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: finalBlit
         m_IsEnabled: 1
-        <Flip>k__BackingField: 0
-    - rid: 2663563119090466903
-      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: ColorBuffer
-        ColorFormat: 8
-        DepthBits: 0
-        TextureScale: {x: 1, y: 1}
-        Width: 0
-        Height: 0
-        FilterMode: 0
-        WrapMode: 0
-        TextureDimension: 0
-        UseMipMap: 0
-        AutoGenerateMips: 0
-        ClearBuffer: 1
-        ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        ExternalTextureName: 
-    - rid: 2663563119090466904
-      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: DepthBuffer
-        ColorFormat: 8
-        DepthBits: 32
-        TextureScale: {x: 1, y: 1}
-        Width: 0
-        Height: 0
-        FilterMode: 0
-        WrapMode: 0
-        TextureDimension: 0
-        UseMipMap: 0
-        AutoGenerateMips: 0
-        ClearBuffer: 1
-        ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        ExternalTextureName: 
-    - rid: 2663563119090466905
-      type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: OpaqueRendererList
-        ListKind: 0
-        RenderingLayerMask: 1
-    - rid: 2663563119090466906
-      type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: TransparentRendererList
-        ListKind: 1
-        RenderingLayerMask: 1
-    - rid: 2663563119090466907
-      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: ReflectionProbeAtlas
-        ColorFormat: 74
-        DepthBits: 0
-        TextureScale: {x: 1, y: 1}
-        Width: 4096
-        Height: 4096
-        FilterMode: 2
-        WrapMode: 1
-        TextureDimension: 2
-        UseMipMap: 1
-        AutoGenerateMips: 0
-        ClearBuffer: 1
-        ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        ExternalTextureName: 
+        m_Flip: 0

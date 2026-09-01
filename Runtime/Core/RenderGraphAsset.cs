@@ -67,6 +67,12 @@ namespace HN.HNRP
     /// default render graph fields on <see cref="HNRenderPipelineAsset"/>
     /// (e.g. <c>DefaultGameRenderGraph</c>).
     /// </para>
+    /// <para>
+    /// All rendering resources are owned by the passes themselves: a pass consumes
+    /// a connected input slot when available and allocates its own resource from
+    /// its parameters otherwise (ADR-017). There is no separate resource node
+    /// layer in the asset.
+    /// </para>
     /// </remarks>
     public class RenderGraphAsset : ScriptableObject
     {
@@ -76,20 +82,8 @@ namespace HN.HNRP
         [SerializeField]
         private List<SlotConnection> m_Connections = new();
 
-        [SerializeReference]
-        private List<ResourceDefinition> m_Resources = new();
-
-        [SerializeField]
-        private List<ResourceConnection> m_ResourceConnections = new();
-
         [SerializeField]
         private RenderGraphSettings m_Settings;
-
-        /// <summary>
-        /// Runtime resource nodes built from <see cref="m_Resources"/> during
-        /// <see cref="Build"/>. Not serialized.
-        /// </summary>
-        private List<ResourceNode> m_RuntimeResources = new();
 
         /// <summary>
         /// Gets the ordered list of pass templates in this graph.
@@ -104,23 +98,6 @@ namespace HN.HNRP
         public List<SlotConnection> Connections => m_Connections;
 
         /// <summary>
-        /// Gets the ordered list of resource definitions in this graph.
-        /// </summary>
-        public List<ResourceDefinition> Resources => m_Resources;
-
-        /// <summary>
-        /// Gets the ordered list of resource connections in this graph.
-        /// </summary>
-        public List<ResourceConnection> ResourceConnections => m_ResourceConnections;
-
-        /// <summary>
-        /// Gets the runtime resource nodes built during the last <see cref="Build"/>
-        /// call. Consumers (e.g. <c>CameraRenderer</c>) resolve these each frame
-        /// before passes record.
-        /// </summary>
-        public IReadOnlyList<ResourceNode> ResourceNodes => m_RuntimeResources;
-
-        /// <summary>
         /// Gets or sets the bundled render graph settings.
         /// </summary>
         public RenderGraphSettings Settings
@@ -130,25 +107,19 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// 用模板定义覆盖本资源的全部序列化内容（passes/connections/resources/resourceConnections/settings）。
+        /// 用模板定义覆盖本资源的全部序列化内容（passes/connections/settings）。
         /// 由 <see cref="RenderGraphTemplates"/> 在创建/重置模板资源时调用。
         /// </summary>
         /// <param name="passes">pass 模板列表。</param>
         /// <param name="connections">slot 连接列表。</param>
-        /// <param name="resources">资源定义列表。</param>
-        /// <param name="resourceConnections">资源连接列表。</param>
         /// <param name="settings">渲染图设置。</param>
         public void SetDefinition(
             List<Pass> passes,
             List<SlotConnection> connections,
-            List<ResourceDefinition> resources,
-            List<ResourceConnection> resourceConnections,
             RenderGraphSettings settings)
         {
             m_Passes = passes;
             m_Connections = connections;
-            m_Resources = resources;
-            m_ResourceConnections = resourceConnections;
             m_Settings = settings;
         }
 
@@ -160,7 +131,6 @@ namespace HN.HNRP
         /// </summary>
         /// <param name="renderer">
         /// The camera renderer that will own the built passes.
-        /// (Todo 13: Change parameter type to <c>CameraRenderer</c> when that type exists.)
         /// </param>
         /// <returns>
         /// A new <see cref="List{Pass}"/> containing all enabled passes,
@@ -197,36 +167,10 @@ namespace HN.HNRP
 
                 // Declare the pass's slots once at build time so that Phase 2
                 // (ConnectPassSlots) wires up the same slot instances that Record
-                // will use each frame. Per-frame SetupSlots calls (the old
-                // CameraRenderer behavior) recreated slots and broke connections.
+                // will use each frame.
                 pass.SetupSlots();
 
                 passMap[template.PassName] = pass;
-            }
-
-            // ── Phase 1.5: Build resource nodes from definitions ──
-            m_RuntimeResources = new List<ResourceNode>();
-            var resourceMap = new Dictionary<string, ResourceNode>();
-            foreach (ResourceDefinition def in m_Resources)
-            {
-                if (def == null || string.IsNullOrEmpty(def.ResourceName))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Skipping resource definition with null/empty ResourceName.");
-                    continue;
-                }
-
-                ResourceNode node = def.CreateNode();
-                if (node == null)
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Could not create resource node for " +
-                        $"'{def.ResourceName}' (kind '{def.Kind}').");
-                    continue;
-                }
-
-                resourceMap[def.ResourceName] = node;
-                m_RuntimeResources.Add(node);
             }
 
             // ── Phase 2: Wire up slot connections ──
@@ -260,61 +204,6 @@ namespace HN.HNRP
                 ConnectPassSlots(sourcePass, conn.SourceSlot, targetPass, conn.TargetSlot);
             }
 
-            // ── Phase 2.5: Parse resource connections ──
-            foreach (ResourceConnection rc in m_ResourceConnections)
-            {
-                if (rc == null || string.IsNullOrEmpty(rc.ResourceName))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Skipping ResourceConnection with null/empty ResourceName.");
-                    continue;
-                }
-
-                if (!resourceMap.TryGetValue(rc.ResourceName, out ResourceNode node))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: ResourceConnection references unknown ResourceName " +
-                        $"'{rc.ResourceName}'.");
-                    continue;
-                }
-
-                if (string.IsNullOrEmpty(rc.PassName)
-                    || !passMap.TryGetValue(rc.PassName, out Pass pass))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
-                        $"references unknown PassName '{(rc != null ? rc.PassName : "<null>")}'.");
-                    continue;
-                }
-
-                PassSlot slot = pass.GetSlot(rc.SlotName);
-                if (slot == null)
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
-                        $"references unknown slot '{rc.SlotName}' on pass '{rc.PassName}'.");
-                    continue;
-                }
-
-                try
-                {
-                    slot.ConnectResource(node);
-                    node.ConsumerSlots.Add(slot);
-                }
-                catch (ArgumentException ex)
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
-                        $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
-                }
-                catch (InvalidOperationException ex)
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: ResourceConnection for resource '{rc.ResourceName}' " +
-                        $"to pass '{rc.PassName}' slot '{rc.SlotName}' failed: {ex.Message}");
-                }
-            }
-
             // ── Phase 3: Topologically sort passes (dependency order) ──
             return TopologicalSort(passMap);
         }
@@ -332,16 +221,9 @@ namespace HN.HNRP
         /// cycle is detected.
         /// </returns>
         /// <remarks>
-        /// Dependencies come from two sources:
-        /// <list type="bullet">
-        ///   <item><b>Resource dependencies</b> — passes owning a slot in
-        ///   <see cref="ResourceNode.ConsumerSlots"/> are chained in definition
-        ///   order. RenderGraph does not reorder passes that share a
-        ///   non-pass-produced resource, so record order here is execution
-        ///   order.</item>
-        ///   <item><b>SlotConnection edges</b> — legacy pass-to-pass edges from
-        ///   <see cref="m_Connections"/> (source pass before target pass).</item>
-        /// </list>
+        /// Dependencies come from <see cref="SlotConnection"/> edges: the source
+        /// pass (producer of an output slot) is ordered before the target pass
+        /// (consumer of the matching input slot).
         /// </remarks>
         private List<Pass> TopologicalSort(Dictionary<string, Pass> passMap)
         {
@@ -367,37 +249,7 @@ namespace HN.HNRP
             var adjacency = new Dictionary<int, HashSet<int>>();
             var inDegree = new int[count];
 
-            // ── Build dependency edges ──
-
-            // Chained consumer edges keep the passes that share a resource in
-            // definition order. RenderGraph does not reorder passes that share a
-            // non-pass-produced resource, so the record order here is the
-            // execution order.
-            foreach (ResourceNode node in m_RuntimeResources)
-            {
-                // Collect consumer passes (deduplicated) in definition order.
-                var consumers = new List<Pass>();
-                foreach (PassSlot consumer in node.ConsumerSlots)
-                {
-                    if (consumer.OwnerPass == null
-                        || !index.TryGetValue(consumer.OwnerPass, out _)
-                        || consumers.Contains(consumer.OwnerPass))
-                    {
-                        continue;
-                    }
-
-                    consumers.Add(consumer.OwnerPass);
-                }
-
-                consumers.Sort((a, b) => order.IndexOf(a).CompareTo(order.IndexOf(b)));
-
-                for (int i = 0; i + 1 < consumers.Count; i++)
-                {
-                    AddEdge(adjacency, inDegree, index[consumers[i]], index[consumers[i + 1]]);
-                }
-            }
-
-            // Legacy SlotConnection edges: source pass → target pass.
+            // ── Build dependency edges from SlotConnection entries ──
             foreach (SlotConnection conn in m_Connections)
             {
                 if (!conn.IsValid())
@@ -522,8 +374,6 @@ namespace HN.HNRP
             Pass target,
             string targetSlot)
         {
-            // Wires an output slot of source to an input slot of target by name.
-            // Fails silently when directions don't match (e.g. legacy output→output definitions).
             source.TryConnect(sourceSlot, target, targetSlot);
         }
     }

@@ -100,58 +100,14 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Resource Nodes
-
-        /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> materializes the asset's
-        /// <see cref="ResourceDefinition"/> entries into runtime
-        /// <see cref="ResourceNode"/> instances exposed through
-        /// <see cref="RenderGraphAsset.ResourceNodes"/>. StandardGraph declares
-        /// five resources — the color / depth buffers, both opaque /
-        /// transparent renderer lists, and the reflection probe atlas.
-        /// Lighting / probe data (LightDatas, LightMask, ProbeMask, ProbeDatas)
-        /// flows through <see cref="SlotConnection"/> entries, not resource nodes.
-        /// </summary>
-        [Test]
-        public void Build_MaterializesResourceNodes()
-        {
-            var asset = Resources.Load<RenderGraphAsset>("RenderGraphs/StandardGraph");
-            Assume.That(asset, Is.Not.Null,
-                "Test requires StandardGraph.asset to be loadable.");
-
-            IReadOnlyList<ResourceNode> nodes = asset.ResourceNodes;
-
-            Assert.That(nodes, Is.Not.Null,
-                "ResourceNodes should be non-null after Build.");
-            Assert.That(nodes.Count, Is.EqualTo(5),
-                "Build should materialize the five StandardGraph resource nodes.");
-
-            string[] expectedNames =
-            {
-                "ColorBuffer", "DepthBuffer",
-                "OpaqueRendererList", "TransparentRendererList",
-                "ReflectionProbeAtlas",
-            };
-
-            foreach (string name in expectedNames)
-            {
-                Assert.That(nodes.Any(n => n.ResourceName == name), Is.True,
-                    $"A '{name}' resource node should be present.");
-            }
-
-            Assert.That(nodes.Any(n => n.ResourceName == "LightDatas"), Is.False,
-                "LightDatas should not be a resource node — it flows through a slot connection.");
-        }
-
-        #endregion
-
         #region Build — Connections
 
         /// <summary>
         /// After <see cref="RenderGraphAsset.Build"/>, the key input slots of
-        /// every rendering pass are connected. Under the simplified resource
-        /// model only color / depth / renderer-list slots connect through
-        /// resource nodes; lighting / probe data flows through
+        /// every rendering pass are connected. Under the pass-owned resource
+        /// model (ADR-017) the chain-head color / depth / renderer-list slots
+        /// are intentionally unconnected — the pass allocates them from its own
+        /// parameters; lighting / probe data flows through
         /// <see cref="SlotConnection"/> pass-to-pass chains (e.g.
         /// <c>buildLight.lightDatasBuffer</c> → <c>forwardOpaque.LightDatas</c>),
         /// and the color target chains forwardOpaque → sky → transparency →
@@ -174,14 +130,17 @@ namespace HN.HNRP.Tests
                 return pass!;
             }
 
-            // ── forwardOpaque: color/depth/renderer-list from resource nodes,
-            //    lighting/probe data from slot connections ──
+            // ── forwardOpaque: chain head — color/depth/renderer-list are
+            //    allocated locally (unconnected); lighting/probe data from slot
+            //    connections ──
 
             var forwardOpaque = (DrawObjectPass)FindPass("forwardOpaque");
-            Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.True,
-                "forwardOpaque.ColorTarget should be connected through a resource node.");
-            Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.True,
-                "forwardOpaque.DepthTarget should be connected through a resource node.");
+            Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.False,
+                "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.False,
+                "forwardOpaque.DepthTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(forwardOpaque.RendererListSlot!.IsConnected, Is.False,
+                "forwardOpaque.RendererList should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
@@ -192,8 +151,6 @@ namespace HN.HNRP.Tests
                 "forwardOpaque.ProbeDatas should be connected through a slot connection from clusterProbe.");
             Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
-            Assert.That(forwardOpaque.RendererListSlot!.IsConnected, Is.True,
-                "forwardOpaque.RendererList should be connected through a resource node.");
 
             // ── sky: color / depth targets connected (chained from forwardOpaque) ──
 
@@ -203,14 +160,17 @@ namespace HN.HNRP.Tests
             Assert.That(sky.DepthTargetSlot!.IsConnected, Is.True,
                 "sky.DepthTarget should be connected through forwardOpaque.DepthTargetOutput.");
 
-            // ── transparency: color/depth chained from sky, renderer list from a
-            //    resource node, lighting/probe data from slot connections ──
+            // ── transparency: color/depth chained from sky, renderer list
+            //    allocated locally (unconnected), lighting/probe data from slot
+            //    connections ──
 
             var transparency = (DrawObjectPass)FindPass("transparency");
             Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
                 "transparency.ColorTarget should be connected through sky.ColorTargetOutput.");
             Assert.That(transparency.DepthTargetSlot!.IsConnected, Is.True,
                 "transparency.DepthTarget should be connected through sky.DepthTargetOutput.");
+            Assert.That(transparency.RendererListSlot!.IsConnected, Is.False,
+                "transparency.RendererList should be unconnected — the pass allocates it locally.");
             Assert.That(transparency.LightDatasSlot!.IsConnected, Is.True,
                 "transparency.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(transparency.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
@@ -221,8 +181,6 @@ namespace HN.HNRP.Tests
                 "transparency.ProbeDatas should be connected through a slot connection from clusterProbe.");
             Assert.That(transparency.LightMaskSlot!.IsConnected, Is.True,
                 "transparency.LightMask should be connected through a slot connection from clusterLight.");
-            Assert.That(transparency.RendererListSlot!.IsConnected, Is.True,
-                "transparency.RendererList should be connected through a resource node.");
 
             // ── wireOverlay: color target connected (chained from transparency) ──
 

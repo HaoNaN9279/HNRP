@@ -13,83 +13,57 @@ MonoBehaviour:
   m_Name: PreviewGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - rid: 2663563119090466920
-  - rid: 2663563119090466921
+  - rid: 2663563119090466987
+  - rid: 2663563119090466988
   m_Connections:
   - m_SourcePass: opaque
     m_SourceSlot: ColorTargetOutput
     m_TargetPass: finalBlit
     m_TargetSlot: ColorTarget
-  m_Resources:
-  - rid: 2663563119090466922
-  - rid: 2663563119090466923
-  - rid: 2663563119090466924
-  m_ResourceConnections:
-  - ResourceName: ColorBuffer
-    PassName: opaque
-    SlotName: ColorTarget
-  - ResourceName: DepthBuffer
-    PassName: opaque
-    SlotName: DepthTarget
-  - ResourceName: OpaqueRendererList
-    PassName: opaque
-    SlotName: RendererList
   m_Settings:
     SHEvalMode: 0
     AllowHDR: 0
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466920
+    - rid: 2663563119090466987
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: opaque
         m_IsEnabled: 1
-        <RenderingLayerMask>k__BackingField: 1
-        <SetLightGlobals>k__BackingField: 1
-    - rid: 2663563119090466921
+        m_ColorTargetParams:
+          ColorFormat: 8
+          DepthBits: 0
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_DepthTargetParams:
+          ColorFormat: 8
+          DepthBits: 32
+          TextureScale: {x: 1, y: 1}
+          Width: 0
+          Height: 0
+          FilterMode: 1
+          WrapMode: 0
+          TextureDimension: 2
+          UseMipMap: 0
+          AutoGenerateMips: 0
+          ClearBuffer: 1
+          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        m_RendererListParams:
+          ListKind: 0
+          RenderingLayerMask: 1
+        m_SetLightGlobals: 0
+    - rid: 2663563119090466988
       type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: finalBlit
         m_IsEnabled: 1
-        <Flip>k__BackingField: 0
-    - rid: 2663563119090466922
-      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: ColorBuffer
-        ColorFormat: 8
-        DepthBits: 0
-        TextureScale: {x: 1, y: 1}
-        Width: 0
-        Height: 0
-        FilterMode: 0
-        WrapMode: 0
-        TextureDimension: 0
-        UseMipMap: 0
-        AutoGenerateMips: 0
-        ClearBuffer: 1
-        ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        ExternalTextureName: 
-    - rid: 2663563119090466923
-      type: {class: TextureResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: DepthBuffer
-        ColorFormat: 8
-        DepthBits: 32
-        TextureScale: {x: 1, y: 1}
-        Width: 0
-        Height: 0
-        FilterMode: 0
-        WrapMode: 0
-        TextureDimension: 0
-        UseMipMap: 0
-        AutoGenerateMips: 0
-        ClearBuffer: 1
-        ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        ExternalTextureName: 
-    - rid: 2663563119090466924
-      type: {class: RendererListResourceDefinition, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        ResourceName: OpaqueRendererList
-        ListKind: 0
-        RenderingLayerMask: 1
+        m_Flip: 0

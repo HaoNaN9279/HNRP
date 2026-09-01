@@ -32,14 +32,33 @@ namespace HN.HNRP
     [Pass("Cluster Culling Probe")]
     public sealed class ClusterCullingReflectionProbePass : Pass
     {
+        // ── Configurable parameters ──
+
+        /// <summary>
+        /// Parameters for the reflection probe atlas allocated when the
+        /// <see cref="ReflectionProbeAtlasInputSlot"/> input is not connected
+        /// / valid. Default: HDR 4096 atlas with trilinear mip filtering.
+        /// </summary>
+        [SerializeField]
+        private TextureResourceParams m_AtlasParams;
+
+        /// <summary>
+        /// Gets or sets the reflection probe atlas allocation parameters.
+        /// </summary>
+        public TextureResourceParams AtlasParams
+        {
+            get => m_AtlasParams;
+            set => m_AtlasParams = value;
+        }
+
         // ── Slots ──
 
         /// <summary>
         /// Gets the input texture slot for the reflection probe atlas
         /// (<see cref="TextureSlot"/>, <see cref="SlotDirection.Input"/>).
-        /// The atlas is created as a resource node in the RenderGraphAsset and
-        /// passed in via resource connection. This pass writes the blitted
-        /// octahedral data into it, then exposes it via
+        /// When connected with a valid handle, this pass writes the blitted
+        /// octahedral data into the upstream atlas; otherwise it allocates its
+        /// own atlas from <see cref="AtlasParams"/>. The result is exposed via
         /// <see cref="ReflectionProbeAtlasOutputSlot"/> for downstream passes.
         /// </summary>
         public TextureSlot? ReflectionProbeAtlasInputSlot { get; private set; }
@@ -79,6 +98,17 @@ namespace HN.HNRP
         private CameraContext? m_Context;
         private ComputeShader? m_ComputeShader;
 
+        // ── Reusable scratch buffers (zero per-frame GC) ──
+        // The render loop fills these pre-allocated buffers every frame instead of
+        // allocating new arrays / lists. Lazy-initialized once, reused forever.
+
+        private List<ProbeEntry> m_ProbeEntries;
+        private ReflectionProbeData4CS[] m_CullingDatas;
+        private ClusterCullingReflectionProbeDatas[] m_SampleDatas;
+        private int4[] m_ScaleOffsetsInt;
+        private Vector4[] m_ScaleOffsetsUV;
+        private Texture[] m_ProbeTextures;
+
         // ── Constants (mirrored from legacy ClusterCullingReflectionProbePass) ──
 
         private const int MaxReflectionProbesOnScreen = 64;
@@ -99,6 +129,7 @@ namespace HN.HNRP
         /// </summary>
         public ClusterCullingReflectionProbePass()
         {
+            m_AtlasParams = CreateDefaultAtlasParams();
         }
 
         /// <summary>
@@ -110,13 +141,41 @@ namespace HN.HNRP
         public ClusterCullingReflectionProbePass(string passName)
             : base(passName)
         {
+            m_AtlasParams = CreateDefaultAtlasParams();
         }
 
         /// <inheritdoc />
         public override void CopyFrom(Pass source)
         {
-            // No serialized parameters on this pass. RenderedProbeTextures is
-            // per-frame runtime state set by the pipeline, never copied.
+            if (source is ClusterCullingReflectionProbePass s)
+            {
+                m_AtlasParams = s.m_AtlasParams;
+            }
+
+            // RenderedProbeTextures is per-frame runtime state set by the
+            // pipeline, never copied.
+        }
+
+        /// <summary>
+        /// 默认反射探针图集参数：HDR 4096、三线性 mip 过滤、Clamp 包裹。
+        /// </summary>
+        private static TextureResourceParams CreateDefaultAtlasParams()
+        {
+            return new TextureResourceParams
+            {
+                ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32,
+                DepthBits = DepthBits.None,
+                TextureScale = Vector2.one,
+                Width = 4096,
+                Height = 4096,
+                FilterMode = FilterMode.Trilinear,
+                WrapMode = TextureWrapMode.Clamp,
+                TextureDimension = TextureDimension.Tex2D,
+                UseMipMap = true,
+                AutoGenerateMips = false,
+                ClearBuffer = true,
+                ClearColor = Color.black,
+            };
         }
 
         // ── Lifecycle ──
@@ -184,7 +243,9 @@ namespace HN.HNRP
             // (rendered in Phase B before main cameras) contribute their realtime
             // cubemap. Every visible probe is blitted every frame because the atlas
             // is a transient render graph resource.
-            var entries = new List<ProbeEntry>(MaxReflectionProbesOnScreen);
+            EnsureScratchBuffers();
+            List<ProbeEntry> entries = m_ProbeEntries;
+            entries.Clear();
             if (m_Context.VisibleReflectionProbes.IsCreated)
             {
                 var visibleProbes = m_Context.VisibleReflectionProbes;
@@ -235,11 +296,11 @@ namespace HN.HNRP
             // ── Assign atlas regions (legacy recursive-quad layout) ──
             // Larger resolutions claim their region first; offsetMask encodes the
             // recursive subdivision path (see GetOffset).
-            var cullingDatas = new ReflectionProbeData4CS[MaxReflectionProbesOnScreen];
-            var sampleDatas = new ClusterCullingReflectionProbeDatas[MaxReflectionProbesOnScreen];
-            var scaleOffsetsInt = new int4[MaxReflectionProbesOnScreen];
-            var scaleOffsetsUV = new Vector4[MaxReflectionProbesOnScreen];
-            var probeTextures = new Texture[MaxReflectionProbesOnScreen];
+            ReflectionProbeData4CS[] cullingDatas = m_CullingDatas;
+            ClusterCullingReflectionProbeDatas[] sampleDatas = m_SampleDatas;
+            int4[] scaleOffsetsInt = m_ScaleOffsetsInt;
+            Vector4[] scaleOffsetsUV = m_ScaleOffsetsUV;
+            Texture[] probeTextures = m_ProbeTextures;
 
             uint offsetMask = 0;
             int probeIndex = 0;
@@ -301,16 +362,24 @@ namespace HN.HNRP
                 builder.AllowPassCulling(false);
 
                 // ── Input/Output: reflection probe atlas ──
-                // The atlas is created as a resource node in the RenderGraphAsset
-                // and passed in via resource connection. This pass writes the
-                // blitted octahedral data into it, then exposes it for downstream.
+                // Consume a connected input atlas when its handle is valid;
+                // otherwise allocate the atlas locally from AtlasParams. The
+                // blitted octahedral data is written into it, then exposed for
+                // downstream passes.
 
-                if (ReflectionProbeAtlasInputSlot == null || !ReflectionProbeAtlasInputSlot.IsConnected)
+                TextureHandle atlasHandle;
+                if (ReflectionProbeAtlasInputSlot != null
+                    && ReflectionProbeAtlasInputSlot.IsConnected
+                    && ReflectionProbeAtlasInputSlot.HasHandle)
                 {
-                    return;
+                    atlasHandle = ReflectionProbeAtlasInputSlot.ReadHandle();
+                }
+                else
+                {
+                    atlasHandle = renderGraph.CreateTexture(
+                        m_AtlasParams.CreateDesc("Reflection Probe Atlas", m_Context.Camera));
                 }
 
-                TextureHandle atlasHandle = ReflectionProbeAtlasInputSlot.ReadHandle();
                 if (!atlasHandle.IsValid())
                 {
                     return;
@@ -400,14 +469,24 @@ namespace HN.HNRP
                 passData.clusterCullingReflectionProbeParams.unused0 = 0.0f;
                 passData.clusterCullingReflectionProbeParams.unused1 = 0.0f;
 
+                // ── Store per-frame values on the (pooled) pass data so the
+                // render function closure only captures `this` (zero allocation) ──
+
+                passData.clusterSize = clusterSize;
+                passData.probeCount = probeCount;
+                passData.cameraOrthographic = camera.orthographic;
+                passData.clipToView = clipToView;
+                passData.viewToClip = viewToClip;
+                passData.clipToWorld = clipToWorld;
+
                 // ── Render function ──
 
                 builder.SetRenderFunc(
                     (ClusterCullingReflectionProbePassData data, RenderGraphContext ctx) =>
                     {
                         // Upload probe data for the culling dispatch and the shader.
-                        ctx.cmd.SetBufferData(data.cullingDatasBuffer, cullingDatas);
-                        ctx.cmd.SetBufferData(data.sampleDatasBuffer, sampleDatas);
+                        ctx.cmd.SetBufferData(data.cullingDatasBuffer, m_CullingDatas);
+                        ctx.cmd.SetBufferData(data.sampleDatasBuffer, m_SampleDatas);
 
                         ctx.cmd.SetComputeBufferParam(
                             data.clusterCullingReflectionProbeCS,
@@ -420,52 +499,57 @@ namespace HN.HNRP
                             PropertyIDs.reflectionProbeDatas4CSBuffer,
                             data.cullingDatasBuffer);
 
+                        Vector2 clusterZScaleOffsetInPass = data.clusterCullingReflectionProbeParams.clusterZScaleOffset;
+                        int wordsPerClusterInPass = data.clusterCullingReflectionProbeParams.wordsPerCluster;
+                        int3 clusterSizeInPass = data.clusterSize;
+                        int probeCountInPass = data.probeCount;
+
                         ctx.cmd.SetComputeVectorParam(
                             data.clusterCullingReflectionProbeCS,
                             PropertyIDs.cullingParams0,
                             new Vector4(
-                                clusterZScaleOffset.x,
-                                clusterZScaleOffset.y,
-                                wordsPerCluster,
-                                camera.orthographic ? 1.0f : 0.0f));
+                                clusterZScaleOffsetInPass.x,
+                                clusterZScaleOffsetInPass.y,
+                                wordsPerClusterInPass,
+                                data.cameraOrthographic ? 1.0f : 0.0f));
                         ctx.cmd.SetComputeVectorParam(
                             data.clusterCullingReflectionProbeCS,
                             PropertyIDs.cullingParams1,
-                            new Vector4(clusterSize.x, clusterSize.y, clusterSize.z, probeCount));
+                            new Vector4(clusterSizeInPass.x, clusterSizeInPass.y, clusterSizeInPass.z, probeCountInPass));
 
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingReflectionProbeCS,
                             PropertyIDs.cullingClipToViewMatrix,
-                            clipToView);
+                            data.clipToView);
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingReflectionProbeCS,
                             PropertyIDs.cullingViewToClipMatrix,
-                            viewToClip);
+                            data.viewToClip);
                         ctx.cmd.SetComputeMatrixParam(
                             data.clusterCullingReflectionProbeCS,
                             PropertyIDs.cullingClipToWorldMatrix,
-                            clipToWorld);
+                            data.clipToWorld);
 
                         // Dispatch one thread per cluster over the full 3D grid.
                         // numthreads(8,8,1): thread groups cover x/y, thread groups
                         // along z cover every depth slice (id.z = cluster index z).
-                        int threadGroupX = (clusterSize.x + 7) / 8;
-                        int threadGroupY = (clusterSize.y + 7) / 8;
+                        int threadGroupX = (clusterSizeInPass.x + 7) / 8;
+                        int threadGroupY = (clusterSizeInPass.y + 7) / 8;
                         ctx.cmd.DispatchCompute(
                             data.clusterCullingReflectionProbeCS,
                             data.clusterCullingKernel,
                             threadGroupX,
                             threadGroupY,
-                            clusterSize.z);
+                            clusterSizeInPass.z);
 
                         // ── Blit every visible probe cubemap into its atlas region ──
                         // The octahedral projection is drawn into the region's mip 0
                         // (padding adjusted), then GenerateMips builds the remaining
                         // atlas mip chain. This avoids depending on the source cubemap
                         // having valid mips (realtime cubemaps may not).
-                        for (int i = 0; i < probeCount; i++)
+                        for (int i = 0; i < probeCountInPass; i++)
                         {
-                            Texture source = probeTextures[i];
+                            Texture source = m_ProbeTextures[i];
                             if (source == null)
                             {
                                 continue;
@@ -473,7 +557,7 @@ namespace HN.HNRP
 
                             int texelPadding = ReflectionProbeAtlasTexelPadding;
                             Vector2 textureSizeWithoutPadding =
-                                GetTextureSizeWithoutPadding(scaleOffsetsUV[i], texelPadding);
+                                GetTextureSizeWithoutPadding(m_ScaleOffsetsUV[i], texelPadding);
 
                             ctx.cmd.SetRenderTarget(
                                 (RenderTargetIdentifier)data.reflectionProbeAtlas);
@@ -483,13 +567,13 @@ namespace HN.HNRP
                                 propertyBlock,
                                 source,
                                 textureSizeWithoutPadding,
-                                scaleOffsetsUV[i],
+                                m_ScaleOffsetsUV[i],
                                 0,
                                 true,
                                 texelPadding);
                         }
 
-                        if (probeCount > 0)
+                        if (probeCountInPass > 0)
                         {
                             ctx.cmd.GenerateMips((RenderTexture)data.reflectionProbeAtlas);
                         }
@@ -510,6 +594,25 @@ namespace HN.HNRP
             // No disposable resources held by this pass.
             m_ComputeShader = null;
             m_Context = null;
+        }
+
+        // ── Scratch buffer helpers ──
+
+        /// <summary>
+        /// Lazily allocates the per-frame scratch buffers once and reuses them
+        /// forever, keeping the render loop allocation-free.
+        /// </summary>
+        private void EnsureScratchBuffers()
+        {
+            if (m_ProbeEntries == null)
+            {
+                m_ProbeEntries = new List<ProbeEntry>(MaxReflectionProbesOnScreen);
+                m_CullingDatas = new ReflectionProbeData4CS[MaxReflectionProbesOnScreen];
+                m_SampleDatas = new ClusterCullingReflectionProbeDatas[MaxReflectionProbesOnScreen];
+                m_ScaleOffsetsInt = new int4[MaxReflectionProbesOnScreen];
+                m_ScaleOffsetsUV = new Vector4[MaxReflectionProbesOnScreen];
+                m_ProbeTextures = new Texture[MaxReflectionProbesOnScreen];
+            }
         }
 
         // ── Atlas layout helpers (legacy recursive-quad layout) ──
@@ -687,6 +790,36 @@ namespace HN.HNRP
             /// <c>_ClusterCullingReflectionProbeParamsBuffer</c>.
             /// </summary>
             public ClusterCullingReflectionProbeParams clusterCullingReflectionProbeParams;
+
+            /// <summary>
+            /// The cluster grid dimensions for this frame.
+            /// </summary>
+            public int3 clusterSize;
+
+            /// <summary>
+            /// The number of probes packed into the atlas this frame.
+            /// </summary>
+            public int probeCount;
+
+            /// <summary>
+            /// Whether the current camera is orthographic.
+            /// </summary>
+            public bool cameraOrthographic;
+
+            /// <summary>
+            /// The clip-to-view matrix.
+            /// </summary>
+            public Matrix4x4 clipToView;
+
+            /// <summary>
+            /// The view-to-clip matrix.
+            /// </summary>
+            public Matrix4x4 viewToClip;
+
+            /// <summary>
+            /// The clip-to-world matrix.
+            /// </summary>
+            public Matrix4x4 clipToWorld;
         }
 
         // ── Property IDs ──

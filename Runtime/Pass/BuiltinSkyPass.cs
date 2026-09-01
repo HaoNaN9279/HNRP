@@ -193,11 +193,11 @@ namespace HN.HNRP
 
             // ── Render function: draw skybox (same logic as legacy BuiltinSkyPass) ──
 
-            var camera = cameraContext.Camera;
+            passData.camera = cameraContext.Camera;
             builder.SetRenderFunc(
                 (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                 {
-                    UnityEngine.Rendering.RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(camera);
+                    UnityEngine.Rendering.RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(data.camera);
                     ctx.cmd.DrawRendererList(rendererList);
                 });
         }
@@ -224,6 +224,11 @@ namespace HN.HNRP
             /// The depth target texture handle.
             /// </summary>
             public TextureHandle depthTarget;
+
+            /// <summary>
+            /// The camera whose skybox is rendered.
+            /// </summary>
+            public Camera camera;
         }
     }
 }

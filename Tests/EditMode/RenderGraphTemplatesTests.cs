@@ -90,10 +90,11 @@ namespace HN.HNRP.Tests
         /// <summary>
         /// The Standard template declares the full 8-pass pipeline (buildLight /
         /// clusterProbe / clusterLight / forwardOpaque / sky / transparency /
-        /// wireOverlay / finalBlit), 4 resource nodes (color / depth buffers and
-        /// the two renderer lists), the chained slot connections, and PerPixel
+        /// wireOverlay / finalBlit), the chained slot connections, and PerPixel
         /// HDR settings. Intermediate lighting / probe data is transferred
-        /// through <see cref="SlotConnection"/> entries, not resource nodes.
+        /// through <see cref="SlotConnection"/> entries; rendering resources are
+        /// owned by the passes themselves (ADR-017), e.g. forwardOpaque allocates
+        /// an opaque renderer list while transparency allocates a transparent one.
         /// </summary>
         [Test]
         public void StandardTemplate_HasExpectedDefinition()
@@ -104,10 +105,6 @@ namespace HN.HNRP.Tests
                 "Standard template should declare exactly 8 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(18),
                 "Standard template should declare exactly 18 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(5),
-                "Standard template should declare exactly 5 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(5),
-                "Standard template should declare exactly 5 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
@@ -120,15 +117,15 @@ namespace HN.HNRP.Tests
                     $"Standard template should declare a '{passName}' pass.");
             }
 
-            foreach (string resourceName in new[]
-                { "ColorBuffer", "DepthBuffer", "OpaqueRendererList", "TransparentRendererList" })
-            {
-                Assert.That(asset.Resources.Any(r => r.ResourceName == resourceName), Is.True,
-                    $"Standard template should declare a '{resourceName}' resource.");
-            }
+            // Renderer list parameters live on the pass itself: opaque for
+            // forwardOpaque, transparent for transparency.
+            var forwardOpaque = (DrawObjectPass)asset.Passes.First(p => p.PassName == "forwardOpaque");
+            var transparency = (DrawObjectPass)asset.Passes.First(p => p.PassName == "transparency");
 
-            Assert.That(asset.Resources.Any(r => r.ResourceName == "LightDatas"), Is.False,
-                "LightDatas should flow through SlotConnection, not a resource node.");
+            Assert.That(forwardOpaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
+                "forwardOpaque should allocate an opaque renderer list.");
+            Assert.That(transparency.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Transparent),
+                "transparency should allocate a transparent renderer list.");
 
             Assert.That(
                 asset.Connections.Any(c =>
@@ -142,9 +139,9 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// The Preview template declares the minimal 2-pass pipeline (opaque /
-        /// finalBlit), 3 resources (ColorBuffer / DepthBuffer /
-        /// OpaqueRendererList), the single chained connection, and PerVertex
-        /// non-HDR settings.
+        /// finalBlit), the single chained connection, and PerVertex non-HDR
+        /// settings. The opaque pass owns its color / depth targets and renderer
+        /// list parameters and disables light globals (no cluster data).
         /// </summary>
         [Test]
         public void PreviewTemplate_HasExpectedDefinition()
@@ -155,10 +152,6 @@ namespace HN.HNRP.Tests
                 "Preview template should declare exactly 2 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(1),
                 "Preview template should declare exactly 1 slot connection.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(3),
-                "Preview template should declare exactly 3 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(3),
-                "Preview template should declare exactly 3 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerVertex),
                 "Preview template should use PerVertex SH evaluation.");
@@ -171,18 +164,21 @@ namespace HN.HNRP.Tests
                     $"Preview template should declare a '{passName}' pass.");
             }
 
-            foreach (string resourceName in new[] { "ColorBuffer", "DepthBuffer", "OpaqueRendererList" })
-            {
-                Assert.That(asset.Resources.Any(r => r.ResourceName == resourceName), Is.True,
-                    $"Preview template should declare a '{resourceName}' resource.");
-            }
+            var opaque = (DrawObjectPass)asset.Passes.First(p => p.PassName == "opaque");
+            Assert.That(opaque.SetLightGlobals, Is.False,
+                "Preview opaque pass should not set lighting globals.");
+            Assert.That(opaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
+                "Preview opaque pass should allocate an opaque renderer list.");
+            Assert.That(opaque.DepthTargetParams.DepthBits,
+                Is.EqualTo(UnityEngine.Rendering.DepthBits.Depth32),
+                "Preview opaque pass should allocate a 32-bit depth target.");
         }
 
         /// <summary>
-        /// The Reflection template declares the 7-pass reflection pipeline, 5
-        /// resources, and 6 resource connections. It contains no cluster probe pass
-        /// and no <c>EmptyTexture</c> resource: the Reflection graph renders a probe
-        /// face but must not render reflection probes itself.
+        /// The Reflection template declares the 7-pass reflection pipeline and
+        /// 11 slot connections. It contains no cluster probe pass: the Reflection
+        /// graph renders a probe face but must not render reflection probes
+        /// itself. The forwardOpaque pass owns a 32-bit depth target parameter.
         /// </summary>
         [Test]
         public void ReflectionTemplate_HasExpectedDefinition()
@@ -193,10 +189,6 @@ namespace HN.HNRP.Tests
                 "Reflection template should declare exactly 7 passes.");
             Assert.That(asset.Connections.Count, Is.EqualTo(11),
                 "Reflection template should declare exactly 11 slot connections.");
-            Assert.That(asset.Resources.Count, Is.EqualTo(5),
-                "Reflection template should declare exactly 5 resources.");
-            Assert.That(asset.ResourceConnections.Count, Is.EqualTo(6),
-                "Reflection template should declare exactly 6 resource connections.");
 
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Reflection template should use PerPixel SH evaluation.");
@@ -209,12 +201,10 @@ namespace HN.HNRP.Tests
                     $"Reflection template should declare a '{passName}' pass.");
             }
 
-            // No reflection probe cluster-culling pass and no EmptyTexture resource:
-            // the Reflection graph renders a probe face but must not render probes.
+            // No reflection probe cluster-culling pass: the Reflection graph
+            // renders a probe face but must not render probes.
             Assert.That(asset.Passes.Any(p => p.PassName == "clusterProbe"), Is.False,
                 "Reflection template must not declare a cluster probe pass.");
-            Assert.That(asset.Resources.Any(r => r.ResourceName == "EmptyTexture"), Is.False,
-                "Reflection template should not declare an EmptyTexture resource.");
         }
 
         #endregion

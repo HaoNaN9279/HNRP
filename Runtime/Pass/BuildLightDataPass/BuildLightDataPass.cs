@@ -150,12 +150,17 @@ namespace HN.HNRP
 
                 var jobHandle = m_Job.ScheduleParallel(m_LightCount, 1, new JobHandle());
 
+                // Store per-frame values on the pooled pass data so the render
+                // function closure only captures `this` (zero allocation).
+                passData.jobHandle = jobHandle;
+                passData.lightDatas = m_LightDatas;
+
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        jobHandle.Complete();
-                        ctx.cmd.SetBufferData(data.lightDatasBuffer, m_LightDatas);
-                        m_LightDatas.Dispose();
+                        data.jobHandle.Complete();
+                        ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
+                        data.lightDatas.Dispose();
                     });
             }
         }
@@ -182,6 +187,17 @@ namespace HN.HNRP
             /// <see cref="Record"/>.
             /// </summary>
             public ComputeBufferHandle lightDatasBuffer;
+
+            /// <summary>
+            /// The job handle to complete before uploading the packed light data.
+            /// </summary>
+            public JobHandle jobHandle;
+
+            /// <summary>
+            /// The packed light data array uploaded to the GPU and disposed inside
+            /// the render function.
+            /// </summary>
+            public NativeArray<LightData> lightDatas;
         }
 
         // ── Property IDs ──

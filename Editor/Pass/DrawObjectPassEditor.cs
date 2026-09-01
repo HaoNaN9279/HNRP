@@ -10,8 +10,9 @@ namespace HN.HNRP.Editor
 {
     /// <summary>
     /// Inspector Editor for <see cref="DrawObjectPass"/>.
-    /// Draws the rendering layer mask and light-globals parameters, and defines
-    /// the pass presets offered in the <see cref="RenderGraphAsset"/> inspector.
+    /// Draws the pass-owned resource parameters (color / depth target allocation,
+    /// renderer list) and the light-globals option, and defines the pass presets
+    /// offered in the <see cref="RenderGraphAsset"/> inspector.
     /// </summary>
     [PassEditor(typeof(DrawObjectPass))]
     public class DrawObjectPassEditor : PassEditor
@@ -22,12 +23,28 @@ namespace HN.HNRP.Editor
         /// <inheritdoc />
         protected override void DrawParameters(SerializedProperty passProp, Pass pass)
         {
-            SerializedProperty layerMask = passProp.FindPropertyRelative("m_RenderingLayerMask");
-            if (layerMask != null)
+            SerializedProperty colorTarget = passProp.FindPropertyRelative("m_ColorTargetParams");
+            if (colorTarget != null)
             {
-                EditorGUILayout.PropertyField(layerMask, new GUIContent(
-                    "Rendering Layer Mask",
-                    "渲染层掩码。仅匹配层上的渲染器被绘制。"));
+                EditorGUILayout.PropertyField(colorTarget, new GUIContent(
+                    "Color Target",
+                    "输入槽未连接时本地分配的颜色缓冲参数。"));
+            }
+
+            SerializedProperty depthTarget = passProp.FindPropertyRelative("m_DepthTargetParams");
+            if (depthTarget != null)
+            {
+                EditorGUILayout.PropertyField(depthTarget, new GUIContent(
+                    "Depth Target",
+                    "输入槽未连接时本地分配的深度缓冲参数。"));
+            }
+
+            SerializedProperty rendererList = passProp.FindPropertyRelative("m_RendererListParams");
+            if (rendererList != null)
+            {
+                EditorGUILayout.PropertyField(rendererList, new GUIContent(
+                    "Renderer List",
+                    "输入槽未连接时本地构建的渲染器列表参数（队列范围 / 渲染层掩码）。"));
             }
 
             SerializedProperty setLightGlobals = passProp.FindPropertyRelative("m_SetLightGlobals");
@@ -44,14 +61,21 @@ namespace HN.HNRP.Editor
         /// </summary>
         private static readonly IPassPreset[] s_Presets =
         {
-            new PassPreset<DrawObjectPass>("Default", new DrawObjectPass
+            new PassPreset<DrawObjectPass>("Default Opaque", new DrawObjectPass
             {
-                RenderingLayerMask = 0x00000001,
+                SetLightGlobals = true,
+            }),
+            new PassPreset<DrawObjectPass>("Transparent", new DrawObjectPass
+            {
+                RendererListParams = new RendererListParams
+                {
+                    ListKind = RenderListKind.Transparent,
+                    RenderingLayerMask = 0x00000001,
+                },
                 SetLightGlobals = true,
             }),
             new PassPreset<DrawObjectPass>("No Light Globals", new DrawObjectPass
             {
-                RenderingLayerMask = 0x00000001,
                 SetLightGlobals = false,
             }),
         };
