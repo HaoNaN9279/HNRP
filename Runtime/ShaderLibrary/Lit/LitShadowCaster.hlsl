@@ -3,20 +3,29 @@
 
 #include "../Common/Common.hlsl"
 #include "../Core/Input.hlsl"
+#include "LitInput.hlsl"
 
-// ShadowCaster pass 的最小顶点 / 片元实现：仅把几何体变换到光源裁剪空间，
-// 深度写入由 DrawShadows 绑定阴影图完成。深度偏置由绘制侧 SetGlobalDepthBias 承担。
+// ShadowCaster pass 的最小顶点 / 片元实现：仅把几何体变换到光源裁剪空间。
+// 深度由绘制侧直接绑定 atlas 的指定区域写入（不再依赖 DrawShadows 的阴影图绑定），
+// 深度偏置由绘制侧 SetGlobalDepthBias 承担。alpha clip 与 Forward pass 一致，
+// 保证裁切体（树叶 / 草等）的阴影形状正确。
 
 struct ShadowCasterAttributes
 {
     float4 positionOS : POSITION;
     float3 normalOS : NORMAL;
+#if defined(_BASEMAP)
+    float2 uv0 : TEXCOORD0;
+#endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 struct ShadowCasterVaryings
 {
     float4 positionCS : SV_POSITION;
+#if defined(_BASEMAP)
+    float2 uv0 : TEXCOORD0;
+#endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -39,11 +48,23 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 #endif
 
     output.positionCS = positionCS;
+#if defined(_BASEMAP)
+    output.uv0 = TRANSFORM_TEX(input.uv0, _BaseMap);
+#endif
     return output;
 }
 
 half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
 {
+#if defined(_ALPHATEST_ON)
+#if defined(_BASEMAP)
+    float4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv0);
+    float alpha = RemapFrom01(baseMap.a, _AlphaRemapMin, _AlphaRemapMax) * _BaseColor.a;
+#else
+    float alpha = _BaseColor.a;
+#endif
+    clip(alpha - _Cutoff);
+#endif
     return 0;
 }
 

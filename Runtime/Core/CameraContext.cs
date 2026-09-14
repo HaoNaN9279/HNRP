@@ -70,6 +70,17 @@ namespace HN.HNRP
         public NativeArray<VisibleLight> VisibleLights { get; set; }
 
         /// <summary>
+        /// 本帧 main light 在 <see cref="VisibleLights"/> 中的索引；无方向光时为 -1。
+        /// </summary>
+        /// <remarks>
+        /// 只依赖可见光列表与 <see cref="RenderSettings.sun"/>，帧内恒定。
+        /// 由管线在裁剪后计算一次，供光照 / 阴影相关 pass 复用，避免重复遍历
+        /// 可见光列表（上限 <see cref="HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN"/>
+        /// + <see cref="HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN"/> 个）。
+        /// </remarks>
+        public int MainLightIndex { get; set; } = -1;
+
+        /// <summary>
         /// 从 <see cref="CullingResults"/> 得到的可见反射探针。该原生数组
         /// 必须经 <see cref="Dispose"/> 释放。
         /// </summary>

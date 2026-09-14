@@ -187,6 +187,12 @@ namespace HN.HNRP
                     cameraContext.VisibleLights = new NativeArray<UnityEngine.Rendering.VisibleLight>(
                         cameraContext.CullingResults.visibleLights, Allocator.TempJob);
 
+                    // main light 索引只依赖可见光列表与 RenderSettings.sun，帧内恒定。
+                    // 在此计算一次供光照 / 阴影 pass（ClusterCullingLightPass、DrawShadowPass）
+                    // 复用，避免每个 pass 重复遍历可见光列表。
+                    cameraContext.MainLightIndex = HNRenderPipelineUtils.GetMainLightIndex(
+                        cameraContext.VisibleLights);
+
                     if (camera.cameraType != CameraType.Reflection)
                     {
                         cameraContext.VisibleReflectionProbes =

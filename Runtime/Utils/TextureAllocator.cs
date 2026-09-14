@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace HN.HNRP
@@ -283,32 +282,9 @@ namespace HN.HNRP
             blockId = (blockValue >> 2) & 63U;
         }
 
-        private bool GetBlockIdByEntityId(uint entityId, out uint blockId)
-        {
-            if(blocks.ContainsKey(entityId))
-            {
-                uint value = blocks[entityId];
-                GetBlockId(value, out blockId);
-                return true;
-            }
-            blockId = 0;
-            return false;
-        }
-
         private int GetBlockLevel(uint blockValue)
         {
             return (int)(blockValue >> 8);
-        }
-
-        private bool GetBlockLevelByEntityId(uint entityId, out int blockLevel)
-        {
-            if(blocks.ContainsKey(entityId))
-            {
-                blockLevel = GetBlockLevel(blocks[entityId]);
-                return true;
-            }
-            blockLevel = 0;
-            return false;
         }
 
         private bool SetBlockState(uint entityId, bool state)
@@ -348,14 +324,13 @@ namespace HN.HNRP
         private List<(uint, int)> GetReorgEntitiesByBlock(int blockId)
         {
             var entities = new List<(uint, int)>();
-            var blocksValues = blocks.Values.ToList();
-            for(int i = 0; i < blocksValues.Count; i++)
+            foreach(KeyValuePair<uint, uint> pair in blocks)
             {
-                GetBlockId(blocksValues[i], out uint tempBlockId);
+                GetBlockId(pair.Value, out uint tempBlockId);
                 if(tempBlockId >= (uint)blockId)
                 {
-                    int tempBlockLevel = GetBlockLevel(blocksValues[i]);
-                    entities.Add((blocks.Keys.ElementAt(i), GetBlockSizeByLevel(tempBlockLevel)));
+                    int tempBlockLevel = GetBlockLevel(pair.Value);
+                    entities.Add((pair.Key, GetBlockSizeByLevel(tempBlockLevel)));
                 }
             }
             return entities;
@@ -364,11 +339,17 @@ namespace HN.HNRP
         private Vector4 GetScaleOffset(uint entityId)
         {
             Vector4 scaleOffset = new Vector4(1, 1, 0, 0);
-            GetBlockLevelByEntityId(entityId, out int level);
+            if(!blocks.TryGetValue(entityId, out uint value))
+            {
+                return scaleOffset;
+            }
+
+            int level = (int)((value >> 8) & 0xFu);
             float scale = (float)Mathf.Pow(2, level) * minBlockSize / textureResolution;
             scaleOffset.x = scale;
             scaleOffset.y = scale;
-            GetBlockIdByEntityId(entityId, out uint blockId);
+
+            uint blockId = (value >> 2) & 63U;
             uint xId = 0;
             uint yId = 0;
             for(int i = 0; i < 3; i++)

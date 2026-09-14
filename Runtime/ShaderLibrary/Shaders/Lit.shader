@@ -96,6 +96,7 @@ Shader "HNRP/Lit"
             }
 
             ZWrite On
+            // 阴影图采用非 reversed-Z 约定（near=0 / far=1）：用 LEqual 保留离光源最近者。
             ZTest LEqual
             ColorMask 0
             Cull[_CullMode]
@@ -106,6 +107,7 @@ Shader "HNRP/Lit"
             #pragma fragment ShadowCasterFrag
 
             // Material Keywords
+            #pragma shader_feature_local _BASEMAP
             #pragma shader_feature_local_fragment _ALPHATEST_ON
 
             // GPU Instancing

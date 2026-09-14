@@ -14,12 +14,36 @@ namespace HN.HNRP
         void OnEnable()
         {
             builtinLight = GetComponent<Light>();
+            SyncBuiltinShadows();
             cascadeShadow.EnsureValid();
         }
 
-        void Update()
+        void OnValidate()
         {
-            
+            builtinLight = GetComponent<Light>();
+            SyncBuiltinShadows();
+        }
+
+        /// <summary>
+        /// 把 HNRP 的阴影开关 <see cref="EnableShadow"/> 同步到 Unity 内置
+        /// <see cref="Light.shadows"/>。
+        /// HNRP 自定义 Light Inspector 不暴露内置阴影设置；保留该同步是因为
+        /// <see cref="Light.shadows"/> 会影响引擎裁剪时阴影投射者集合的收集，
+        /// 因此以 <see cref="EnableShadow"/> 作为唯一数据源。
+        /// </summary>
+        private void SyncBuiltinShadows()
+        {
+            if (builtinLight == null)
+            {
+                builtinLight = GetComponent<Light>();
+            }
+
+            if (builtinLight == null)
+            {
+                return;
+            }
+
+            builtinLight.shadows = enableShadow ? LightShadows.Soft : LightShadows.None;
         }
 
 

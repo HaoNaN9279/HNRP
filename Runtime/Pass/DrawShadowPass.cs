@@ -41,8 +41,21 @@ namespace HN.HNRP
         /// <summary>参与阴影渲染的方向光上限。</summary>
         private const int MaxDirectionalShadowLights = 4;
 
+        /// <summary>
+        /// 方向光阴影级联上限，与 <see cref="CascadeCountType"/> 的最大值一致（8）。
+        /// </summary>
+        private const int MaxDirectionalShadowCascades = 8;
+
         /// <summary>参与阴影渲染的本地光（点 / 聚光）上限。</summary>
         private const int MaxLocalShadowLights = 32;
+
+        /// <summary>
+        /// 驻留 map 数组容量：按最大光源数编码的全部 (lightIndex, sub) 槽位
+        /// （<see cref="EncodeMapIndex"/> 每 light 占 16 位空间）。
+        /// </summary>
+        private const int ResidentMapCapacity =
+            (HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
+             + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN) << 4;
 
         /// <summary>点光阴影面的 fov 偏置（度），用于避免面与面之间的裂缝。</summary>
         private const float PointLightFovBias = 2.0f;
@@ -108,18 +121,32 @@ namespace HN.HNRP
         private int allocatedSliceCount;
         private TextureAllocator textureAllocator;
 
+        /// <summary>atlas 重分配后需要在下次 render func 内经 RenderGraph 命令缓冲整图清空。</summary>
+        private bool needsAtlasClear;
+
         private ComputeBuffer shadowLightDatasBuffer;
         private ComputeBuffer shadowMapDatasBuffer;
+
+        /// <summary>方向光 cascade 裁剪球缓冲（<c>_ShadowCascadeSpheres</c>，shader 选级只读该小缓冲）。</summary>
+        private ComputeBuffer shadowCascadeSpheresBuffer;
+
         private ShadowLightData[] shadowLightDatasArray;
         private ShadowMapData[] shadowMapDatasArray;
+
+        /// <summary>方向光 cascade 裁剪球（索引 = directionalSlot * MaxDirectionalShadowCascades + cascade）。</summary>
+        private Vector4[] shadowCascadeSpheresArray;
+
         private int lightDataCapacity;
         private int mapDataCapacity;
 
-        /// <summary>驻留 map：key = MapIndex。</summary>
-        private readonly Dictionary<uint, ResidentMap> residentMaps = new();
+        /// <summary>
+        /// 驻留 map，按 <see cref="EncodeMapIndex"/> 结果直接索引；<c>null</c> 表示未驻留。
+        /// 数组化替代字典，消除每帧每 map 的哈希开销。
+        /// </summary>
+        private ResidentMap[] residentMaps;
 
-        /// <summary>本帧待释放的驻留 map（暂存，避免分配）。</summary>
-        private readonly List<uint> releaseScratch = new List<uint>();
+        /// <summary>当前驻留的 mapIndex 列表，供释放遍历只处理活跃项（O(驻留数)）。</summary>
+        private readonly List<uint> activeResidentMaps = new List<uint>();
 
         /// <summary>本帧选中的光源（暂存）。</summary>
         private readonly List<SelectedLight> selectedLights = new List<SelectedLight>();
@@ -129,6 +156,18 @@ namespace HN.HNRP
 
         /// <summary>本帧因 atlas 重分配需要搬移的 map（暂存）。</summary>
         private readonly List<ShadowCopyCommand> copyCommands = new List<ShadowCopyCommand>();
+
+        /// <summary>方向光矩阵计算复用的近平面视锥角点缓冲（避免每帧堆分配）。</summary>
+        private readonly Vector3[] nearCornersScratch = new Vector3[4];
+
+        /// <summary>方向光矩阵计算复用的远平面视锥角点缓冲（避免每帧堆分配）。</summary>
+        private readonly Vector3[] farCornersScratch = new Vector3[4];
+
+        /// <summary>本帧相机视图矩阵（每帧缓存一次，供各 map 签名比较复用）。</summary>
+        private Matrix4x4 cachedCameraViewMatrix;
+
+        /// <summary>本帧相机 GPU 投影矩阵（每帧缓存一次）。</summary>
+        private Matrix4x4 cachedCameraProjMatrix;
 
         /// <summary>局部清空阴影图区域用的材质（懒创建）。</summary>
         private Material shadowClearMaterial;
@@ -181,12 +220,13 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Record(RenderGraph renderGraph)
         {
-            if (cameraContext == null || !cameraContext.HasCullingResults)
+            if (cameraContext == null || !cameraContext.HasCullingResults || cameraContext.Camera == null)
             {
                 return;
             }
 
             EnsureResources();
+            CacheCameraMatrices();
 
             BuildSelectedLights();
             UpdateResidentMaps();
@@ -217,8 +257,19 @@ namespace HN.HNRP
                     return;
                 }
 
-                RenderShadows(ctx, data, atlas);
+                RenderShadows(ctx, atlas);
             });
+        }
+
+        /// <summary>
+        /// 缓存本帧相机视图 / GPU 投影矩阵，供方向光 map 的签名比较复用，
+        /// 避免每张 map 重复计算 <c>GL.GetGPUProjectionMatrix</c>。
+        /// </summary>
+        private void CacheCameraMatrices()
+        {
+            Camera camera = cameraContext.Camera;
+            cachedCameraViewMatrix = camera.worldToCameraMatrix;
+            cachedCameraProjMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
         }
 
         /// <inheritdoc />
@@ -232,12 +283,18 @@ namespace HN.HNRP
             shadowLightDatasBuffer = null;
             shadowMapDatasBuffer?.Release();
             shadowMapDatasBuffer = null;
+            shadowCascadeSpheresBuffer?.Release();
+            shadowCascadeSpheresBuffer = null;
 
             CoreUtils.Destroy(shadowClearMaterial);
             shadowClearMaterial = null;
 
             textureAllocator = null;
-            residentMaps.Clear();
+            if (residentMaps != null)
+            {
+                System.Array.Clear(residentMaps, 0, residentMaps.Length);
+            }
+            activeResidentMaps.Clear();
             allocatedResolution = 0;
             allocatedSliceCount = 0;
             cameraContext = null;
@@ -277,6 +334,11 @@ namespace HN.HNRP
                 cmd.SetGlobalBuffer(PropertyIDs.shadowMapDatas, shadowMapDatasBuffer);
             }
 
+            if (shadowCascadeSpheresBuffer != null)
+            {
+                cmd.SetGlobalBuffer(PropertyIDs.shadowCascadeSpheres, shadowCascadeSpheresBuffer);
+            }
+
             cmd.SetGlobalTexture(
                 PropertyIDs.shadowMapArray,
                 (RenderTargetIdentifier)shadowAtlas);
@@ -306,6 +368,11 @@ namespace HN.HNRP
         /// </summary>
         private void EnsureResources()
         {
+            if (residentMaps == null)
+            {
+                residentMaps = new ResidentMap[ResidentMapCapacity];
+            }
+
             if (shadowAtlas == null || allocatedResolution != sliceResolution || allocatedSliceCount != sliceCount)
             {
                 shadowAtlas?.Release();
@@ -329,18 +396,13 @@ namespace HN.HNRP
                 allocatedSliceCount = slices;
 
                 textureAllocator = new TextureAllocator(resolution, 512, 4096, slices);
-                residentMaps.Clear();
+                System.Array.Clear(residentMaps, 0, residentMaps.Length);
+                activeResidentMaps.Clear();
 
-                // 整图初始化为远深度。
-                var clearCmd = CommandBufferPool.Get("HN Shadow Atlas Clear");
-                for (int slice = 0; slice < slices; slice++)
-                {
-                    clearCmd.SetRenderTarget((RenderTargetIdentifier)shadowAtlas, 0, CubemapFace.Unknown, slice);
-                    clearCmd.ClearRenderTarget(false, true, Color.black);
-                }
-                cameraContext.Context.ExecuteCommandBuffer(clearCmd);
-                clearCmd.Clear();
-                CommandBufferPool.Release(clearCmd);
+                // 整图初始化为远深度（clearDepth=true, clearColor=false：atlas 无颜色目标）。
+                // 命令延迟到 render func 内经 RenderGraph 的命令缓冲提交，避免在录制期
+                // 私自申请 CommandBuffer 并即时提交到 ScriptableRenderContext。
+                needsAtlasClear = true;
             }
 
             int maxLightCount = HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
@@ -362,6 +424,14 @@ namespace HN.HNRP
                 HNRenderPipelineUtils.ValidateComputeBuffer(
                     ref shadowMapDatasBuffer, maxMapSlots, System.Runtime.InteropServices.Marshal.SizeOf<ShadowMapData>());
             }
+
+            int sphereCount = MaxDirectionalShadowLights * MaxDirectionalShadowCascades;
+            if (shadowCascadeSpheresArray == null || shadowCascadeSpheresArray.Length != sphereCount)
+            {
+                shadowCascadeSpheresArray = new Vector4[sphereCount];
+                HNRenderPipelineUtils.ValidateComputeBuffer(
+                    ref shadowCascadeSpheresBuffer, sphereCount, System.Runtime.InteropServices.Marshal.SizeOf<Vector4>());
+            }
         }
 
         // ── 选灯 ──
@@ -380,7 +450,7 @@ namespace HN.HNRP
                 return;
             }
 
-            int mainLightIndex = HNRenderPipelineUtils.GetMainLightIndex(visibleLights);
+            int mainLightIndex = cameraContext.MainLightIndex;
             int maxLightCount = Mathf.Min(
                 visibleLights.Length,
                 HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
@@ -414,7 +484,14 @@ namespace HN.HNRP
         {
             VisibleLight visibleLight = visibleLights[index];
             Light light = visibleLight.light;
-            if (light == null || light.shadows == LightShadows.None)
+            if (light == null)
+            {
+                return false;
+            }
+
+            // 先按光源类型过滤（无需组件查询），跳过不支持阴影的类型。
+            LightType type = visibleLight.lightType;
+            if (type != LightType.Directional && type != LightType.Point && type != LightType.Spot)
             {
                 return false;
             }
@@ -425,7 +502,6 @@ namespace HN.HNRP
                 return false;
             }
 
-            LightType type = visibleLight.lightType;
             if (type == LightType.Directional)
             {
                 if (directionalCount >= MaxDirectionalShadowLights)
@@ -434,32 +510,36 @@ namespace HN.HNRP
                 }
                 directionalCount++;
             }
-            else if (type == LightType.Point || type == LightType.Spot)
+            else if (localCount >= MaxLocalShadowLights)
             {
-                if (localCount >= MaxLocalShadowLights)
-                {
-                    return false;
-                }
-                localCount++;
+                return false;
             }
             else
             {
-                return false;
+                localCount++;
             }
 
             int resolution = HNRenderPipelineUtils.ClampShadowResolution(
                 (int)additionalLightData.CascadeResolution, allocatedResolution);
+
+            int cascadeCount = type == LightType.Directional
+                ? Mathf.Clamp((int)additionalLightData.CascadeCount, 1, MaxDirectionalShadowCascades)
+                : 0;
+            List<float> cascadeSplits = additionalLightData.CascadeSplits;
 
             selectedLights.Add(new SelectedLight
             {
                 lightIndex = index,
                 lightType = type,
                 resolution = resolution,
-                cascadeCount = type == LightType.Directional
-                    ? Mathf.Clamp((int)additionalLightData.CascadeCount, 1, CascadeShadowSettings.MaxCascadeCount)
+                cascadeCount = cascadeCount,
+                cascadeSplits = cascadeSplits,
+                lightLocalToWorld = visibleLight.localToWorldMatrix,
+                lightRange = visibleLight.range,
+                lightSpotAngle = visibleLight.spotAngle,
+                cascadeHash = type == LightType.Directional
+                    ? ComputeCascadeHash(cascadeCount, cascadeSplits)
                     : 0,
-                cascadeSplits = additionalLightData.CascadeSplits,
-                visibleLight = visibleLight,
                 updateMode = additionalLightData.ShadowUpdateMode,
                 timeSlices = additionalLightData.CascadeTimeSlices,
                 lightInstanceId = light.GetInstanceID(),
@@ -475,7 +555,7 @@ namespace HN.HNRP
         /// </summary>
         private void UpdateResidentMaps()
         {
-            // 标记本帧仍需要的 map。
+            // 标记本帧仍需要的 map；缺失或分辨率变化的重新分配。
             for (int i = 0; i < selectedLights.Count; i++)
             {
                 SelectedLight selected = selectedLights[i];
@@ -483,54 +563,44 @@ namespace HN.HNRP
                 for (int sub = 0; sub < mapCount; sub++)
                 {
                     uint mapIndex = EncodeMapIndex(selected.lightIndex, sub);
-                    if (!residentMaps.ContainsKey(mapIndex))
-                    {
-                        AllocateMap(mapIndex, selected);
-                    }
-                    else
-                    {
-                        ResidentMap resident = residentMaps[mapIndex];
-                        if (resident.resolution != selected.resolution)
-                        {
-                            textureAllocator.Release(mapIndex);
-                            residentMaps.Remove(mapIndex);
-                            AllocateMap(mapIndex, selected);
-                        }
-                    }
-                }
-            }
-
-            // 释放本帧不再需要的 map。
-            releaseScratch.Clear();
-            foreach (KeyValuePair<uint, ResidentMap> pair in residentMaps)
-            {
-                bool needed = false;
-                for (int i = 0; i < selectedLights.Count; i++)
-                {
-                    SelectedLight selected = selectedLights[i];
-                    if (selected.lightIndex != pair.Value.lightIndex)
+                    if (mapIndex >= (uint)residentMaps.Length)
                     {
                         continue;
                     }
 
-                    if (pair.Value.subIndex < GetMapCount(selected))
+                    ResidentMap resident = residentMaps[mapIndex];
+                    if (resident == null)
                     {
-                        needed = true;
+                        AllocateMap(mapIndex, selected);
                     }
-                    break;
-                }
-
-                if (!needed)
-                {
-                    releaseScratch.Add(pair.Key);
+                    else if (resident.resolution != selected.resolution)
+                    {
+                        textureAllocator.Release(mapIndex);
+                        AllocateMap(mapIndex, selected);
+                    }
+                    else
+                    {
+                        resident.neededThisFrame = true;
+                    }
                 }
             }
 
-            for (int i = 0; i < releaseScratch.Count; i++)
+            // 释放本帧不再需要的 map（只遍历活跃项，O(驻留数)）。
+            for (int i = 0; i < activeResidentMaps.Count; )
             {
-                uint mapIndex = releaseScratch[i];
+                uint mapIndex = activeResidentMaps[i];
+                ResidentMap resident = residentMaps[mapIndex];
+                if (resident != null && resident.neededThisFrame)
+                {
+                    resident.neededThisFrame = false;
+                    i++;
+                    continue;
+                }
+
                 textureAllocator.Release(mapIndex);
-                residentMaps.Remove(mapIndex);
+                residentMaps[mapIndex] = null;
+                activeResidentMaps[i] = activeResidentMaps[activeResidentMaps.Count - 1];
+                activeResidentMaps.RemoveAt(activeResidentMaps.Count - 1);
             }
         }
 
@@ -547,7 +617,7 @@ namespace HN.HNRP
                     continue;
                 }
 
-                if (residentMaps.TryGetValue(pair.Key, out ResidentMap moved))
+                if (TryGetResidentMap(pair.Key, out ResidentMap moved))
                 {
                     copyCommands.Add(new ShadowCopyCommand
                     {
@@ -562,6 +632,11 @@ namespace HN.HNRP
 
             if (allocateResults.TryGetValue(mapIndex, out TextureAllocatorResult result))
             {
+                if (residentMaps[mapIndex] == null)
+                {
+                    activeResidentMaps.Add(mapIndex);
+                }
+
                 residentMaps[mapIndex] = new ResidentMap
                 {
                     lightIndex = selected.lightIndex,
@@ -571,7 +646,13 @@ namespace HN.HNRP
                     allocation = result,
                     hasSignature = false,
                     lastUpdateFrame = -1,
+                    neededThisFrame = true,
                 };
+            }
+            else
+            {
+                // 分配失败：清除旧记录，避免残留已释放的分配被后续读取。
+                residentMaps[mapIndex] = null;
             }
         }
 
@@ -593,6 +674,43 @@ namespace HN.HNRP
             return ((uint)lightIndex << 4) | (uint)subIndex;
         }
 
+        /// <summary>
+        /// 打包光源类型 / cascade 级数 / 方向光槽位到单个 uint（供 shader 直读，避免逐像素分支与解码）。
+        /// </summary>
+        /// <param name="lightType">光源类型。</param>
+        /// <param name="cascadeCount">方向光 cascade 级数（非方向光为 0）。</param>
+        /// <param name="directionalSlot">方向光 cascade 球缓冲槽位（非方向光为 -1）。</param>
+        /// <returns>bit0..7=lightType，bit8..15=cascadeCount，bit16..23=directionalSlot。</returns>
+        private static uint PackLightTypeAndCascadeCount(LightType lightType, int cascadeCount, int directionalSlot)
+        {
+            // 与 <see cref="LightData.lightType"/> 的 shader 约定一致：1=方向 2=点 3=聚光。
+            uint type = lightType switch
+            {
+                LightType.Directional => 1u,
+                LightType.Point => 2u,
+                LightType.Spot => 3u,
+                _ => 0u,
+            };
+            uint cascades = ((uint)Mathf.Clamp(cascadeCount, 0, 0xFF)) << 8;
+            uint slot = ((uint)Mathf.Clamp(directionalSlot, 0, 0xFF)) << 16;
+            return type | cascades | slot;
+        }
+
+        /// <summary>
+        /// 按 mapIndex 取驻留记录；越界或未驻留时返回 <c>false</c>。
+        /// </summary>
+        private bool TryGetResidentMap(uint mapIndex, out ResidentMap resident)
+        {
+            if (residentMaps != null && mapIndex < (uint)residentMaps.Length)
+            {
+                resident = residentMaps[mapIndex];
+                return resident != null;
+            }
+
+            resident = null;
+            return false;
+        }
+
         // ── 表与绘制命令 ──
 
         /// <summary>
@@ -602,15 +720,18 @@ namespace HN.HNRP
         {
             drawCommands.Clear();
 
-            int mainLightIndex = HNRenderPipelineUtils.GetMainLightIndex(cameraContext.VisibleLights);
+            // 清除上一帧写入的 light 条目：光源关闭阴影 / 移出视野后，若残留
+            // resolution>0 与旧 blockDatas，着色器会采样已释放的 atlas 槽。
+            System.Array.Clear(shadowLightDatasArray, 0, shadowLightDatasArray.Length);
+
+            // main light 索引由管线在裁剪后计算一次，此处直接复用。
+            int mainLightIndex = cameraContext.MainLightIndex;
             int directionalCount = 0;
             int localCount = 0;
 
-            // 清空方向光 cascade split 表，避免上一帧残留。
             for (int i = 0; i < selectedLights.Count; i++)
             {
-                SelectedLight selected = selectedLights[i];
-                if (selected.lightType == LightType.Directional)
+                if (selectedLights[i].lightType == LightType.Directional)
                 {
                     directionalCount++;
                 }
@@ -619,6 +740,9 @@ namespace HN.HNRP
                     localCount++;
                 }
             }
+
+            // 方向光按选中顺序占用 cascade 球小缓冲槽位（0..MaxDirectionalShadowLights-1）。
+            int directionalSlot = 0;
 
             for (int i = 0; i < selectedLights.Count; i++)
             {
@@ -629,18 +753,27 @@ namespace HN.HNRP
                     continue;
                 }
 
+                int currentDirectionalSlot = -1;
+                if (selected.lightType == LightType.Directional)
+                {
+                    currentDirectionalSlot = directionalSlot;
+                    directionalSlot++;
+                }
+
                 ShadowLightData lightData = default;
                 lightData.lightIndex = lightIndex;
                 lightData.resolution = selected.resolution;
                 lightData.cascadeSplits0 = Vector4.zero;
                 lightData.cascadeSplits1 = Vector4.zero;
+                lightData.typeAndCascadeCount = PackLightTypeAndCascadeCount(
+                    selected.lightType, selected.cascadeCount, currentDirectionalSlot);
 
                 int mapCount = GetMapCount(selected);
                 bool allAllocated = true;
                 for (int sub = 0; sub < mapCount; sub++)
                 {
                     uint mapIndex = EncodeMapIndex(lightIndex, sub);
-                    if (!residentMaps.TryGetValue(mapIndex, out ResidentMap resident))
+                    if (!TryGetResidentMap(mapIndex, out ResidentMap resident))
                     {
                         allAllocated = false;
                         continue;
@@ -656,16 +789,60 @@ namespace HN.HNRP
                         lightData.blockDatas1 |= field << ((sub - 4) * 8);
                     }
 
-                    ShadowMapData mapData = BuildMapData(selected, resident, sub);
-                    if ((int)field < shadowMapDatasArray.Length)
+                    // 先判定是否重绘，再只计算一次矩阵：结果同时供阴影表与绘制命令使用。
+                    // 非重绘且已有有效缓存时跳过 ComputeMatrices（签名已覆盖所有影响矩阵的输入）。
+                    bool shouldRedraw = ShouldRedrawMap(selected, resident, sub);
+                    bool needMatrices = shouldRedraw
+                        || !resident.hasMapData
+                        || resident.mapData.shadowParams.x != shadowStrength
+                        || resident.mapData.shadowParams.y != shadowSoft;
+
+                    if (needMatrices)
                     {
-                        shadowMapDatasArray[field] = mapData;
+                        if (ComputeMatrices(
+                                selected, sub,
+                                out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
+                        {
+                            ShadowMapData mapData = default;
+                            mapData.shadowParams = new Vector4(shadowStrength, shadowSoft, sub, 0f);
+                            mapData.worldToShadow = GetShadowTransform(proj, view);
+                            Vector4 sphere = splitData.cullingSphere;
+                            resident.mapData = mapData;
+                            resident.cullingSphere = new Vector4(sphere.x, sphere.y, sphere.z, sphere.w * sphere.w);
+                            resident.hasMapData = true;
+
+                            if (shouldRedraw)
+                            {
+                                drawCommands.Add(new ShadowDrawCommand
+                                {
+                                    view = view,
+                                    proj = proj,
+                                    allocation = resident.allocation,
+                                });
+                            }
+                        }
+                        else
+                        {
+                            resident.mapData = default;
+                            resident.cullingSphere = Vector4.zero;
+                            resident.hasMapData = false;
+                        }
                     }
 
-                    bool shouldRedraw = ShouldRedrawMap(selected, resident, sub);
-                    if (shouldRedraw && TryGetDrawCommand(selected, resident, sub, out ShadowDrawCommand command))
+                    if ((int)field < shadowMapDatasArray.Length)
                     {
-                        drawCommands.Add(command);
+                        shadowMapDatasArray[field] = resident.mapData;
+                    }
+
+                    // 方向光 cascade 裁剪球写入独立小缓冲（shader 选级只读该 16B 条目）。
+                    // 每帧写（即使未重绘），保证槽位重映射 / 分配移动后仍指向当前球。
+                    if (currentDirectionalSlot >= 0)
+                    {
+                        int sphereIndex = (currentDirectionalSlot * MaxDirectionalShadowCascades) + sub;
+                        if (sphereIndex >= 0 && sphereIndex < shadowCascadeSpheresArray.Length)
+                        {
+                            shadowCascadeSpheresArray[sphereIndex] = resident.cullingSphere;
+                        }
                     }
                 }
 
@@ -716,7 +893,17 @@ namespace HN.HNRP
 
                     case ShadowUpdateModeType.Custom:
                         int interval = GetTimeSlice(selected, sub);
-                        redraw = interval <= 0 || Time.frameCount - resident.lastUpdateFrame >= interval;
+                        if (interval <= 0)
+                        {
+                            redraw = true;
+                        }
+                        else
+                        {
+                            // 引入稳定相位：同 interval 的不同 map（多灯 / 多 cascade / 多面）
+                            // 错开到不同帧更新，避免在同一帧集中重绘造成卡顿尖峰。
+                            int phase = ComputePhase(selected.lightInstanceId, sub, interval);
+                            redraw = ((Time.frameCount + phase) % interval) == 0;
+                        }
                         break;
 
                     default:
@@ -744,24 +931,56 @@ namespace HN.HNRP
         private LightSignature ComputeSignature(SelectedLight selected, int sub, int resolution)
         {
             LightSignature signature = default;
-            signature.lightMatrix = selected.visibleLight.localToWorldMatrix;
-            signature.lightRange = selected.visibleLight.range;
-            signature.spotAngle = selected.visibleLight.spotAngle;
+            signature.lightMatrix = selected.lightLocalToWorld;
+            signature.lightRange = selected.lightRange;
+            signature.spotAngle = selected.lightSpotAngle;
             signature.resolution = resolution;
             signature.subIndex = sub;
 
-            // 方向光 cascade 依赖相机，相机变化也需重绘。
+            // 方向光 cascade 依赖相机与级数 / 分割，任一变化都需重绘并重算矩阵。
             if (selected.lightType == LightType.Directional)
             {
-                Camera camera = cameraContext.Camera;
-                if (camera != null)
-                {
-                    signature.cameraView = camera.worldToCameraMatrix;
-                    signature.cameraProj = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
-                }
+                signature.cameraView = cachedCameraViewMatrix;
+                signature.cameraProj = cachedCameraProjMatrix;
+                signature.cascadeHash = selected.cascadeHash;
             }
 
             return signature;
+        }
+
+        /// <summary>
+        /// 计算方向光 cascade 级数与分割的哈希，用于签名比较与缓存失效判断。
+        /// </summary>
+        private static int ComputeCascadeHash(int cascadeCount, List<float> splits)
+        {
+            int hash = cascadeCount * 397;
+            if (splits != null)
+            {
+                for (int i = 0; i < splits.Count; i++)
+                {
+                    hash = (hash * 31) + splits[i].GetHashCode();
+                }
+            }
+
+            return hash;
+        }
+
+        /// <summary>
+        /// 计算 map 在 Custom 更新模式下的稳定帧相位，把同 interval 的 map 错开更新。
+        /// </summary>
+        /// <param name="lightInstanceId">光源实例 id。</param>
+        /// <param name="sub">map 在光源内的子索引（cascade / 面）。</param>
+        /// <param name="interval">更新帧间隔。</param>
+        /// <returns>取值 <c>[0, interval)</c> 的相位。</returns>
+        private static int ComputePhase(int lightInstanceId, int sub, int interval)
+        {
+            if (interval <= 1)
+            {
+                return 0;
+            }
+
+            int hash = (lightInstanceId * 73856093) ^ (sub * 19349663);
+            return (hash & 0x7fffffff) % interval;
         }
 
         private static int GetTimeSlice(SelectedLight selected, int sub)
@@ -801,51 +1020,6 @@ namespace HN.HNRP
             }
 
             return result;
-        }
-
-        private ShadowMapData BuildMapData(SelectedLight selected, ResidentMap resident, int sub)
-        {
-            ShadowMapData mapData = default;
-            mapData.shadowParams = new Vector4(shadowStrength, shadowSoft, sub, 0f);
-
-            if (ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
-            {
-                mapData.worldToShadow = GetShadowTransform(proj, view);
-                Vector4 sphere = splitData.cullingSphere;
-                mapData.cullingSphere = new Vector4(sphere.x, sphere.y, sphere.z, sphere.w * sphere.w);
-            }
-
-            return mapData;
-        }
-
-        private bool TryGetDrawCommand(
-            SelectedLight selected,
-            ResidentMap resident,
-            int sub,
-            out ShadowDrawCommand command)
-        {
-            command = default;
-            if (!ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
-            {
-                return false;
-            }
-
-            BatchCullingProjectionType projectionType = selected.lightType == LightType.Directional
-                ? BatchCullingProjectionType.Orthographic
-                : BatchCullingProjectionType.Perspective;
-
-            command = new ShadowDrawCommand
-            {
-                view = view,
-                proj = proj,
-                allocation = resident.allocation,
-                settings = new ShadowDrawingSettings(
-                    cameraContext.CullingResults, selected.lightIndex, projectionType)
-                {
-                    splitData = splitData,
-                },
-            };
-            return true;
         }
 
         /// <summary>
@@ -934,8 +1108,8 @@ namespace HN.HNRP
                 far = near + 1f;
             }
 
-            Vector3[] nearCorners = new Vector3[4];
-            Vector3[] farCorners = new Vector3[4];
+            Vector3[] nearCorners = nearCornersScratch;
+            Vector3[] farCorners = farCornersScratch;
             camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), near, camera.stereoActiveEye, nearCorners);
             camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), far, camera.stereoActiveEye, farCorners);
 
@@ -960,39 +1134,33 @@ namespace HN.HNRP
             }
             radius = Mathf.Max(radius, 0.001f);
 
-            Vector3 lightForward = selected.visibleLight.localToWorldMatrix.GetColumn(2);
+            Vector3 lightForward = selected.lightLocalToWorld.GetColumn(2);
             Quaternion lightRotation = Quaternion.LookRotation(lightForward, Vector3.up);
             Vector3 viewPosition = center - lightForward * (radius + shadowNearPlaneOffset);
 
-            view = Matrix4x4.TRS(viewPosition, lightRotation, Vector3.one).inverse;
+            // Unity 视图空间沿 -Z 观察（OpenGL 约定），而 TRS(...).inverse 得到的是沿 +Z
+            // 的灯光局部空间；必须左乘 Z 翻转，否则正交投影会打反 z 符号，
+            // 使投影深度落在 [0,1] 之外——caster 被裁掉、采样恒返回「无阴影」。
+            Matrix4x4 lightToWorld = Matrix4x4.TRS(viewPosition, lightRotation, Vector3.one);
+            view = Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) * lightToWorld.inverse;
             proj = Matrix4x4.Ortho(-radius, radius, -radius, radius, 0f, 2f * radius + shadowNearPlaneOffset);
 
+            // 裁剪球供着色器按世界坐标点选级；投影 / 视图矩阵已分别交给
+            // SetViewProjectionMatrices（绘制）与 GetShadowTransform（采样）。
             splitData = new ShadowSplitData
             {
                 cullingMatrix = proj * view,
                 cullingSphere = new Vector4(center.x, center.y, center.z, radius),
                 shadowCascadeBlendCullingFactor = 1f,
             };
-
-            // 填充正交视锥的 6 个裁剪平面；否则 DrawShadows 无法正确裁剪 caster。
-            Plane[] planes = GeometryUtility.CalculateFrustumPlanes(splitData.cullingMatrix);
-            for (int i = 0; i < planes.Length; i++)
-            {
-                splitData.SetCullingPlane(i, planes[i]);
-            }
             return true;
         }
 
         private static Matrix4x4 GetShadowTransform(Matrix4x4 proj, Matrix4x4 view)
         {
-            if (SystemInfo.usesReversedZBuffer)
-            {
-                proj.m20 = -proj.m20;
-                proj.m21 = -proj.m21;
-                proj.m22 = -proj.m22;
-                proj.m23 = -proj.m23;
-            }
-
+            // 阴影图与采样统一使用非 reversed-Z 深度约定（near=0 / far=1，
+            // 见 RenderShadows 的投影 z 重映射与 ShadowClear），故此处不做
+            // reversed-Z 取反：z 经 textureScaleAndBias 直接映射到 [0,1]。
             Matrix4x4 worldToShadow = proj * view;
             Matrix4x4 textureScaleAndBias = Matrix4x4.identity;
             textureScaleAndBias.m00 = 0.5f;
@@ -1004,20 +1172,56 @@ namespace HN.HNRP
             return textureScaleAndBias * worldToShadow;
         }
 
+        /// <summary>
+        /// 把 OpenGL 约定（clip z ∈ [-1,1]）的投影重映射到非 reversed-Z 的 D3D 约定
+        /// （近=0、远=1），与采样侧 <see cref="GetShadowTransform"/> 及
+        /// <c>ShadowClear</c> 的远平面写法保持一致。
+        /// </summary>
+        /// <remarks>
+        /// 不使用 <c>GL.GetGPUProjectionMatrix</c>：后者在本平台（reversed-Z）会额外翻转 z，
+        /// 使写入阴影图的深度方向与比较采样器的语义相反，导致深度比较恒判「无遮挡」。
+        /// </remarks>
+        private static Matrix4x4 RemapZToD3D(Matrix4x4 proj)
+        {
+            Matrix4x4 zRemap = Matrix4x4.identity;
+            zRemap.m22 = 0.5f;
+            zRemap.m23 = 0.5f;
+            return zRemap * proj;
+        }
+
         // ── 渲染 ──
 
-        private void RenderShadows(RenderGraphContext ctx, DrawShadowPassData data, RTHandle atlas)
+        private void RenderShadows(RenderGraphContext ctx, RTHandle atlas)
         {
+            CommandBuffer cmd = ctx.cmd;
+
             // 上传两张表。全局绑定（SetGlobalBuffer / SetGlobalTexture / PushGlobal）
             // 由 BindGlobalShaderResources 在绘制前统一完成。
             if (shadowLightDatasBuffer != null && shadowLightDatasArray != null)
             {
-                ctx.cmd.SetBufferData(shadowLightDatasBuffer, shadowLightDatasArray);
+                cmd.SetBufferData(shadowLightDatasBuffer, shadowLightDatasArray);
             }
 
             if (shadowMapDatasBuffer != null && shadowMapDatasArray != null)
             {
-                ctx.cmd.SetBufferData(shadowMapDatasBuffer, shadowMapDatasArray);
+                cmd.SetBufferData(shadowMapDatasBuffer, shadowMapDatasArray);
+            }
+
+            if (shadowCascadeSpheresBuffer != null && shadowCascadeSpheresArray != null)
+            {
+                cmd.SetBufferData(shadowCascadeSpheresBuffer, shadowCascadeSpheresArray);
+            }
+
+            // 0) atlas 重分配后整图清远深度（一次性，经 RenderGraph 命令缓冲提交）。
+            if (needsAtlasClear)
+            {
+                for (int slice = 0; slice < allocatedSliceCount; slice++)
+                {
+                    cmd.SetRenderTarget((RenderTargetIdentifier)atlas, 0, CubemapFace.Unknown, slice);
+                    cmd.ClearRenderTarget(true, false, Color.black);
+                }
+
+                needsAtlasClear = false;
             }
 
             EnsureClearMaterial();
@@ -1032,42 +1236,67 @@ namespace HN.HNRP
                 int dstX = Mathf.RoundToInt(copy.toScaleOffset.z * allocatedResolution);
                 int dstY = Mathf.RoundToInt(copy.toScaleOffset.w * allocatedResolution);
 
-                ctx.cmd.CopyTexture(
+                cmd.CopyTexture(
                     (RenderTargetIdentifier)atlas, copy.fromSlice, 0, srcX, srcY, size, size,
                     (RenderTargetIdentifier)atlas, copy.toSlice, 0, dstX, dstY);
             }
 
-            // 2) 重绘：局部清远深度后绘制，未重绘的 map 内容跨帧保留。
-            for (int i = 0; i < drawCommands.Count; i++)
+            // 2) 重绘：局部清远深度后把投射者几何直接画进本 map 区域；
+            //    未重绘的 map 内容跨帧保留。
+            //    投射者绘制设置每帧只构建一次，逐 map 仅切换光视图 / 投影矩阵与 viewport。
+            //    ScriptableRenderContext.DrawRenderers 为 context 级 API，读取已提交到
+            //    context 的状态，故每次绘制前先 ExecuteCommandBuffer 刷新命令缓冲
+            //    （与 URP 的 ShadowUtils.RenderShadowSlice 一致）。
+            if (drawCommands.Count > 0 && cameraContext.Camera != null)
             {
-                ShadowDrawCommand command = drawCommands[i];
-                int slice = command.allocation.SliceIndex;
-                float scale = command.allocation.ScaleOffset.x;
-                int resolution = Mathf.RoundToInt(scale * allocatedResolution);
-                int offsetX = Mathf.RoundToInt(command.allocation.ScaleOffset.z * allocatedResolution);
-                int offsetY = Mathf.RoundToInt(command.allocation.ScaleOffset.w * allocatedResolution);
-
-                ctx.cmd.SetRenderTarget((RenderTargetIdentifier)atlas, 0, CubemapFace.Unknown, slice);
-                ctx.cmd.SetViewport(new Rect(offsetX, offsetY, resolution, resolution));
-
-                // 全屏三角形写远深度，受 viewport 限制只清本 map 区域。
-                if (shadowClearMaterial != null)
+                var sortingSettings = new SortingSettings(cameraContext.Camera)
                 {
-                    CoreUtils.DrawFullScreen(ctx.cmd, shadowClearMaterial, null, 0);
+                    criteria = SortingCriteria.CommonOpaque,
+                };
+                var drawingSettings = new DrawingSettings(ShaderPassNames.ShadowCasterName, sortingSettings)
+                {
+                    perObjectData = PerObjectData.None,
+                    enableInstancing = true,
+                };
+                var filteringSettings = new FilteringSettings(HNRenderQueue.AllOpaque, ~0);
+
+                for (int i = 0; i < drawCommands.Count; i++)
+                {
+                    ShadowDrawCommand command = drawCommands[i];
+                    int slice = command.allocation.SliceIndex;
+                    float scale = command.allocation.ScaleOffset.x;
+                    int resolution = Mathf.RoundToInt(scale * allocatedResolution);
+                    int offsetX = Mathf.RoundToInt(command.allocation.ScaleOffset.z * allocatedResolution);
+                    int offsetY = Mathf.RoundToInt(command.allocation.ScaleOffset.w * allocatedResolution);
+
+                    // 绑定 atlas 的目标 slice + viewport，使清屏与投射者绘制只落在本 map 区域。
+                    cmd.SetRenderTarget((RenderTargetIdentifier)atlas, 0, CubemapFace.Unknown, slice);
+                    cmd.SetViewport(new Rect(offsetX, offsetY, resolution, resolution));
+
+                    // 全屏三角形（ShadowClear）写远深度，受 viewport 限制只清本 map 区域。
+                    if (shadowClearMaterial != null)
+                    {
+                        CoreUtils.DrawFullScreen(cmd, shadowClearMaterial, null, 0);
+                    }
+
+                    // 深度偏置抑制自阴影；光矩阵决定投射者落到区域内的位置。
+                    // 投影统一走非 reversed-Z 的 D3D 约定（near=0 / far=1），
+                    // 与采样侧 GetShadowTransform 及 ShadowClear 保持一致。
+                    cmd.SetGlobalDepthBias(1.0f, 2.5f);
+                    cmd.SetViewProjectionMatrices(command.view, RemapZToD3D(command.proj));
+
+                    ctx.renderContext.ExecuteCommandBuffer(cmd);
+                    cmd.Clear();
+
+                    // 直接把投射者画进当前绑定的 atlas 区域（取代引擎 DrawShadows）。
+                    ctx.renderContext.DrawRenderers(
+                        cameraContext.CullingResults, ref drawingSettings, ref filteringSettings);
+
+                    cmd.DisableScissorRect();
+                    cmd.SetGlobalDepthBias(0f, 0f);
+                    ctx.renderContext.ExecuteCommandBuffer(cmd);
+                    cmd.Clear();
                 }
-
-                ctx.cmd.SetGlobalDepthBias(1.0f, 2.5f);
-                ctx.cmd.SetViewProjectionMatrices(command.view, command.proj);
-
-                ctx.renderContext.ExecuteCommandBuffer(ctx.cmd);
-                ctx.cmd.Clear();
-                ShadowDrawingSettings settings = command.settings;
-                ctx.renderContext.DrawShadows(ref settings);
-
-                ctx.cmd.DisableScissorRect();
-                ctx.cmd.SetGlobalDepthBias(0f, 0f);
-                ctx.renderContext.ExecuteCommandBuffer(ctx.cmd);
-                ctx.cmd.Clear();
             }
 
             copyCommands.Clear();
@@ -1108,6 +1337,18 @@ namespace HN.HNRP
 
             /// <summary>光源 / 相机参数签名，用于检测是否需重绘。</summary>
             public LightSignature signature;
+
+            /// <summary>本 map 最近一次计算的阴影表数据（矩阵派生），未重算时跨帧复用。</summary>
+            public ShadowMapData mapData;
+
+            /// <summary>是否已缓存有效的 <see cref="mapData"/>。</summary>
+            public bool hasMapData;
+
+            /// <summary>本 map 的裁剪球（xyz=球心，w=半径平方），方向光选级写入独立小缓冲。</summary>
+            public Vector4 cullingSphere;
+
+            /// <summary>本帧是否仍被需要（供 O(驻留数) 释放遍历）。</summary>
+            public bool neededThisFrame;
         }
 
         private struct SelectedLight
@@ -1117,7 +1358,12 @@ namespace HN.HNRP
             public int resolution;
             public int cascadeCount;
             public List<float> cascadeSplits;
-            public VisibleLight visibleLight;
+            public Matrix4x4 lightLocalToWorld;
+            public float lightRange;
+            public float lightSpotAngle;
+
+            /// <summary>方向光 cascade 级数与分割的哈希（每帧每灯算一次，供签名复用）。</summary>
+            public int cascadeHash;
             public ShadowUpdateModeType updateMode;
             public List<int> timeSlices;
             public int lightInstanceId;
@@ -1128,7 +1374,6 @@ namespace HN.HNRP
             public Matrix4x4 view;
             public Matrix4x4 proj;
             public TextureAllocatorResult allocation;
-            public ShadowDrawingSettings settings;
         }
 
         private struct ShadowCopyCommand
@@ -1151,6 +1396,7 @@ namespace HN.HNRP
             public int subIndex;
             public Matrix4x4 cameraView;
             public Matrix4x4 cameraProj;
+            public int cascadeHash;
 
             public bool Equals(LightSignature other)
             {
@@ -1160,7 +1406,8 @@ namespace HN.HNRP
                     && resolution == other.resolution
                     && subIndex == other.subIndex
                     && cameraView == other.cameraView
-                    && cameraProj == other.cameraProj;
+                    && cameraProj == other.cameraProj
+                    && cascadeHash == other.cascadeHash;
             }
 
             public override bool Equals(object obj)
@@ -1194,6 +1441,9 @@ namespace HN.HNRP
             /// <summary>按 atlas 槽的阴影数据（StructuredBuffer）。值：<c>_ShadowMapDatas</c>。</summary>
             public static readonly int shadowMapDatas = Shader.PropertyToID("_ShadowMapDatas");
 
+            /// <summary>方向光 cascade 裁剪球小缓冲（StructuredBuffer&lt;float4&gt;）。值：<c>_ShadowCascadeSpheres</c>。</summary>
+            public static readonly int shadowCascadeSpheres = Shader.PropertyToID("_ShadowCascadeSpheres");
+
             /// <summary>阴影全局参数常量缓冲。值：<c>_ShadowMapParamsBuffer</c>。</summary>
             public static readonly int shadowMapParamsBuffer = Shader.PropertyToID("_ShadowMapParamsBuffer");
         }
@@ -1222,6 +1472,12 @@ namespace HN.HNRP
 
         /// <summary>方向光 cascade split 4..7。</summary>
         public Vector4 cascadeSplits1;
+
+        /// <summary>
+        /// 打包的光源类型 / cascade 级数 / 方向光槽位：
+        /// bit0..7=lightType，bit8..15=cascadeCount，bit16..23=directionalSlot。
+        /// </summary>
+        public uint typeAndCascadeCount;
     }
 
     /// <summary>
@@ -1235,9 +1491,6 @@ namespace HN.HNRP
 
         /// <summary>世界 → 阴影裁剪矩阵（含 [0,1] remap，不含 atlas offset）。</summary>
         public Matrix4x4 worldToShadow;
-
-        /// <summary>xyz=裁剪球心，w=半径平方（方向光选级）。</summary>
-        public Vector4 cullingSphere;
     }
 
     /// <summary>
