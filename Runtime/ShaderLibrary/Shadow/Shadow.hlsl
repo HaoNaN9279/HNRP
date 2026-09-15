@@ -132,6 +132,12 @@ float SampleShadowMap(int resolution, uint mapIndex, float3 positionWS)
     DecodeShadowPosition(mapIndex, resolution, scaleOffset, sliceIndex);
 
     float4 shadowCoord = mul(mapData.worldToShadow, float4(positionWS, 1.0));
+    if (shadowCoord.w <= 0.0)
+    {
+        return 1.0;
+    }
+    shadowCoord.xyz /= shadowCoord.w;
+    
     if (shadowCoord.z <= 0.0 || shadowCoord.z >= 1.0)
     {
         return 1.0;

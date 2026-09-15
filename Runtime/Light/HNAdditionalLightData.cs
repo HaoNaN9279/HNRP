@@ -105,7 +105,7 @@ namespace HN.HNRP
         private uint renderingLayerMask = 1;
 
         [SerializeField]
-        private bool enableShadow = true;
+        private bool enableShadow = false;
 
         [SerializeField, CascadeShadow]
         private CascadeShadowSettings cascadeShadow = CascadeShadowSettings.Default;
