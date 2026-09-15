@@ -316,7 +316,7 @@ namespace HN.HNRP.Editor
             public static readonly GUIContent[] areaLightShapeTitles = { EditorGUIUtility.TrTextContent("Rectangle"), EditorGUIUtility.TrTextContent("Disc") };
             public static readonly int[] areaLightShapeValues = { (int)LightType.Rectangle, (int)LightType.Disc };
 
-            public static readonly GUIContent cascadeShadow = EditorGUIUtility.TrTextContent("Cascade Shadow", "配置平行光的级联阴影级数、分辨率、级联边界与更新模式。");
+            public static readonly GUIContent cascadeShadow = EditorGUIUtility.TrTextContent("Shadow Resolution", "该光源阴影 map 的分辨率。级联级数、级联边界与更新模式属于相机，见相机的 Shadows 设置。");
             public static readonly GUIContent enableShadow = EditorGUIUtility.TrTextContent("Enable Shadow", "开启后该光源参与阴影绘制。");
 
             public static readonly GUIContent sunSourceWarning = EditorGUIUtility.TrTextContent("This light is set as the current Sun Source, which requires a directional light. Go to the Lighting Window's Environment settings to edit the Sun Source.");

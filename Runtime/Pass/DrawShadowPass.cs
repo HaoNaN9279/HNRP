@@ -1,4 +1,4 @@
-// <copyright file="DrawShadowPass.cs" company="HN">
+﻿// <copyright file="DrawShadowPass.cs" company="HN">
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
@@ -127,14 +127,14 @@ namespace HN.HNRP
         private ComputeBuffer shadowLightDatasBuffer;
         private ComputeBuffer shadowMapDatasBuffer;
 
-        /// <summary>方向光 cascade 裁剪球缓冲（<c>_ShadowCascadeSpheres</c>，shader 选级只读该小缓冲）。</summary>
-        private ComputeBuffer shadowCascadeSpheresBuffer;
+        /// <summary>每相机阴影参数（<c>_ShadowCameraDatas</c>，单元素；shader 按深+ splits 选级）/summary>
+        private ComputeBuffer shadowCameraDatasBuffer;
 
         private ShadowLightData[] shadowLightDatasArray;
         private ShadowMapData[] shadowMapDatasArray;
 
-        /// <summary>方向光 cascade 裁剪球（索引 = directionalSlot * MaxDirectionalShadowCascades + cascade）。</summary>
-        private Vector4[] shadowCascadeSpheresArray;
+        /// <summary>每相机阴影参数与上传缓冲一一对应的单元素数组/summary>
+        private ShadowCameraData[] shadowCameraDatasArray;
 
         private int lightDataCapacity;
         private int mapDataCapacity;
@@ -179,9 +179,15 @@ namespace HN.HNRP
         private Dictionary<uint, TextureAllocatorResult> allocateResults =
             new Dictionary<uint, TextureAllocatorResult>();
 
+        /// <summary>本帧有效 cascade 级数..<see cref="MaxMapPerLight"/>）/summary>
+        private int frameCascadeCount;
+
+        /// <summary>本帧级联级数与分割的哈希（供各方向光 map 的签名复用）/summary>
+        private int frameCascadeHash;
+
         private ShadowGlobalParams shadowGlobalParams;
 
-        // ── 构造函数 ──
+        private ShadowCameraSettings frameShadowCameraSettings;
 
         /// <summary>
         /// 无参构造仅供参数缓存 Pass 的反序列化使用。
@@ -226,6 +232,7 @@ namespace HN.HNRP
             }
 
             EnsureResources();
+            UpdateCameraShadowSettings();
             CacheCameraMatrices();
 
             BuildSelectedLights();
@@ -262,8 +269,25 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// 缓存本帧相机视图 / GPU 投影矩阵，供方向光 map 的签名比较复用，
-        /// 避免每张 map 重复计算 <c>GL.GetGPUProjectionMatrix</c>。
+        /// 读取本相机挂载的级联阴影设置并缓存到帧状态
+        /// 相机未挂 <see cref="HNAdditionalCameraData"/> 时（如烘焙反射临时相机）使用默认设置
+        /// </summary>
+        private void UpdateCameraShadowSettings()
+        {
+            HNAdditionalCameraData cameraData = cameraContext.AdditionalCameraData;
+            frameShadowCameraSettings = cameraData != null
+                ? cameraData.ShadowSettings
+                : ShadowCameraSettings.Default;
+
+            frameShadowCameraSettings.EnsureValid();
+            frameCascadeCount = Mathf.Clamp(
+                (int)frameShadowCameraSettings.CascadeCount, 1, MaxMapPerLight);
+            frameCascadeHash = ComputeCascadeHash(frameCascadeCount, frameShadowCameraSettings.CascadeSplits);
+        }
+
+        /// <summary>
+        /// 缓存本帧相机视图 / GPU 投影矩阵，供方向map 的签名比较复用，
+        /// 避免每张 map 重复计算 <c>GL.GetGPUProjectionMatrix</c>
         /// </summary>
         private void CacheCameraMatrices()
         {
@@ -283,8 +307,8 @@ namespace HN.HNRP
             shadowLightDatasBuffer = null;
             shadowMapDatasBuffer?.Release();
             shadowMapDatasBuffer = null;
-            shadowCascadeSpheresBuffer?.Release();
-            shadowCascadeSpheresBuffer = null;
+            shadowCameraDatasBuffer?.Release();
+            shadowCameraDatasBuffer = null;
 
             CoreUtils.Destroy(shadowClearMaterial);
             shadowClearMaterial = null;
@@ -334,9 +358,9 @@ namespace HN.HNRP
                 cmd.SetGlobalBuffer(PropertyIDs.shadowMapDatas, shadowMapDatasBuffer);
             }
 
-            if (shadowCascadeSpheresBuffer != null)
+            if (shadowCameraDatasBuffer != null)
             {
-                cmd.SetGlobalBuffer(PropertyIDs.shadowCascadeSpheres, shadowCascadeSpheresBuffer);
+                cmd.SetGlobalBuffer(PropertyIDs.shadowCameraDatas, shadowCameraDatasBuffer);
             }
 
             cmd.SetGlobalTexture(
@@ -425,12 +449,11 @@ namespace HN.HNRP
                     ref shadowMapDatasBuffer, maxMapSlots, System.Runtime.InteropServices.Marshal.SizeOf<ShadowMapData>());
             }
 
-            int sphereCount = MaxDirectionalShadowLights * MaxDirectionalShadowCascades;
-            if (shadowCascadeSpheresArray == null || shadowCascadeSpheresArray.Length != sphereCount)
+            if (shadowCameraDatasArray == null)
             {
-                shadowCascadeSpheresArray = new Vector4[sphereCount];
+                shadowCameraDatasArray = new ShadowCameraData[1];
                 HNRenderPipelineUtils.ValidateComputeBuffer(
-                    ref shadowCascadeSpheresBuffer, sphereCount, System.Runtime.InteropServices.Marshal.SizeOf<Vector4>());
+                    ref shadowCameraDatasBuffer, 1, System.Runtime.InteropServices.Marshal.SizeOf<ShadowCameraData>());
             }
         }
 
@@ -519,13 +542,15 @@ namespace HN.HNRP
                 localCount++;
             }
 
+            // 分辨率先按相机的级联级数收敛（级数越大，单张 map 允许的分辨率越低），
+            // 再收敛到 atlas slice 分辨率以内
+            ResolutionType clampedResolution = CascadeShadowUtils.ClampResolution(
+                frameShadowCameraSettings.CascadeCount, additionalLightData.CascadeResolution);
             int resolution = HNRenderPipelineUtils.ClampShadowResolution(
-                (int)additionalLightData.CascadeResolution, allocatedResolution);
+                (int)clampedResolution, allocatedResolution);
 
-            int cascadeCount = type == LightType.Directional
-                ? Mathf.Clamp((int)additionalLightData.CascadeCount, 1, MaxDirectionalShadowCascades)
-                : 0;
-            List<float> cascadeSplits = additionalLightData.CascadeSplits;
+            // 方向光的级联级数随相机，而非随光源
+            int cascadeCount = type == LightType.Directional ? frameCascadeCount : 0;
 
             selectedLights.Add(new SelectedLight
             {
@@ -533,15 +558,9 @@ namespace HN.HNRP
                 lightType = type,
                 resolution = resolution,
                 cascadeCount = cascadeCount,
-                cascadeSplits = cascadeSplits,
                 lightLocalToWorld = visibleLight.localToWorldMatrix,
                 lightRange = visibleLight.range,
                 lightSpotAngle = visibleLight.spotAngle,
-                cascadeHash = type == LightType.Directional
-                    ? ComputeCascadeHash(cascadeCount, cascadeSplits)
-                    : 0,
-                updateMode = additionalLightData.ShadowUpdateMode,
-                timeSlices = additionalLightData.CascadeTimeSlices,
                 lightInstanceId = light.GetInstanceID(),
             });
 
@@ -679,9 +698,8 @@ namespace HN.HNRP
         /// </summary>
         /// <param name="lightType">光源类型。</param>
         /// <param name="cascadeCount">方向光 cascade 级数（非方向光为 0）。</param>
-        /// <param name="directionalSlot">方向光 cascade 球缓冲槽位（非方向光为 -1）。</param>
-        /// <returns>bit0..7=lightType，bit8..15=cascadeCount，bit16..23=directionalSlot。</returns>
-        private static uint PackLightTypeAndCascadeCount(LightType lightType, int cascadeCount, int directionalSlot)
+        /// <returns>bit0..7=lightType，bit8..15=cascadeCount/returns>
+        private static uint PackLightTypeAndCascadeCount(LightType lightType, int cascadeCount)
         {
             // 与 <see cref="LightData.lightType"/> 的 shader 约定一致：1=方向 2=点 3=聚光。
             uint type = lightType switch
@@ -692,8 +710,7 @@ namespace HN.HNRP
                 _ => 0u,
             };
             uint cascades = ((uint)Mathf.Clamp(cascadeCount, 0, 0xFF)) << 8;
-            uint slot = ((uint)Mathf.Clamp(directionalSlot, 0, 0xFF)) << 16;
-            return type | cascades | slot;
+            return type | cascades;
         }
 
         /// <summary>
@@ -715,6 +732,7 @@ namespace HN.HNRP
 
         /// <summary>
         /// 填充 <c>ShadowLightData</c> / <c>ShadowMapData</c> 两张表，并生成本帧绘制命令。
+        /// 并生成本帧绘制命令
         /// </summary>
         private void BuildTablesAndDrawCommands()
         {
@@ -724,7 +742,10 @@ namespace HN.HNRP
             // resolution>0 与旧 blockDatas，着色器会采样已释放的 atlas 槽。
             System.Array.Clear(shadowLightDatasArray, 0, shadowLightDatasArray.Length);
 
-            // main light 索引由管线在裁剪后计算一次，此处直接复用。
+            // 每相cascade 级数与分割：上传shader 按深度选级
+            shadowCameraDatasArray[0] = BuildShadowCameraData();
+
+            // main light 索引由管线在裁剪后计算一次，此处直接复用
             int mainLightIndex = cameraContext.MainLightIndex;
             int directionalCount = 0;
             int localCount = 0;
@@ -741,9 +762,6 @@ namespace HN.HNRP
                 }
             }
 
-            // 方向光按选中顺序占用 cascade 球小缓冲槽位（0..MaxDirectionalShadowLights-1）。
-            int directionalSlot = 0;
-
             for (int i = 0; i < selectedLights.Count; i++)
             {
                 SelectedLight selected = selectedLights[i];
@@ -753,20 +771,11 @@ namespace HN.HNRP
                     continue;
                 }
 
-                int currentDirectionalSlot = -1;
-                if (selected.lightType == LightType.Directional)
-                {
-                    currentDirectionalSlot = directionalSlot;
-                    directionalSlot++;
-                }
-
                 ShadowLightData lightData = default;
                 lightData.lightIndex = lightIndex;
                 lightData.resolution = selected.resolution;
-                lightData.cascadeSplits0 = Vector4.zero;
-                lightData.cascadeSplits1 = Vector4.zero;
                 lightData.typeAndCascadeCount = PackLightTypeAndCascadeCount(
-                    selected.lightType, selected.cascadeCount, currentDirectionalSlot);
+                    selected.lightType, selected.cascadeCount);
 
                 int mapCount = GetMapCount(selected);
                 bool allAllocated = true;
@@ -799,16 +808,12 @@ namespace HN.HNRP
 
                     if (needMatrices)
                     {
-                        if (ComputeMatrices(
-                                selected, sub,
-                                out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
+                        if (ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj))
                         {
                             ShadowMapData mapData = default;
                             mapData.shadowParams = new Vector4(shadowStrength, shadowSoft, sub, 0f);
                             mapData.worldToShadow = GetShadowTransform(proj, view);
-                            Vector4 sphere = splitData.cullingSphere;
                             resident.mapData = mapData;
-                            resident.cullingSphere = new Vector4(sphere.x, sphere.y, sphere.z, sphere.w * sphere.w);
                             resident.hasMapData = true;
 
                             if (shouldRedraw)
@@ -824,7 +829,6 @@ namespace HN.HNRP
                         else
                         {
                             resident.mapData = default;
-                            resident.cullingSphere = Vector4.zero;
                             resident.hasMapData = false;
                         }
                     }
@@ -833,26 +837,9 @@ namespace HN.HNRP
                     {
                         shadowMapDatasArray[field] = resident.mapData;
                     }
-
-                    // 方向光 cascade 裁剪球写入独立小缓冲（shader 选级只读该 16B 条目）。
-                    // 每帧写（即使未重绘），保证槽位重映射 / 分配移动后仍指向当前球。
-                    if (currentDirectionalSlot >= 0)
-                    {
-                        int sphereIndex = (currentDirectionalSlot * MaxDirectionalShadowCascades) + sub;
-                        if (sphereIndex >= 0 && sphereIndex < shadowCascadeSpheresArray.Length)
-                        {
-                            shadowCascadeSpheresArray[sphereIndex] = resident.cullingSphere;
-                        }
-                    }
                 }
 
-                if (selected.lightType == LightType.Directional)
-                {
-                    lightData.cascadeSplits0 = BuildCascadeSplits(selected, 0);
-                    lightData.cascadeSplits1 = BuildCascadeSplits(selected, 4);
-                }
-
-                // 任一 map 分配失败则禁用该 light 的阴影，避免着色器读到无效槽。
+                // 任一 map 分配失败则禁用该 light 的阴影，避免着色器读到无效槽
                 if (!allAllocated)
                 {
                     lightData.resolution = 0;
@@ -885,14 +872,14 @@ namespace HN.HNRP
             }
             else
             {
-                switch (selected.updateMode)
+                switch (frameShadowCameraSettings.ShadowUpdateMode)
                 {
                     case ShadowUpdateModeType.OnDemand:
                         redraw = pendingOnDemandRequests.Contains(selected.lightInstanceId);
                         break;
 
                     case ShadowUpdateModeType.Custom:
-                        int interval = GetTimeSlice(selected, sub);
+                        int interval = GetTimeSlice(sub);
                         if (interval <= 0)
                         {
                             redraw = true;
@@ -942,7 +929,7 @@ namespace HN.HNRP
             {
                 signature.cameraView = cachedCameraViewMatrix;
                 signature.cameraProj = cachedCameraProjMatrix;
-                signature.cascadeHash = selected.cascadeHash;
+                signature.cascadeHash = frameCascadeHash;
             }
 
             return signature;
@@ -983,9 +970,9 @@ namespace HN.HNRP
             return (hash & 0x7fffffff) % interval;
         }
 
-        private static int GetTimeSlice(SelectedLight selected, int sub)
+        private int GetTimeSlice(int sub)
         {
-            List<int> slices = selected.timeSlices;
+            List<int> slices = frameShadowCameraSettings.CascadeTimeSlices;
             if (slices == null || slices.Count == 0)
             {
                 return 0;
@@ -1000,26 +987,35 @@ namespace HN.HNRP
             return ((uint)allocation.SliceIndex << 6) | (allocation.BlockId & 0x3Fu);
         }
 
-        private Vector4 BuildCascadeSplits(SelectedLight selected, int offset)
+        /// <summary>
+        /// 由相机级联设置构建上传给 shader 的相机阴影参数（各级 cascade 远边界）
+        /// shader 侧据此与片段深度比较来选级
+        /// </summary>
+        private ShadowCameraData BuildShadowCameraData()
         {
-            List<float> splits = selected.cascadeSplits;
-            Vector4 result = Vector4.zero;
+            ShadowCameraData data = default;
+            List<float> splits = frameShadowCameraSettings.CascadeSplits;
             if (splits == null)
             {
-                return result;
+                return data;
             }
 
-            int count = Mathf.Clamp(selected.cascadeCount, 1, splits.Count);
+            int count = Mathf.Clamp(frameCascadeCount, 1, splits.Count);
             for (int i = 0; i < 4; i++)
             {
-                int index = offset + i;
+                if (i < count && i < splits.Count)
+                {
+                    data.cascadeSplits0[i] = splits[i];
+                }
+
+                int index = i + 4;
                 if (index < count && index < splits.Count)
                 {
-                    result[i] = splits[index];
+                    data.cascadeSplits1[i] = splits[index];
                 }
             }
 
-            return result;
+            return data;
         }
 
         /// <summary>
@@ -1029,36 +1025,26 @@ namespace HN.HNRP
             SelectedLight selected,
             int sub,
             out Matrix4x4 view,
-            out Matrix4x4 proj,
-            out ShadowSplitData splitData)
+            out Matrix4x4 proj)
         {
             view = Matrix4x4.identity;
             proj = Matrix4x4.identity;
-            splitData = default;
 
             CullingResults cullingResults = cameraContext.CullingResults;
             switch (selected.lightType)
             {
                 case LightType.Directional:
-                    return ComputeDirectionalMatrices(selected, sub, out view, out proj, out splitData);
+                    return ComputeDirectionalMatrices(selected, sub, out view, out proj);
 
                 case LightType.Spot:
-                {
-                    int resolution = selected.resolution;
-                    if (!cullingResults.ComputeSpotShadowMatricesAndCullingPrimitives(
-                            selected.lightIndex, out view, out proj, out splitData))
-                    {
-                        return false;
-                    }
-                    splitData.shadowCascadeBlendCullingFactor = 1f;
-                    return true;
-                }
+                    return cullingResults.ComputeSpotShadowMatricesAndCullingPrimitives(
+                        selected.lightIndex, out view, out proj, out _);
 
                 case LightType.Point:
                 {
                     if (!cullingResults.ComputePointShadowMatricesAndCullingPrimitives(
                             selected.lightIndex, (CubemapFace)sub, PointLightFovBias,
-                            out view, out proj, out splitData))
+                            out view, out proj, out _))
                     {
                         return false;
                     }
@@ -1068,7 +1054,6 @@ namespace HN.HNRP
                     view.m11 = -view.m11;
                     view.m12 = -view.m12;
                     view.m13 = -view.m13;
-                    splitData.shadowCascadeBlendCullingFactor = 1f;
                     return true;
                 }
 
@@ -1080,21 +1065,21 @@ namespace HN.HNRP
         /// <summary>
         /// 手写方向光级联矩阵：用相机子视锥拟合球体，再绕光方向建正交投影。
         /// 使用世界空间 split，支持任意级数。
+        /// 透视与正交相机共用同一split 语义 —<c>CalculateFrustumCorners</c>
+        /// 对两种投影都在「距相机 <c>distance</c> 的平面」上取角点
         /// </summary>
         private bool ComputeDirectionalMatrices(
             SelectedLight selected,
             int cascadeIndex,
             out Matrix4x4 view,
-            out Matrix4x4 proj,
-            out ShadowSplitData splitData)
+            out Matrix4x4 proj)
         {
             view = Matrix4x4.identity;
             proj = Matrix4x4.identity;
-            splitData = default;
 
             Camera camera = cameraContext.Camera;
-            List<float> splits = selected.cascadeSplits;
-            if (camera == null || splits == null || cascadeIndex >= selected.cascadeCount)
+            List<float> splits = frameShadowCameraSettings.CascadeSplits;
+            if (camera == null || splits == null || cascadeIndex >= frameCascadeCount)
             {
                 return false;
             }
@@ -1145,51 +1130,40 @@ namespace HN.HNRP
             view = Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) * lightToWorld.inverse;
             proj = Matrix4x4.Ortho(-radius, radius, -radius, radius, 0f, 2f * radius + shadowNearPlaneOffset);
 
-            // 裁剪球供着色器按世界坐标点选级；投影 / 视图矩阵已分别交给
-            // SetViewProjectionMatrices（绘制）与 GetShadowTransform（采样）。
-            splitData = new ShadowSplitData
-            {
-                cullingMatrix = proj * view,
-                cullingSphere = new Vector4(center.x, center.y, center.z, radius),
-                shadowCascadeBlendCullingFactor = 1f,
-            };
+            // 选级不依赖裁剪球：shader 用相splits 与片段视轴深度直接判定（Shadow.hlsl）
             return true;
         }
 
+        /// <summary>
+        /// 构建「世界 → 阴影图坐标」矩阵（含 xy 的 [0,1] remap，不含 atlas 偏移）。
+        /// </summary>
+        /// <remarks>
+        /// 深度与绘制侧严格同源：绘制用 GL.GetGPUProjectionMatrix(proj, true)，
+        /// 它包含平台的 z 映射（reversed-Z 平台 near=1 / far=0）与渲染到纹理所需的 Y 翻转；
+        /// 采样用 GL.GetGPUProjectionMatrix(proj, false)，保留同一 z 映射但不做 Y 翻转，
+        /// 使采样的 UV（左下原点）与渲染结果对齐。这里只补上裁剪空间 xy 的 [-1,1] → [0,1] 映射。
+        /// </remarks>
         private static Matrix4x4 GetShadowTransform(Matrix4x4 proj, Matrix4x4 view)
         {
-            // 阴影图与采样统一使用非 reversed-Z 深度约定（near=0 / far=1，
-            // 见 RenderShadows 的投影 z 重映射与 ShadowClear），故此处不做
-            // reversed-Z 取反：z 经 textureScaleAndBias 直接映射到 [0,1]。
-            Matrix4x4 worldToShadow = proj * view;
+            Matrix4x4 worldToShadow = GL.GetGPUProjectionMatrix(proj, false) * view;
             Matrix4x4 textureScaleAndBias = Matrix4x4.identity;
             textureScaleAndBias.m00 = 0.5f;
             textureScaleAndBias.m11 = 0.5f;
-            textureScaleAndBias.m22 = 0.5f;
             textureScaleAndBias.m03 = 0.5f;
             textureScaleAndBias.m13 = 0.5f;
-            textureScaleAndBias.m23 = 0.5f;
             return textureScaleAndBias * worldToShadow;
         }
 
         /// <summary>
-        /// 把 OpenGL 约定（clip z ∈ [-1,1]）的投影重映射到非 reversed-Z 的 D3D 约定
-        /// （近=0、远=1），与采样侧 <see cref="GetShadowTransform"/> 及
-        /// <c>ShadowClear</c> 的远平面写法保持一致。
+        /// 把光源投影矩阵转换为「渲染阴影图」用的 GPU 投影矩阵。
         /// </summary>
         /// <remarks>
-        /// 不使用 <c>GL.GetGPUProjectionMatrix</c>：后者在本平台（reversed-Z）会额外翻转 z，
-        /// 使写入阴影图的深度方向与比较采样器的语义相反，导致深度比较恒判「无遮挡」。
+        /// renderIntoTexture: true 会按平台追加 z 映射与 Y 翻转：D3D 上渲染到纹理必须翻转 Y
         /// </remarks>
-        private static Matrix4x4 RemapZToD3D(Matrix4x4 proj)
+        private static Matrix4x4 GetShadowDrawProjection(Matrix4x4 proj)
         {
-            Matrix4x4 zRemap = Matrix4x4.identity;
-            zRemap.m22 = 0.5f;
-            zRemap.m23 = 0.5f;
-            return zRemap * proj;
+            return GL.GetGPUProjectionMatrix(proj, true);
         }
-
-        // ── 渲染 ──
 
         private void RenderShadows(RenderGraphContext ctx, RTHandle atlas)
         {
@@ -1207,9 +1181,9 @@ namespace HN.HNRP
                 cmd.SetBufferData(shadowMapDatasBuffer, shadowMapDatasArray);
             }
 
-            if (shadowCascadeSpheresBuffer != null && shadowCascadeSpheresArray != null)
+            if (shadowCameraDatasBuffer != null && shadowCameraDatasArray != null)
             {
-                cmd.SetBufferData(shadowCascadeSpheresBuffer, shadowCascadeSpheresArray);
+                cmd.SetBufferData(shadowCameraDatasBuffer, shadowCameraDatasArray);
             }
 
             // 0) atlas 重分配后整图清远深度（一次性，经 RenderGraph 命令缓冲提交）。
@@ -1280,10 +1254,17 @@ namespace HN.HNRP
                     }
 
                     // 深度偏置抑制自阴影；光矩阵决定投射者落到区域内的位置。
-                    // 投影统一走非 reversed-Z 的 D3D 约定（near=0 / far=1），
-                    // 与采样侧 GetShadowTransform 及 ShadowClear 保持一致。
                     cmd.SetGlobalDepthBias(1.0f, 2.5f);
-                    cmd.SetViewProjectionMatrices(command.view, RemapZToD3D(command.proj));
+
+                    // 注意：SetViewProjectionMatrices 只作用于引擎内置矩阵（剔除 / LOD），
+                    // 本项目 shader 的 UNITY_MATRIX_V / VP 来自自定义 ShaderVariablesGlobal（b0，
+                    // 按相机上传），因此投射者必须额外用 _ShadowViewProj 取光源矩阵。
+                    // 投影统一走 GetShadowDrawProjection（含平台 z 映射与渲染到纹理的 Y 翻转），
+                    // 保证写入深度与采样侧 GetShadowTransform 严格同源。
+                    cmd.SetViewProjectionMatrices(command.view, GetShadowDrawProjection(command.proj));
+                    cmd.SetGlobalMatrix(
+                        PropertyIDs.shadowViewProj,
+                        GetShadowDrawProjection(command.proj) * command.view);
 
                     ctx.renderContext.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
@@ -1309,7 +1290,7 @@ namespace HN.HNRP
                 return;
             }
 
-            Shader clearShader = cameraContext?.RuntimeResources?.shaderResources?.ShadowClear;
+            Shader clearShader = cameraContext.RuntimeResources.shaderResources.ShadowClear;
             if (clearShader != null)
             {
                 shadowClearMaterial = new Material(clearShader)
@@ -1344,10 +1325,7 @@ namespace HN.HNRP
             /// <summary>是否已缓存有效的 <see cref="mapData"/>。</summary>
             public bool hasMapData;
 
-            /// <summary>本 map 的裁剪球（xyz=球心，w=半径平方），方向光选级写入独立小缓冲。</summary>
-            public Vector4 cullingSphere;
-
-            /// <summary>本帧是否仍被需要（供 O(驻留数) 释放遍历）。</summary>
+            /// <summary>本帧是否仍被需要（O(驻留 释放遍历）/summary>
             public bool neededThisFrame;
         }
 
@@ -1356,16 +1334,12 @@ namespace HN.HNRP
             public int lightIndex;
             public LightType lightType;
             public int resolution;
+
+            /// <summary>该光源占用的 map 数（方向= 相机级联级数；否则由类型决定）/summary>
             public int cascadeCount;
-            public List<float> cascadeSplits;
             public Matrix4x4 lightLocalToWorld;
             public float lightRange;
             public float lightSpotAngle;
-
-            /// <summary>方向光 cascade 级数与分割的哈希（每帧每灯算一次，供签名复用）。</summary>
-            public int cascadeHash;
-            public ShadowUpdateModeType updateMode;
-            public List<int> timeSlices;
             public int lightInstanceId;
         }
 
@@ -1441,10 +1415,15 @@ namespace HN.HNRP
             /// <summary>按 atlas 槽的阴影数据（StructuredBuffer）。值：<c>_ShadowMapDatas</c>。</summary>
             public static readonly int shadowMapDatas = Shader.PropertyToID("_ShadowMapDatas");
 
-            /// <summary>方向光 cascade 裁剪球小缓冲（StructuredBuffer&lt;float4&gt;）。值：<c>_ShadowCascadeSpheres</c>。</summary>
-            public static readonly int shadowCascadeSpheres = Shader.PropertyToID("_ShadowCascadeSpheres");
+            /// <summary>每相机阴影参数（StructuredBuffer&lt;ShadowCameraData&gt;，单元素）
+            /// 值：<c>_ShadowCameraDatas</c>/summary>
+            public static readonly int shadowCameraDatas = Shader.PropertyToID("_ShadowCameraDatas");
 
-            /// <summary>阴影全局参数常量缓冲。值：<c>_ShadowMapParamsBuffer</c>。</summary>
+            /// <summary>阴影投射专用的光源视图投影矩阵（世界 光源裁剪）
+            /// 值：<c>_ShadowViewProj</c>/summary>
+            public static readonly int shadowViewProj = Shader.PropertyToID("_ShadowViewProj");
+
+            /// <summary>阴影全局参数常量缓冲。值：<c>_ShadowMapParamsBuffer</c>/summary>
             public static readonly int shadowMapParamsBuffer = Shader.PropertyToID("_ShadowMapParamsBuffer");
         }
     }
@@ -1467,15 +1446,9 @@ namespace HN.HNRP
         /// <summary>map 4..7 的 atlas 位置。</summary>
         public uint blockDatas1;
 
-        /// <summary>方向光 cascade split 0..3（世界空间；0 表示无该级）。</summary>
-        public Vector4 cascadeSplits0;
-
-        /// <summary>方向光 cascade split 4..7。</summary>
-        public Vector4 cascadeSplits1;
-
         /// <summary>
         /// 打包的光源类型 / cascade 级数 / 方向光槽位：
-        /// bit0..7=lightType，bit8..15=cascadeCount，bit16..23=directionalSlot。
+        /// bit0..7=lightType，bit8..15=cascadeCount
         /// </summary>
         public uint typeAndCascadeCount;
     }
@@ -1483,6 +1456,19 @@ namespace HN.HNRP
     /// <summary>
     /// 按 atlas 槽的阴影数据（供 GPU 两级查表的第二级）。buffer 下标即 atlas 位置字段。
     /// 布局须与 shader 侧一致。
+    /// </summary>
+    public struct ShadowCameraData
+    {
+        /// <summary>cascade 0..3 的远边界（沿相机视轴的深度；0 表示无该级）/summary>
+        public Vector4 cascadeSplits0;
+
+        /// <summary>cascade 4..7 的远边界/summary>
+        public Vector4 cascadeSplits1;
+    }
+
+    /// <summary>
+    /// atlas 槽的阴影数据（供 GPU 两级查表的第二级）。buffer 下标atlas 位置字段
+    /// 布局须与 shader 侧一致
     /// </summary>
     public struct ShadowMapData
     {

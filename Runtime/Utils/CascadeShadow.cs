@@ -44,15 +44,74 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// 级联阴影设置：级数、每级分辨率、各级远边界（世界空间）、更新模式与更新帧间隔。
+    /// 标记 <see cref="ShadowCameraSettings"/> 字段，交给 ShadowCameraDrawer 自定义绘制。
+    /// </summary>
+    public class ShadowCameraAttribute : PropertyAttribute
+    {
+    }
+
+    /// <summary>
+    /// 灯光侧阴影设置：单张阴影 map 的分辨率。
+    /// 级联相关参数（级数、分割、更新模式）属于相机，见 <see cref="ShadowCameraSettings"/>。
     /// </summary>
     [Serializable]
     public struct CascadeShadowSettings
     {
+        /// <summary>默认分辨率。</summary>
+        public static CascadeShadowSettings Default
+        {
+            get
+            {
+                CascadeShadowSettings settings = new CascadeShadowSettings
+                {
+                    cascadeResolution = ResolutionType.Medium
+                };
+                settings.EnsureValid();
+                return settings;
+            }
+        }
+
+        [SerializeField]
+        private ResolutionType cascadeResolution;
+
+        /// <summary>每张阴影 map 的分辨率。</summary>
+        public ResolutionType CascadeResolution
+        {
+            get => cascadeResolution;
+            set => cascadeResolution = value;
+        }
+
+        /// <summary>
+        /// 修正缺失或非法的数据，保证枚举取值合法。
+        /// 用于兼容新增字段后的旧序列化数据与运行时新建组件。
+        /// </summary>
+        public void EnsureValid()
+        {
+            switch (cascadeResolution)
+            {
+                case ResolutionType.Low:
+                case ResolutionType.Medium:
+                case ResolutionType.High:
+                case ResolutionType.Ultra:
+                    break;
+
+                default:
+                    cascadeResolution = ResolutionType.Medium;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 相机侧级联阴影设置：级数、各级远边界（相机视轴深度）、更新模式与更新帧间隔。
+    /// </summary>
+    [Serializable]
+    public struct ShadowCameraSettings
+    {
         /// <summary>cascade 最大级数，级联边界数组固定长度。</summary>
         public const int MaxCascadeCount = 8;
 
-        /// <summary>默认的 8 级 cascade 远边界（世界空间，单位米）。</summary>
+        /// <summary>默认的 8 级 cascade 远边界（沿相机视轴，单位米）。</summary>
         public static readonly float[] DefaultSplits =
         {
             1f, 4f, 10f, 30f, 50f, 100f, 300f, 1000f
@@ -68,9 +127,6 @@ namespace HN.HNRP
         private CascadeCountType cascadeCount;
 
         [SerializeField]
-        private ResolutionType cascadeResolution;
-
-        [SerializeField]
         private List<float> cascadeSplits;
 
         [SerializeField]
@@ -82,14 +138,13 @@ namespace HN.HNRP
         /// <summary>
         /// 创建一个使用默认值的新实例。
         /// </summary>
-        public static CascadeShadowSettings Default
+        public static ShadowCameraSettings Default
         {
             get
             {
-                CascadeShadowSettings settings = new CascadeShadowSettings
+                ShadowCameraSettings settings = new ShadowCameraSettings
                 {
                     cascadeCount = CascadeCountType.Four,
-                    cascadeResolution = ResolutionType.Medium,
                     cascadeSplits = new List<float>(DefaultSplits),
                     shadowUpdateMode = ShadowUpdateModeType.EveryFrame,
                     cascadeTimeSlices = new List<int>(DefaultTimeSlices)
@@ -103,21 +158,10 @@ namespace HN.HNRP
         public CascadeCountType CascadeCount
         {
             get => cascadeCount;
-            set
-            {
-                cascadeCount = value;
-                cascadeResolution = CascadeShadowUtils.ClampResolution(cascadeCount, cascadeResolution);
-            }
+            set => cascadeCount = value;
         }
 
-        /// <summary>每级 cascade 分辨率。</summary>
-        public ResolutionType CascadeResolution
-        {
-            get => cascadeResolution;
-            set => cascadeResolution = value;
-        }
-
-        /// <summary>最大 8 级 cascade 时每级 cascade 的远边界距离（世界空间）。</summary>
+        /// <summary>最大 8 级 cascade 时每级 cascade 的远边界（相机视轴深度）。</summary>
         public List<float> CascadeSplits
         {
             get => cascadeSplits;
@@ -140,7 +184,7 @@ namespace HN.HNRP
 
         /// <summary>
         /// 修正缺失或非法的数据，保证数组长度与取值合法。
-        /// 用于兼容新增字段后的旧序列化数据。
+        /// 用于兼容新增字段后的旧序列化数据与运行时新建组件。
         /// </summary>
         public void EnsureValid()
         {
@@ -169,8 +213,6 @@ namespace HN.HNRP
             {
                 EnsureIntList(cascadeTimeSlices, DefaultTimeSlices);
             }
-
-            cascadeResolution = CascadeShadowUtils.ClampResolution(cascadeCount, cascadeResolution);
         }
 
         private static void EnsureFloatList(List<float> values, float[] defaults)
@@ -201,7 +243,7 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// <see cref="CascadeShadowSettings"/> 的纯逻辑校验工具，便于单独测试。
+    /// <see cref="ShadowCameraSettings"/> 的纯逻辑校验工具，便于单独测试。
     /// </summary>
     public static class CascadeShadowUtils
     {

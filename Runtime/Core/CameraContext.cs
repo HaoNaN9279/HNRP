@@ -97,6 +97,26 @@ namespace HN.HNRP
         public GlobalConstantBuffer ConstantBuffer { get; set; }
 
         /// <summary>
+        /// 本相机挂载的 <see cref="HNAdditionalCameraData"/>；不存在时为 <c>null</c>
+        /// （如烘焙反射等临时相机）。惰性解析并缓存，<b>不</b>创建组件。
+        /// </summary>
+        public HNAdditionalCameraData AdditionalCameraData
+        {
+            get
+            {
+                if (additionalCameraData == null && Camera != null)
+                {
+                    Camera.TryGetComponent(out additionalCameraData);
+                }
+
+                return additionalCameraData;
+            }
+        }
+
+        /// <summary><see cref="AdditionalCameraData"/> 的惰性缓存。</summary>
+        private HNAdditionalCameraData additionalCameraData;
+
+        /// <summary>
         /// 初始化 <see cref="CameraContext"/> 的新实例。
         /// 从池中分配名为 <c>"CameraContext"</c> 的命令缓冲。
         /// </summary>

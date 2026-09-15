@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -83,34 +81,14 @@ namespace HN.HNRP
             set => enableShadow = value;
         }
 
-        public CascadeCountType CascadeCount
-        {
-            get => cascadeShadow.CascadeCount;
-            set => cascadeShadow.CascadeCount = value;
-        }
-
+        /// <summary>
+        /// 每张阴影 map 的分辨率。
+        /// 级联级数 / 分割 / 更新模式属于相机，见 <see cref="HNAdditionalCameraData.ShadowSettings"/>。
+        /// </summary>
         public ResolutionType CascadeResolution
         {
             get => cascadeShadow.CascadeResolution;
             set => cascadeShadow.CascadeResolution = value;
-        }
-
-        public List<float> CascadeSplits
-        {
-            get => cascadeShadow.CascadeSplits;
-            set => cascadeShadow.CascadeSplits = value;
-        }
-
-        public ShadowUpdateModeType ShadowUpdateMode
-        {
-            get => cascadeShadow.ShadowUpdateMode;
-            set => cascadeShadow.ShadowUpdateMode = value;
-        }
-
-        public List<int> CascadeTimeSlices
-        {
-            get => cascadeShadow.CascadeTimeSlices;
-            set => cascadeShadow.CascadeTimeSlices = value;
         }
 
 

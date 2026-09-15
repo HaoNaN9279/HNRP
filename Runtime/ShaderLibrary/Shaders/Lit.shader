@@ -82,7 +82,7 @@ Shader "HNRP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            // #pragma enable_d3d11_debug_symbols
+            #pragma enable_d3d11_debug_symbols
 
             #include "../Lit/Lit.hlsl"
             ENDHLSL
@@ -112,6 +112,8 @@ Shader "HNRP/Lit"
 
             // GPU Instancing
             #pragma multi_compile_instancing
+
+            #pragma enable_d3d11_debug_symbols
 
             #include "../Lit/LitShadowCaster.hlsl"
             ENDHLSL

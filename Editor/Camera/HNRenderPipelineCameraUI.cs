@@ -19,6 +19,7 @@ namespace HN.HNRP.Editor
                 ProjectionSettings(),
                 RenderingSettings(),
                 EnvironmentSettings(),
+                ShadowsSettings(),
                 OutputSettings(),
             };
         }
@@ -110,6 +111,32 @@ namespace HN.HNRP.Editor
 #endregion
 
 
+#region Shadows
+        public static CED.IDrawer ShadowsSettings()
+        {
+            return CED.FoldoutGroup(
+                Styles.shadowsHeader,
+                Expandable.Shadows,
+                expandedState,
+                FoldoutOption.Indent,
+                CED.Group(
+                    DrawShadows
+                    )
+            );
+        }
+
+        private static void DrawShadows(HNRenderPipelineSerializedCamera p, UnityEditor.Editor owner)
+        {
+            if (p.shadowSettings == null)
+            {
+                return;
+            }
+
+            EditorGUILayout.PropertyField(p.shadowSettings, Styles.shadowSettings);
+        }
+#endregion
+
+
 #region Output
         public static CED.IDrawer OutputSettings()
         {
@@ -139,6 +166,7 @@ namespace HN.HNRP.Editor
             Output = 1 << 3,
             Rendering = 1 << 4,
             Environment = 1 << 5,
+            Shadows = 1 << 6,
         }
 
         public enum ExpandableAdditional
@@ -150,6 +178,10 @@ namespace HN.HNRP.Editor
         public class Styles
         {
             public static GUIContent renderGraphView = EditorGUIUtility.TrTextContent("Render Graph View", "Chose render graph view's name in HNRenderPipelineAsset runtime render graph views.");
+
+            public static GUIContent shadowsHeader = EditorGUIUtility.TrTextContent("Shadows", "阴影级联配置。");
+
+            public static GUIContent shadowSettings = EditorGUIUtility.TrTextContent("Cascade Shadow", "配置阴影级联级数、级联边界与更新模式。");
         }
 
 

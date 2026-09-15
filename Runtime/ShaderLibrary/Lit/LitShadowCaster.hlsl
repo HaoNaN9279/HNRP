@@ -10,6 +10,11 @@
 // 深度偏置由绘制侧 SetGlobalDepthBias 承担。alpha clip 与 Forward pass 一致，
 // 保证裁切体（树叶 / 草等）的阴影形状正确。
 
+// 光源视图投影矩阵（由 DrawShadowPass 逐 map 上传）。
+// 不能使用 UNITY_MATRIX_VP：本工程 shader 的它来自自定义 ShaderVariablesGlobal（b0）
+// 常量缓冲，内容始终是当前相机矩阵，不随引擎的 SetViewProjectionMatrices 变化。
+float4x4 _ShadowViewProj;
+
 struct ShadowCasterAttributes
 {
     float4 positionOS : POSITION;
@@ -38,14 +43,10 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
     UNITY_TRANSFER_INSTANCE_ID(input, output);
 
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-    float4 positionCS = TransformWorldToHClip(positionWS);
+    float4 positionCS = mul(_ShadowViewProj, float4(positionWS, 1.0));
 
-    // 避免顶点被近平面裁掉，保证贴地阴影不消失。
-#if UNITY_REVERSED_Z
-    positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-#else
-    positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-#endif
+    // 不做近平面临界钳制：光源视图体之外的几何应被硬件裁剪掉。
+    // 若把它钳到近平面（深度 0），这些片元会以"最近深度"写入阴影图，导致该区域整片被判为遮挡。
 
     output.positionCS = positionCS;
 #if defined(_BASEMAP)

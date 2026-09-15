@@ -11,10 +11,16 @@ struct ShadowLightData
 {
     int    lightIndex;           // = buffer 下标
     int    resolution;           // 单张 map 分辨率；0 = 该 light 无阴影
-    uint2  blockDatas;           // map 0..7 的 atlas 位置，每张 8 位 = (slice << 6) | blockId
-    float4 cascadeSplits0;       // 方向光 cascade split 0..3（世界空间；0 表示无该级）
-    float4 cascadeSplits1;       // 方向光 cascade split 4..7
-    uint   typeAndCascadeCount;  // bit0..7=lightType, bit8..15=cascadeCount, bit16..23=directionalSlot
+    uint   blockDatas0;          // map 0..3 的 atlas 位置，每张 8 位 = (slice << 6) | blockId
+    uint   blockDatas1;          // map 4..7 的 atlas 位置
+    uint   typeAndCascadeCount;  // bit0..7=lightType, bit8..15=cascadeCount
+};
+
+/// 每相机阴影参数（单元素缓冲）：方向光 cascade 的各级远边界（沿相机视轴深度）。
+struct ShadowCameraData
+{
+    float4 cascadeSplits0;       // cascade 0..3
+    float4 cascadeSplits1;       // cascade 4..7
 };
 
 /// 按 atlas 槽的阴影数据（两级查表第二级）。buffer 下标 = atlas 位置字段。
@@ -31,13 +37,10 @@ CBUFFER_END
 
 #define _SHADOW_SLICE_RESOLUTION (_ShadowGlobalParams2.y)
 
-#define MAX_DIRECTIONAL_SHADOW_LIGHTS   (4)
-#define MAX_DIRECTIONAL_SHADOW_CASCADES (8)
-
 #if defined(SHADOW_MAP)
 StructuredBuffer<ShadowLightData> _ShadowLightDatas;
 StructuredBuffer<ShadowMapData> _ShadowMapDatas;
-StructuredBuffer<float4> _ShadowCascadeSpheres;
+StructuredBuffer<ShadowCameraData> _ShadowCameraDatas;
 TEXTURE2D_ARRAY_SHADOW(_ShadowMapArray);
 SAMPLER_CMP(sampler_LinearClampCompare);
 #endif
@@ -47,7 +50,7 @@ SAMPLER_CMP(sampler_LinearClampCompare);
 /// 取该 light 第 k 张 map 的 8 位 atlas 位置（同时是 ShadowMapData 下标）。
 uint GetShadowMapIndex(ShadowLightData lightData, int k)
 {
-    uint word = lightData.blockDatas[k >> 2];
+    uint word = k < 4 ? lightData.blockDatas0 : lightData.blockDatas1;
     return (word >> ((k & 3) * 8)) & 0xFFu;
 }
 
@@ -61,12 +64,6 @@ int GetShadowLightType(ShadowLightData lightData)
 int GetShadowCascadeCount(ShadowLightData lightData)
 {
     return (int)((lightData.typeAndCascadeCount >> 8) & 0xFFu);
-}
-
-/// 方向光在 cascade 球小缓冲中的槽位。
-int GetShadowDirectionalSlot(ShadowLightData lightData)
-{
-    return (int)((lightData.typeAndCascadeCount >> 16) & 0xFFu);
 }
 
 #if defined(SHADOW_MAP)
@@ -89,6 +86,41 @@ void DecodeShadowPosition(uint field, int resolution, out float4 scaleOffset, ou
     }
 
     scaleOffset = float4(scale, scale, xId / perAxis, yId / perAxis);
+}
+
+/// 方向光 cascade 选级：按片段沿相机视轴的深度与各级 splits 判定。
+/// 透视与正交相机共用同一判据——C# 侧 CalculateFrustumCorners 对两种投影
+/// 都在「距相机 distance 的平面」上取角点，故 split 深度即 -viewPos.z。
+/// 返回 -1 表示超出最远级（或级数非法），调用方应视为无阴影。
+int GetDirectionalCascadeIndex(int cascadeCount, float3 positionWS)
+{
+    if (cascadeCount <= 0)
+    {
+        return -1;
+    }
+
+    float3 positionVS = mul(UNITY_MATRIX_V, float4(positionWS, 1.0)).xyz;
+    float viewDepth = -positionVS.z;
+
+    ShadowCameraData cameraData = _ShadowCameraDatas[0];
+
+    [loop]
+    for (int k = 0; k < cascadeCount; k++)
+    {
+        // 先整段选出 0..3 或 4..7 对应的 float4，再用 k & 3 索引：
+        // 三元表达式两侧都会被求值，直接写 cascadeSplits1[k - 4] 会产生负下标。
+        float4 splits = k < 4
+            ? cameraData.cascadeSplits0
+            : cameraData.cascadeSplits1;
+        float split = splits[k & 3];
+
+        if (viewDepth < split)
+        {
+            return k;
+        }
+    }
+
+    return -1;
 }
 
 float SampleShadowMap(int resolution, uint mapIndex, float3 positionWS)
@@ -133,33 +165,13 @@ float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirec
     }
     else if (lightType == 1 /* Directional */)
     {
-        int cascadeCount = GetShadowCascadeCount(lightData);
-        if (cascadeCount <= 0)
+        int cascadeIndex = GetDirectionalCascadeIndex(GetShadowCascadeCount(lightData), positionWS);
+        if (cascadeIndex < 0)
         {
             return 1.0;
         }
 
-        // 选级只读独立的小缓冲（每级 16B），避免加载整条 ShadowMapData。
-        int slotBase = GetShadowDirectionalSlot(lightData) * MAX_DIRECTIONAL_SHADOW_CASCADES;
-        int found = -1;
-        [loop]
-        for (int k = 0; k < cascadeCount; k++)
-        {
-            float4 sphere = _ShadowCascadeSpheres[slotBase + k];
-            float3 diff = positionWS - sphere.xyz;
-            if (dot(diff, diff) < sphere.w)
-            {
-                found = (int)GetShadowMapIndex(lightData, k);
-                break;
-            }
-        }
-
-        if (found < 0)
-        {
-            return 1.0;
-        }
-
-        mapIndex = (uint)found;
+        mapIndex = GetShadowMapIndex(lightData, cascadeIndex);
     }
     else /* Spot */
     {

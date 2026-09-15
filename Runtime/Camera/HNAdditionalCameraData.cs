@@ -17,6 +17,13 @@ namespace HN.HNRP
             viewConstants = new ViewConstants();
             frustum = new Frustum { planes = new Plane[6], corners = new Vector3[8] };
             frustumPlaneEquations = new Vector4[6];
+            shadowSettings.EnsureValid();
+        }
+
+        void OnValidate()
+        {
+            // 运行时新建的组件不会走字段初始化器，需在此补齐默认的级联级数与数组长度。
+            shadowSettings.EnsureValid();
         }
 
         void Update()
@@ -182,6 +189,44 @@ namespace HN.HNRP
             set { clearDepth = value; }
         }
 
+        /// <summary>
+        /// 相机侧级联阴影配置：级数、各级远边界（相机视轴深度）、更新模式与更新帧间隔。
+        /// 方向光的级联随相机，而非随光源。
+        /// </summary>
+        public ShadowCameraSettings ShadowSettings
+        {
+            get => shadowSettings;
+            set => shadowSettings = value;
+        }
+
+        /// <summary>方向光阴影级联级数。</summary>
+        public CascadeCountType CascadeCount
+        {
+            get => shadowSettings.CascadeCount;
+            set => shadowSettings.CascadeCount = value;
+        }
+
+        /// <summary>各级 cascade 的远边界（相机视轴深度）。</summary>
+        public List<float> CascadeSplits
+        {
+            get => shadowSettings.CascadeSplits;
+            set => shadowSettings.CascadeSplits = value;
+        }
+
+        /// <summary>阴影更新模式。</summary>
+        public ShadowUpdateModeType ShadowUpdateMode
+        {
+            get => shadowSettings.ShadowUpdateMode;
+            set => shadowSettings.ShadowUpdateMode = value;
+        }
+
+        /// <summary>Custom 更新模式下每级 cascade 的更新帧间隔。</summary>
+        public List<int> CascadeTimeSlices
+        {
+            get => shadowSettings.CascadeTimeSlices;
+            set => shadowSettings.CascadeTimeSlices = value;
+        }
+
         public Rect FinalViewport
         {
             get { return new Rect(builtinCamera.pixelRect.x, builtinCamera.pixelRect.y, builtinCamera.pixelWidth, builtinCamera.pixelHeight); }
@@ -212,6 +257,9 @@ namespace HN.HNRP
 
         [SerializeField]
         private bool clearDepth = true;
+
+        [SerializeField, ShadowCamera]
+        private ShadowCameraSettings shadowSettings = ShadowCameraSettings.Default;
 
         /// <summary>
         /// 本相机的运行时渲染器。运行时状态，不序列化。

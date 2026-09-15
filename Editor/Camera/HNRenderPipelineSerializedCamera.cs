@@ -38,6 +38,7 @@ namespace HN.HNRP.Editor
 
             // HNRP 专属属性
             renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
+            shadowSettings = serializedAdditionalDataObject.FindProperty("shadowSettings");
         }
 
         public void Apply()
@@ -77,6 +78,9 @@ namespace HN.HNRP.Editor
 
         // HNRP 专属属性
         public SerializedProperty renderGraphViewIndex { get; }
+
+        /// <summary>相机侧级联阴影设置（级数 / 分割 / 更新模式）。</summary>
+        public SerializedProperty shadowSettings { get; }
 
     }
 }
