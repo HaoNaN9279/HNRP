@@ -423,6 +423,9 @@ namespace HN.HNRP
                 System.Array.Clear(residentMaps, 0, residentMaps.Length);
                 activeResidentMaps.Clear();
 
+                // atlas 已重建，旧 slice / 偏移的搬移命令全部失效，避免残留命令访问无效区域。
+                copyCommands.Clear();
+
                 // 整图初始化为远深度（clearDepth=true, clearColor=false：atlas 无颜色目标）。
                 // 命令延迟到 render func 内经 RenderGraph 的命令缓冲提交，避免在录制期
                 // 私自申请 CommandBuffer 并即时提交到 ScriptableRenderContext。
@@ -628,7 +631,11 @@ namespace HN.HNRP
             allocateResults.Clear();
             textureAllocator.Allocate(ref allocateResults, mapIndex, selected.resolution);
 
-            // 处理被本次分配重分配（搬移）的既有 map：更新驻留位置并记录纹理搬移。
+            // 处理被本次分配重分配（搬移）的既有 map：更新驻留位置。
+            // Graphics.CopyTexture 不允许在同一 texture 的同一 element/mip 内拷贝（即使源与目标
+            // 区域不同也会报「identical source and destination element」），而 atlas 通常只有
+            // 单 slice，因此同 slice 内搬移无法拷贝，改为标记强制重绘，在新位置重建内容。
+            // 仅跨 slice 搬移才用 CopyTexture 保留原内容。
             foreach (KeyValuePair<uint, TextureAllocatorResult> pair in allocateResults)
             {
                 if (pair.Key == mapIndex || !pair.Value.IsReorg)
@@ -636,7 +643,23 @@ namespace HN.HNRP
                     continue;
                 }
 
-                if (TryGetResidentMap(pair.Key, out ResidentMap moved))
+                if (!TryGetResidentMap(pair.Key, out ResidentMap moved))
+                {
+                    continue;
+                }
+
+                moved.allocation = pair.Value;
+
+                if (pair.Value.OldSliceIndex == pair.Value.SliceIndex)
+                {
+                    // 位置未变的搬移是空操作，无需重绘；确已移动的强制下一帧重绘。
+                    if (pair.Value.OldScaleOffset != pair.Value.ScaleOffset)
+                    {
+                        moved.hasSignature = false;
+                        moved.lastUpdateFrame = -1;
+                    }
+                }
+                else
                 {
                     copyCommands.Add(new ShadowCopyCommand
                     {
@@ -645,7 +668,6 @@ namespace HN.HNRP
                         toSlice = pair.Value.SliceIndex,
                         toScaleOffset = pair.Value.ScaleOffset,
                     });
-                    moved.allocation = pair.Value;
                 }
             }
 
