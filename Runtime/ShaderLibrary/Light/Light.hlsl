@@ -36,14 +36,18 @@ float3 GetViewDirectionWS(float3 positionWS)
     return normalize(GetCameraPositionWS().xyz - positionWS);
 }
 
+int GetMainLightIndex()
+{
+#if CLUSTER_CULLING_LIGHT
+    return _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX;
+#else
+    return _LightConstantData.x;
+#endif
+}
+
 Light GetMainLight(float3 positionWS)
 {
-    int mainLightIndex = 0;
-#if CLUSTER_CULLING_LIGHT
-    mainLightIndex = _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX;
-#else
-    mainLightIndex = _LightConstantData.x;
-#endif
+    int mainLightIndex = GetMainLightIndex();
     Light light;
     ZERO_INITIALIZE(Light, light);
     light.color = _LightDatasBuffer[mainLightIndex].color;

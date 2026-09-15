@@ -150,7 +150,9 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
             uint lightType = lightData.lightType;
             if(lightType == 1/* directional light */)
             {
-                // directional light默认都与cluster相交，不更新header，header中只存储local light的最大最小index
+                // directional light 在所有簇中都有效，必须纳入 header 的 min/max。
+                // 否则 iterator 的遍历区间只覆盖 local light，方向光的 mask bit 永远访问不到。
+                UpdateHeader(header, lightIndex);
                 _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordIndex] |= bitMask;
             }
             else if(lightType == 2/* point light */ || lightType == 3/* spot light */)

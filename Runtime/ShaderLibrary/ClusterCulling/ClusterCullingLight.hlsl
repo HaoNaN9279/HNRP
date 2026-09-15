@@ -33,6 +33,7 @@ ClusterCullingLightIterator ClusterCullingLightInit(float2 normalizedScreenSpace
 
 bool ClusterCullingLightNext(inout ClusterCullingLightIterator it, out uint probeIndex)
 {
+    probeIndex = 0xFFFFFFFFu;
     if(it.currentIndex >= it.minIndex && it.currentIndex <= it.maxIndex && (_CLUSTER_CULLING_LIGHT_LOCAL_LIGHT_COUNT + _CLUSTER_CULLING_LIGHT_DIRECTIONAL_LIGHT_COUNT) != 0)
     {
         bool valid = 0;
