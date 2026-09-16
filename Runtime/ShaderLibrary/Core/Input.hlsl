@@ -8,9 +8,7 @@
 
 #define MAX_REFLECTION_PROBE_MASK_WORDS (16384)
 #define MAX_REFLECTION_PROBES_ON_SCREEN (64)
-#define REFLECTION_PROBE_ATLAS_MIP_COUNT (7)
 #define REFLECTION_PROBE_ATLAS_TEXEL_PADDING (2)
-#define REFLECTION_PROBE_ATLAS_SIZE (4096)
 
 // Light Data Structure
 struct LightData
@@ -39,7 +37,8 @@ struct ClusterCullingReflectionProbeDatas
     float intensity;
     float4 scaleOffset;
     float mipCount;
-    float3 unused;
+    float sliceIndex;
+    float2 unused;
 };
 
 StructuredBuffer<ClusterCullingReflectionProbeDatas> _ClusterCullingReflectionProbeDatasBuffer;
@@ -49,8 +48,8 @@ GLOBAL_CBUFFER_START(_ClusterCullingReflectionProbeParamsBuffer, b2)
     float2 _ClusterCullingReflectionProbeClusterZScaleOffset;
     int _ClusterCullingReflectionProbeWordsPerCluster;
     int _ClusterCullingReflectionProbeReflectionProbeCount;
-    float _ClusterCullingReflectionProbeUnused0;
-    float _ClusterCullingReflectionProbeUnused1;
+    float _ClusterCullingReflectionProbeAtlasSize;
+    float _ClusterCullingReflectionProbeAtlasSliceCount;
 CBUFFER_END
 
 #define _CLUSTER_CULLING_REFLECTION_PROBE_XY_SCALE (_ClusterCullingReflectionProbeClusterSizeXY.xy)
@@ -58,10 +57,11 @@ CBUFFER_END
 #define _CLUSTER_CULLING_REFLECTION_PROBE_Z_OFFSET (_ClusterCullingReflectionProbeClusterZScaleOffset.y)
 #define _CLUSTER_CULLING_REFLECTION_PROBE_WORDS_PER_CLUSTER (_ClusterCullingReflectionProbeWordsPerCluster)
 #define _CLUSTER_CULLING_REFLECTION_PROBE_COUNT (_ClusterCullingReflectionProbeReflectionProbeCount)
+#define _CLUSTER_CULLING_REFLECTION_PROBE_ATLAS_SIZE (_ClusterCullingReflectionProbeAtlasSize)
 
 StructuredBuffer<uint> _ClusterCullingReflectionProbeMaskBuffer;
 
-TEXTURE2D(_ReflectionProbeAtlas);
+TEXTURE2D_ARRAY(_ReflectionProbeAtlas);
 
 #endif
 

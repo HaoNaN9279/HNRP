@@ -123,15 +123,19 @@ half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
     return dot(maxToMin, maxToMin);
 }
 
+// 八面体图集采样坐标。依赖簇剔除反射探针的图集尺寸 uniform，
+// 故仅在启用对应 keyword（生产者已声明该 uniform）时定义。
+#if CLUSTER_CULLING_REFLECTION_PROBE
 float2 GetReflectionProbeAtlasUV(float3 reflectVector, float4 scaleOffset, float mip)
 {
     float2 uv = saturate(PackNormalOctQuadEncode(reflectVector) * 0.5 + 0.5);
-    float2 padding = (float)REFLECTION_PROBE_ATLAS_TEXEL_PADDING / REFLECTION_PROBE_ATLAS_SIZE;
+    float2 padding = (float)REFLECTION_PROBE_ATLAS_TEXEL_PADDING / _CLUSTER_CULLING_REFLECTION_PROBE_ATLAS_SIZE;
     padding *= pow(2.0, mip);
     float2 size = scaleOffset.xy - padding;
     float2 offset = scaleOffset.zw + 0.5 * padding;
     return uv * size + offset;
 }
+#endif
 
 half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positionWS, half perceptualRoughness, float2 normalizedScreenSpaceUV)
 {
@@ -153,6 +157,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
         float importance = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].importance;
         float intensity = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].intensity;
         uint mipCount = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].mipCount;
+        uint sliceIndex = _ClusterCullingReflectionProbeDatasBuffer[probeIndex].sliceIndex;
 
         half probeWeight = half(CalculateProbeBoxWeight(positionWS, probeBoxMin, probeBoxMax, blendDistance));
         if (probeWeight > 0.01h)
@@ -163,7 +168,7 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
             reflectVectorProbe = normalize(reflectVectorProbe);
             half mip = PerceptualRoughnessToMipmapLevel(perceptualRoughness, mipCount - 1);
             float2 uv = GetReflectionProbeAtlasUV(reflectVectorProbe, scaleOffset, mip);
-            float3 irradianceColor = SAMPLE_TEXTURE2D_LOD(_ReflectionProbeAtlas, sampler_TrilinearClamp, uv, mip).xyz;
+            float3 irradianceColor = SAMPLE_TEXTURE2D_ARRAY_LOD(_ReflectionProbeAtlas, sampler_TrilinearClamp, uv, sliceIndex, mip).xyz;
             irradiance += irradianceColor * probeWeight * intensity;
             totalWeight += probeWeight;
         }

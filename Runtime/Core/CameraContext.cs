@@ -87,6 +87,14 @@ namespace HN.HNRP
         public NativeArray<VisibleReflectionProbe> VisibleReflectionProbes { get; set; }
 
         /// <summary>
+        /// 本帧实时反射探针的更新信号源（由管线在 Phase B 实时探针渲染后填充）。
+        /// 供反射探针图集按需更新：baked / custom 探针跨帧复用，实时探针仅在
+        /// 其 cubemap 被重渲染后重写。为 <c>null</c> 时表示无更新信息，
+        /// 消费者应保守地按「总是更新」处理。
+        /// </summary>
+        public IReflectionProbeUpdateSource ReflectionProbeUpdates { get; set; }
+
+        /// <summary>
         /// 管线共享的运行时资源（shader、纹理、compute buffer）。
         /// </summary>
         public HNRenderPipelineRuntimeResources RuntimeResources { get; set; }

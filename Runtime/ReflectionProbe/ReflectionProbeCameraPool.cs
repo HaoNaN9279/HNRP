@@ -65,6 +65,24 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// 返回给定探针本帧是否有任一面被渲染。
+        /// </summary>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
+        /// <returns>本帧至少渲染过一面时返回 <c>true</c>。</returns>
+        public bool IsAnyFaceRendered(int probeInstanceId)
+        {
+            for (int face = 0; face < 6; face++)
+            {
+                if (renderedFaces.Contains(Encode(probeInstanceId, face)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 将给定探针面标记为本帧已渲染，使后续请求跳过它。
         /// </summary>
         /// <param name="probeInstanceId">反射探针实例 id。</param>

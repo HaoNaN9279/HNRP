@@ -12,6 +12,21 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
+    /// 实时反射探针「本帧是否已重渲染」的查询源。由 Phase B 的生产者实现，
+    /// 供反射探针图集按需更新：baked / custom 探针跨帧复用，实时探针仅在
+    /// 其 cubemap 被重渲染后才重写图集。
+    /// </summary>
+    public interface IReflectionProbeUpdateSource
+    {
+        /// <summary>
+        /// 返回给定探针本帧是否有 cubemap 面被重渲染。
+        /// </summary>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
+        /// <returns>本帧至少渲染过一面时返回 <c>true</c>。</returns>
+        bool IsProbeUpdatedThisFrame(int probeInstanceId);
+    }
+
+    /// <summary>
     /// 在所有主相机之前渲染实时反射探针。从相机剔除结果收集可见的实时探针，
     /// 依据每个探针的 <see cref="ReflectionProbe.timeSlicingMode"/> 与
     /// <see cref="ReflectionProbe.refreshMode"/> 决定本帧渲染哪些 cubemap 面，
@@ -27,8 +42,13 @@ namespace HN.HNRP
     /// 反射探针自身不在探针 pass 内渲染 —— Reflection 渲染图模板
     /// 不包含 cluster-culling 探针 pass。
     /// </para>
+    /// <para>
+    /// 同时作为 <see cref="IReflectionProbeUpdateSource"/> 向反射探针图集提供
+    /// 「本帧哪些实时探针被重渲染」的信息（见
+    /// <see cref="IsProbeUpdatedThisFrame"/>）。
+    /// </para>
     /// </remarks>
-    public sealed class ReflectionProbeRenderer : IDisposable
+    public sealed class ReflectionProbeRenderer : IDisposable, IReflectionProbeUpdateSource
     {
         /// <summary>
         /// 用于面渲染与逐帧去重的相机池。
@@ -64,6 +84,20 @@ namespace HN.HNRP
         /// 获取本帧待渲染的已收集实时探针数量。
         /// </summary>
         public int PendingProbeCount => requests.Count;
+
+        /// <summary>
+        /// 返回给定探针本帧是否有 cubemap 面被重渲染。
+        /// </summary>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
+        /// <returns>本帧至少渲染过一面时返回 <c>true</c>。</returns>
+        /// <remarks>
+        /// 以相机池记录的「本帧已渲染面」为准（<see cref="BeginFrame"/> 时才清空）：
+        /// <see cref="requests"/> 只表示本帧被收集，时间切片下某帧可能一面都不渲染。
+        /// </remarks>
+        public bool IsProbeUpdatedThisFrame(int probeInstanceId)
+        {
+            return probeInstanceId != 0 && pool.IsAnyFaceRendered(probeInstanceId);
+        }
 
         /// <summary>
         /// 开始新帧：清除上一帧的请求与相机池的已渲染面集合。

@@ -213,6 +213,13 @@ namespace HN.HNRP
             // 使每面相机矩阵在其 pass 运行时处于激活状态。
             reflectionProbeRenderer.RenderProbes(context, renderGraph, parameters, InstanceAsset);
 
+            // 把实时探针的更新结果交给各相机的 pass：反射探针图集中 baked 探针的
+            // 内容可跨帧复用，只有被重渲染过的实时探针才需要重写。
+            foreach (CameraContext probeContext in cameraContexts)
+            {
+                probeContext.ReflectionProbeUpdates = reflectionProbeRenderer;
+            }
+
             // 把所有相机 pass 记录进图；RenderGraphExecution.Dispose()
             //（本块结束处）编译并执行记录的 pass。
             using (renderGraph.RecordAndExecute(parameters))
