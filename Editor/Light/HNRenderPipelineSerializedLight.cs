@@ -32,6 +32,9 @@ namespace HN.HNRP.Editor
             renderingLayerMask = serializedAdditionalDataObject.FindProperty("renderingLayerMask");
             cascadeShadowProperty = serializedAdditionalDataObject.FindProperty("cascadeShadow");
             enableShadowProperty = serializedAdditionalDataObject.FindProperty("enableShadow");
+            overrideCameraShadowSettingsProperty =
+                serializedAdditionalDataObject.FindProperty("overrideCameraShadowSettings");
+            shadowSettingsProperty = serializedAdditionalDataObject.FindProperty("shadowSettings");
         }
 
         public void Apply()
@@ -66,5 +69,11 @@ namespace HN.HNRP.Editor
         public SerializedProperty renderingLayerMask { get; private set; }
         public SerializedProperty cascadeShadowProperty { get; private set; }
         public SerializedProperty enableShadowProperty { get; private set; }
+
+        /// <summary>方向光是否用自身级联设置覆盖相机设置。</summary>
+        public SerializedProperty overrideCameraShadowSettingsProperty { get; private set; }
+
+        /// <summary>方向光自身的级联设置（级数 / 分割 / 更新模式），复用相机侧的绘制器。</summary>
+        public SerializedProperty shadowSettingsProperty { get; private set; }
     }
 }

@@ -14,9 +14,10 @@ struct ShadowLightData
     uint   blockDatas0;          // map 0..3 的 atlas 位置，每张 8 位 = (slice << 6) | blockId
     uint   blockDatas1;          // map 4..7 的 atlas 位置
     uint   typeAndCascadeCount;  // bit0..7=lightType, bit8..15=cascadeCount
+    int    cameraDataIndex;      // 方向光：_ShadowCameraDatas 下标；其他类型无意义
 };
 
-/// 每相机阴影参数（单元素缓冲）：方向光 cascade 的各级远边界（沿相机视轴深度）。
+/// 每方向光阴影参数（按方向光槽位索引）：方向光 cascade 的各级远边界（沿相机视轴深度）。
 struct ShadowCameraData
 {
     float4 cascadeSplits0;       // cascade 0..3
@@ -30,12 +31,14 @@ struct ShadowMapData
     float4x4 worldToShadow;  // 世界 → 阴影裁剪（含 [0,1] remap，不含 atlas offset）
 };
 
+// 阴影全局标量常量缓冲（b1）。
+// 布局按 16 字节对齐：标量行占 1 个寄存器；未来新增标量可接管 padding。
 GLOBAL_CBUFFER_START(_ShadowMapParamsBuffer, b1)
-    float4 _ShadowGlobalParams;   // x=mainLightIndex, y=lightCount, z=方向光数, w=本地光数
-    float4 _ShadowGlobalParams2;  // x=shadowDistance, y=sliceResolution, zw=预留
+    float    _ShadowSliceResolution;   // atlas 单 slice 分辨率
+    float3   _ShadowMapParamsPadding;  // 16 字节对齐占位（无数据语义）
 CBUFFER_END
 
-#define _SHADOW_SLICE_RESOLUTION (_ShadowGlobalParams2.y)
+#define _SHADOW_SLICE_RESOLUTION (_ShadowSliceResolution)
 
 #if defined(SHADOW_MAP)
 StructuredBuffer<ShadowLightData> _ShadowLightDatas;
@@ -73,8 +76,8 @@ void DecodeShadowPosition(uint field, int resolution, out float4 scaleOffset, ou
     uint blockId = field & 0x3Fu;
     sliceIndex = int(field >> 6);
 
-    float perAxis = max(1.0, _SHADOW_SLICE_RESOLUTION / 512.0);
-    float scale = resolution / _SHADOW_SLICE_RESOLUTION;
+    float perAxis = max(1.0, _ShadowSliceResolution / 512.0);
+    float scale = resolution / _ShadowSliceResolution;
 
     uint xId = 0u;
     uint yId = 0u;
@@ -92,7 +95,7 @@ void DecodeShadowPosition(uint field, int resolution, out float4 scaleOffset, ou
 /// 透视与正交相机共用同一判据——C# 侧 CalculateFrustumCorners 对两种投影
 /// 都在「距相机 distance 的平面」上取角点，故 split 深度即 -viewPos.z。
 /// 返回 -1 表示超出最远级（或级数非法），调用方应视为无阴影。
-int GetDirectionalCascadeIndex(int cascadeCount, float3 positionWS)
+int GetDirectionalCascadeIndex(int cascadeCount, int cameraDataIndex, float3 positionWS)
 {
     if (cascadeCount <= 0)
     {
@@ -102,7 +105,7 @@ int GetDirectionalCascadeIndex(int cascadeCount, float3 positionWS)
     float3 positionVS = mul(UNITY_MATRIX_V, float4(positionWS, 1.0)).xyz;
     float viewDepth = -positionVS.z;
 
-    ShadowCameraData cameraData = _ShadowCameraDatas[0];
+    ShadowCameraData cameraData = _ShadowCameraDatas[cameraDataIndex];
 
     [loop]
     for (int k = 0; k < cascadeCount; k++)
@@ -171,7 +174,8 @@ float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirec
     }
     else if (lightType == 1 /* Directional */)
     {
-        int cascadeIndex = GetDirectionalCascadeIndex(GetShadowCascadeCount(lightData), positionWS);
+        int cascadeIndex = GetDirectionalCascadeIndex(
+            GetShadowCascadeCount(lightData), lightData.cameraDataIndex, positionWS);
         if (cascadeIndex < 0)
         {
             return 1.0;

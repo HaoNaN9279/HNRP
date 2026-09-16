@@ -10,10 +10,12 @@
 // 深度偏置由绘制侧 SetGlobalDepthBias 承担。alpha clip 与 Forward pass 一致，
 // 保证裁切体（树叶 / 草等）的阴影形状正确。
 
-// 光源视图投影矩阵（由 DrawShadowPass 逐 map 上传）。
+// 光源视图投影矩阵常量缓冲：由 DrawShadowPass 逐 map 上传。
 // 不能使用 UNITY_MATRIX_VP：本工程 shader 的它来自自定义 ShaderVariablesGlobal（b0）
 // 常量缓冲，内容始终是当前相机矩阵，不随引擎的 SetViewProjectionMatrices 变化。
-float4x4 _ShadowViewProj;
+GLOBAL_CBUFFER_START(_ShadowViewProjBuffer, b4)
+    float4x4 _ShadowViewProj;
+CBUFFER_END
 
 struct ShadowCasterAttributes
 {

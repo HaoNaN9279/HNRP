@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -14,12 +15,14 @@ namespace HN.HNRP
             builtinLight = GetComponent<Light>();
             SyncBuiltinShadows();
             cascadeShadow.EnsureValid();
+            shadowSettings.EnsureValid();
         }
 
         void OnValidate()
         {
             builtinLight = GetComponent<Light>();
             SyncBuiltinShadows();
+            shadowSettings.EnsureValid();
         }
 
         /// <summary>
@@ -83,12 +86,59 @@ namespace HN.HNRP
 
         /// <summary>
         /// 每张阴影 map 的分辨率。
-        /// 级联级数 / 分割 / 更新模式属于相机，见 <see cref="HNAdditionalCameraData.ShadowSettings"/>。
+        /// 级联级数 / 分割 / 更新模式默认属于相机，见 <see cref="HNAdditionalCameraData.ShadowSettings"/>；
+        /// 方向光可通过 <see cref="OverrideCameraShadowSettings"/> 用自身设置覆盖。
         /// </summary>
         public ResolutionType CascadeResolution
         {
             get => cascadeShadow.CascadeResolution;
             set => cascadeShadow.CascadeResolution = value;
+        }
+
+        /// <summary>
+        /// 是否用本方向光自身的级联设置覆盖相机的级联设置（仅方向光生效）。
+        /// </summary>
+        public bool OverrideCameraShadowSettings
+        {
+            get => overrideCameraShadowSettings;
+            set => overrideCameraShadowSettings = value;
+        }
+
+        /// <summary>
+        /// 本方向光的级联阴影设置。仅在 <see cref="OverrideCameraShadowSettings"/> 激活时生效。
+        /// </summary>
+        public ShadowCameraSettings ShadowSettings
+        {
+            get => shadowSettings;
+            set => shadowSettings = value;
+        }
+
+        /// <summary>方向光级联级数（覆盖开关激活时用于阴影绘制）。</summary>
+        public CascadeCountType CascadeCount
+        {
+            get => shadowSettings.CascadeCount;
+            set => shadowSettings.CascadeCount = value;
+        }
+
+        /// <summary>方向光各级 cascade 的远边界（相机视轴深度）。</summary>
+        public List<float> CascadeSplits
+        {
+            get => shadowSettings.CascadeSplits;
+            set => shadowSettings.CascadeSplits = value;
+        }
+
+        /// <summary>方向光阴影更新模式。</summary>
+        public ShadowUpdateModeType ShadowUpdateMode
+        {
+            get => shadowSettings.ShadowUpdateMode;
+            set => shadowSettings.ShadowUpdateMode = value;
+        }
+
+        /// <summary>方向光 Custom 更新模式下每级 cascade 的更新帧间隔。</summary>
+        public List<int> CascadeTimeSlices
+        {
+            get => shadowSettings.CascadeTimeSlices;
+            set => shadowSettings.CascadeTimeSlices = value;
         }
 
 
@@ -107,8 +157,14 @@ namespace HN.HNRP
         [SerializeField]
         private bool enableShadow = false;
 
+        [SerializeField]
+        private bool overrideCameraShadowSettings = false;
+
         [SerializeField, CascadeShadow]
         private CascadeShadowSettings cascadeShadow = CascadeShadowSettings.Default;
+
+        [SerializeField, ShadowCamera]
+        private ShadowCameraSettings shadowSettings = ShadowCameraSettings.Default;
     }
 
 
