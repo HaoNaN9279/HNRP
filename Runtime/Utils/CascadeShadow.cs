@@ -140,6 +140,20 @@ namespace HN.HNRP
             0, 0, 2, 2, 4, 4, 8, 8
         };
 
+        /// <summary>
+        /// 默认的 8 级 cascade 更新相位帧。
+        /// </summary>
+        /// <remarks>
+        /// 相位决定"间隔内的第几帧更新"，取值按级配置、最终对更新间隔取模。
+        /// 默认值按 <see cref="DefaultTimeSlices"/> 的间隔错开同级间隔的两级
+        /// （间隔 2 → 相位 0/1，间隔 4 → 0/2，间隔 8 → 0/4），
+        /// 避免同间隔的多级落在同一帧集中重绘；用户可按需改为任意值。
+        /// </remarks>
+        public static readonly int[] DefaultPhaseFrames =
+        {
+            0, 0, 0, 1, 0, 2, 0, 4
+        };
+
         [SerializeField]
         private CascadeCountType cascadeCount;
 
@@ -155,6 +169,9 @@ namespace HN.HNRP
         [SerializeField]
         private List<int> cascadeTimeSlices;
 
+        [SerializeField]
+        private List<int> cascadePhaseFrames;
+
         /// <summary>
         /// 创建一个使用默认值的新实例。
         /// </summary>
@@ -168,7 +185,8 @@ namespace HN.HNRP
                     cascadeSplits = new List<float>(DefaultSplits),
                     cascadeSplitGroups = new List<int>(DefaultSplitGroups),
                     shadowUpdateMode = ShadowUpdateModeType.EveryFrame,
-                    cascadeTimeSlices = new List<int>(DefaultTimeSlices)
+                    cascadeTimeSlices = new List<int>(DefaultTimeSlices),
+                    cascadePhaseFrames = new List<int>(DefaultPhaseFrames)
                 };
                 settings.EnsureValid();
                 return settings;
@@ -214,6 +232,16 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// 当更新模式为 Custom 时，每级 cascade 的更新相位帧。
+        /// 相位决定该级在更新间隔内的第几帧更新（对间隔取模），用于把同间隔的各级错开到不同帧。
+        /// </summary>
+        public List<int> CascadePhaseFrames
+        {
+            get => cascadePhaseFrames;
+            set => cascadePhaseFrames = value;
+        }
+
+        /// <summary>
         /// 修正缺失或非法的数据，保证数组长度与取值合法。
         /// 用于兼容新增字段后的旧序列化数据与运行时新建组件。
         /// </summary>
@@ -243,6 +271,24 @@ namespace HN.HNRP
             else
             {
                 EnsureIntList(cascadeTimeSlices, DefaultTimeSlices);
+            }
+
+            if (cascadePhaseFrames == null)
+            {
+                cascadePhaseFrames = new List<int>(DefaultPhaseFrames);
+            }
+            else
+            {
+                EnsureIntList(cascadePhaseFrames, DefaultPhaseFrames);
+            }
+
+            for (int i = 0; i < cascadePhaseFrames.Count; i++)
+            {
+                // 相位为负等效于按间隔取模后的其它相位，直接收敛到 0 避免歧义。
+                if (cascadePhaseFrames[i] < 0)
+                {
+                    cascadePhaseFrames[i] = 0;
+                }
             }
 
             if (cascadeSplitGroups == null)
@@ -376,6 +422,29 @@ namespace HN.HNRP
             }
 
             return ResolutionType.Medium;
+        }
+
+        /// <summary>
+        /// 判断 Custom 更新模式下某级 cascade 在当前帧是否应更新。
+        /// </summary>
+        /// <param name="frameCount">当前帧号。</param>
+        /// <param name="interval">更新帧间隔；<c>&lt;= 0</c> 表示每帧更新。</param>
+        /// <param name="phaseFrame">该级配置的相位帧，对 <paramref name="interval"/> 取模后作为帧内偏移。</param>
+        /// <returns>本帧是否应更新该级。</returns>
+        public static bool ShouldUpdateOnFrame(int frameCount, int interval, int phaseFrame)
+        {
+            if (interval <= 0)
+            {
+                return true;
+            }
+
+            int phase = phaseFrame % interval;
+            if (phase < 0)
+            {
+                phase += interval;
+            }
+
+            return ((frameCount + phase) % interval) == 0;
         }
     }
 }

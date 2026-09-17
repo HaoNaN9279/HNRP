@@ -976,18 +976,12 @@ namespace HN.HNRP
                         break;
 
                     case ShadowUpdateModeType.Custom:
-                        int interval = GetTimeSlice(selected.cascadeSettings, sub);
-                        if (interval <= 0)
-                        {
-                            redraw = true;
-                        }
-                        else
-                        {
-                            // 引入稳定相位：同 interval 的不同 map（多灯 / 多 cascade / 多面）
-                            // 错开到不同帧更新，避免在同一帧集中重绘造成卡顿尖峰。
-                            int phase = ComputePhase(selected.lightInstanceId, sub, interval);
-                            redraw = ((Time.frameCount + phase) % interval) == 0;
-                        }
+                        // 相位由用户按级配置（而非按光源实例 id 推导）：同 interval 的各级
+                        // 可通过配置不同相位错开到不同帧更新，避免在同一帧集中重绘造成卡顿尖峰。
+                        redraw = CascadeShadowUtils.ShouldUpdateOnFrame(
+                            Time.frameCount,
+                            GetTimeSlice(selected.cascadeSettings, sub),
+                            GetPhaseFrame(selected.cascadeSettings, sub));
                         break;
 
                     default:
@@ -1058,24 +1052,6 @@ namespace HN.HNRP
             return hash;
         }
 
-        /// <summary>
-        /// 计算 map 在 Custom 更新模式下的稳定帧相位，把同 interval 的 map 错开更新。
-        /// </summary>
-        /// <param name="lightInstanceId">光源实例 id。</param>
-        /// <param name="sub">map 在光源内的子索引（cascade / 面）。</param>
-        /// <param name="interval">更新帧间隔。</param>
-        /// <returns>取值 <c>[0, interval)</c> 的相位。</returns>
-        private static int ComputePhase(int lightInstanceId, int sub, int interval)
-        {
-            if (interval <= 1)
-            {
-                return 0;
-            }
-
-            int hash = (lightInstanceId * 73856093) ^ (sub * 19349663);
-            return (hash & 0x7fffffff) % interval;
-        }
-
         private int GetTimeSlice(ShadowCameraSettings settings, int sub)
         {
             List<int> slices = settings.CascadeTimeSlices;
@@ -1086,6 +1062,24 @@ namespace HN.HNRP
 
             int index = Mathf.Clamp(sub, 0, slices.Count - 1);
             return slices[index];
+        }
+
+        /// <summary>
+        /// 取某级 cascade 在 Custom 更新模式下配置的相位帧。
+        /// </summary>
+        /// <param name="settings">该光生效的级联设置。</param>
+        /// <param name="sub">map 在光源内的子索引（cascade / 面）。</param>
+        /// <returns>该级的相位帧；未配置时为 <c>0</c>。</returns>
+        private int GetPhaseFrame(ShadowCameraSettings settings, int sub)
+        {
+            List<int> phases = settings.CascadePhaseFrames;
+            if (phases == null || phases.Count == 0)
+            {
+                return 0;
+            }
+
+            int index = Mathf.Clamp(sub, 0, phases.Count - 1);
+            return phases[index];
         }
 
         private static uint EncodeField(TextureAllocatorResult allocation)

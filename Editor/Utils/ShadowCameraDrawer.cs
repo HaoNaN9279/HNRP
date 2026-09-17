@@ -8,11 +8,6 @@ namespace HN.HNRP.Editor
     /// <see cref="ShadowCameraAttribute"/> 的自定义绘制器。
     /// 绘制相机侧级联阴影设置：级数、级联分割滑条与更新模式 / 更新帧间隔。
     /// </summary>
-    /// <remarks>
-    /// 这里完全基于 <see cref="PropertyDrawer"/> 传入的 <c>position</c> 做绝对布局，
-    /// 不使用 GUILayout / BeginArea —— 因为该 drawer 位于 CoreEditorDrawer 的 foldout
-    /// 布局组内，BeginArea 的坐标空间不匹配会导致内容被画到面板左上角。
-    /// </remarks>
     [CustomPropertyDrawer(typeof(ShadowCameraAttribute))]
     public class ShadowCameraDrawer : PropertyDrawer
     {
@@ -105,6 +100,7 @@ namespace HN.HNRP.Editor
                 && updateModeProperty.intValue == (int)ShadowUpdateModeType.Custom)
             {
                 height += space + line;                // Update Interval
+                height += space + line;                // Phase Frame
             }
 
             return height + 2f;
@@ -117,6 +113,7 @@ namespace HN.HNRP.Editor
             SerializedProperty splitsProperty = property.FindPropertyRelative("cascadeSplits");
             SerializedProperty updateModeProperty = property.FindPropertyRelative("shadowUpdateMode");
             SerializedProperty timeSlicesProperty = property.FindPropertyRelative("cascadeTimeSlices");
+            SerializedProperty phaseFramesProperty = property.FindPropertyRelative("cascadePhaseFrames");
 
             if (!HasSerializedChildren(property)
                 || splitsProperty.arraySize < MaxCascadeCount
@@ -182,6 +179,15 @@ namespace HN.HNRP.Editor
                     new Rect(position.x, y, position.width, line),
                     timeSlicesProperty, selectedCascade);
                 y += line + space;
+
+                // 相位帧仅 Custom 模式有意义：与更新间隔一起跟在级联分割参数后显示。
+                if (phaseFramesProperty != null && phaseFramesProperty.arraySize > 0)
+                {
+                    DrawPhaseFrame(
+                        new Rect(position.x, y, position.width, line),
+                        phaseFramesProperty, selectedCascade);
+                    y += line + space;
+                }
             }
 
             EditorGUIUtility.labelWidth = previousLabelWidth;
@@ -630,13 +636,36 @@ namespace HN.HNRP.Editor
 
         private static void DrawUpdateInterval(Rect rect, SerializedProperty timeSlicesProperty, int selected)
         {
-            int interval = timeSlicesProperty.GetArrayElementAtIndex(selected).intValue;
+            DrawPerCascadeInt(rect, timeSlicesProperty, selected, Styles.UpdateInterval);
+        }
+
+        private static void DrawPhaseFrame(Rect rect, SerializedProperty phaseFramesProperty, int selected)
+        {
+            DrawPerCascadeInt(rect, phaseFramesProperty, selected, Styles.PhaseFrame);
+        }
+
+        /// <summary>
+        /// 绘制「按级配置的整型参数」单行：读取所选级的当前值，编辑后写回并夹取为非负。
+        /// </summary>
+        private static void DrawPerCascadeInt(
+            Rect rect,
+            SerializedProperty listProperty,
+            int selected,
+            GUIContent label)
+        {
+            if (listProperty.arraySize == 0)
+            {
+                return;
+            }
+
+            int index = Mathf.Clamp(selected, 0, listProperty.arraySize - 1);
+            int value = listProperty.GetArrayElementAtIndex(index).intValue;
 
             EditorGUI.BeginChangeCheck();
-            int newInterval = EditorGUI.IntField(rect, Styles.UpdateInterval, interval);
+            int newValue = EditorGUI.IntField(rect, label, value);
             if (EditorGUI.EndChangeCheck())
             {
-                timeSlicesProperty.GetArrayElementAtIndex(selected).intValue = Mathf.Max(0, newInterval);
+                listProperty.GetArrayElementAtIndex(index).intValue = Mathf.Max(0, newValue);
             }
         }
 
@@ -758,6 +787,11 @@ namespace HN.HNRP.Editor
             public static readonly GUIContent NearBoundary = new GUIContent("Near Boundary");
             public static readonly GUIContent FarBoundary = new GUIContent("Far Boundary");
             public static readonly GUIContent UpdateInterval = new GUIContent("Update Interval");
+
+            public static readonly GUIContent PhaseFrame = new GUIContent(
+                "Phase Frame",
+                "Custom 更新模式下该级 cascade 的更新相位帧（对更新间隔取模），决定该级在间隔内的第几帧更新。"
+                + "同间隔的各级配置不同相位即可错开到不同帧，避免同帧集中重绘。");
         }
     }
 }
