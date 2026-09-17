@@ -33,6 +33,10 @@ ClusterCullingReflectionProbeIterator ClusterCullingReflectionProbeInit(float2 n
 
 bool ClusterCullingReflectionProbeNext(inout ClusterCullingReflectionProbeIterator it, out uint probeIndex)
 {
+    // 必须先给无效值：若区间内一个有效位都没扫到，下面的 return 会用该值判定，
+    // 不初始化会返回上一次 / 未定义的索引，使 shader 处理错误探针或重复叠加同一探针。
+    // 与 ClusterCullingLightNext 保持一致。
+    probeIndex = 0xFFFFFFFFu;
     if(it.currentIndex >= it.minIndex && it.currentIndex <= it.maxIndex && _CLUSTER_CULLING_REFLECTION_PROBE_COUNT != 0)
     {
         bool valid = 0;

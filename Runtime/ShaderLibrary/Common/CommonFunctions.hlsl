@@ -60,8 +60,13 @@ uint Select4(uint4 v, uint i)
 void TransformScreenUV(inout float2 uv, float screenHeight)
 {
     #if UNITY_UV_STARTS_AT_TOP
+    // SV_Position 的 Y 相对「渲染到渲染纹理时的翻转投影」是自下而上的：
+    // positionCS.y / screenHeight = (1 - ndcY) / 2，而簇单元在 NDC 中的划分是
+    // (ndcY + 1) / 2（见 ClusterCulling*CS 的 clusterIndex 计算）。
+    // 两侧相差一次镜像，片元侧必须翻转一次才能查到与 compute 相同的簇，
+    // 否则簇 Y 索引恒为 0（屏幕顶行），探针 / 灯光在其范围边界处被错误剔除。
     // TODO: Dynamic Resoulutiion _ScaleBiasRt
-    uv.y = screenHeight - (uv.y + screenHeight);
+    uv.y = screenHeight - uv.y;
     #endif
 }
 

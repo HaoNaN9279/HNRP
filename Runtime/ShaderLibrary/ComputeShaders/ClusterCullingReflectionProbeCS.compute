@@ -86,9 +86,12 @@ void ClusterCullingReflectionProbeCS(uint3 id : SV_DispatchThreadID)
     uint headerIndex = clusterIndex * wordsPerCluster;
 
     _ClusterCullingReflectionProbeMaskBuffer[headerIndex] = 0u;
-    for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
+    // wordsPerCluster 已包含 header 本身，掩码只占 wordsPerCluster - 1 个字。
+    // 多清一个字会写到下一簇的 header，而 header 是各线程最后写入的，
+    // 构成 race：邻簇 header 被清成 0 后其 min/max 失效，片元迭代器会漏探针。
+    for(uint wordClearIndex = 1; wordClearIndex < wordsPerCluster; wordClearIndex++)
     {
-        _ClusterCullingReflectionProbeMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
+        _ClusterCullingReflectionProbeMaskBuffer[headerIndex + wordClearIndex] = 0u;
     }
     
     // header中写入初始值
