@@ -199,11 +199,12 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
                 float3 clusterCenter = float3(clusterMinWS + clusterExtent);
                 float3 dis0 = lightBoundMin - clusterCenter;
                 float3 dis1 = clusterCenter - lightBoundMax;
+                // cluster AABB 与光源包围盒 AABB 的三轴重叠测试：
+                // 任一轴不重叠即不相交，因此必须逐轴 AND，且每轴两个方向都要满足。
                 bool isClusterFaceIntersectRange = 
-                    dis0.x < clusterExtent.x || dis1.x < clusterExtent.x
-                    || dis0.y < clusterExtent.y || dis1.y < clusterExtent.y
-                    || dis0.z < clusterExtent.z || dis1.z < clusterExtent.z
-                    ;
+                    (dis0.x < clusterExtent.x && dis1.x < clusterExtent.x)
+                    && (dis0.y < clusterExtent.y && dis1.y < clusterExtent.y)
+                    && (dis0.z < clusterExtent.z && dis1.z < clusterExtent.z);
                 
                 // 判断以上两种相交情况
                 if(isClusterPointsIntersectRange || isClusterFaceIntersectRange) // point light或spot light与cluster相交
