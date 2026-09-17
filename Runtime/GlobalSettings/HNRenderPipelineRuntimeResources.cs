@@ -50,6 +50,10 @@ namespace HN.HNRP
 
             [Reload("Runtime/ShaderLibrary/Shaders/ShadowClear.shader")]
             public Shader ShadowClear;
+
+            /// <summary>渲染调试叠层 shader（文本 / 纹理预览）。</summary>
+            [Reload("Runtime/ShaderLibrary/Shaders/DebugDisplay.shader")]
+            public Shader DebugDisplay;
         }
     }
 }

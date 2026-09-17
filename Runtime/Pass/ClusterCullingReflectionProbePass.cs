@@ -14,7 +14,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Pass("Cluster Culling Probe")]
-    public sealed class ClusterCullingReflectionProbePass : Pass, IGlobalShaderResource
+    public sealed class ClusterCullingReflectionProbePass : Pass, IGlobalShaderResource, IPassDebugPreviewProvider
     {
         /// <summary>
         /// 获取或设置反射探针图集单 slice 的分辨率（正方形边长）。
@@ -38,6 +38,23 @@ namespace HN.HNRP
         {
             get => atlasSliceCount;
             set => atlasSliceCount = value;
+        }
+
+        // ── 渲染调试（IPassDebugPreviewProvider） ──
+
+        /// <summary>
+        /// 把持久反射探针图集暴露给渲染调试的纹理预览（支持按 slice 查看）。
+        /// </summary>
+        /// <param name="texture">探针图集；尚未分配时为 <c>null</c>。</param>
+        /// <param name="sliceCount">图集的 slice 数量（texture array 层数）。</param>
+        /// <param name="mipCount">可预览的 mip 级数（图集无 mip，恒为 1）。</param>
+        /// <returns>当前存在可预览图集时返回 <c>true</c>。</returns>
+        public bool TryGetDebugPreview(out Texture texture, out int sliceCount, out int mipCount)
+        {
+            texture = reflectionProbeAtlas;
+            sliceCount = atlasSliceCount;
+            mipCount = 1;
+            return texture != null;
         }
 
         // ── Slot ──

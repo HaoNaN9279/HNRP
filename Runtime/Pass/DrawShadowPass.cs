@@ -26,7 +26,7 @@ namespace HN.HNRP
     /// </para>
     /// </remarks>
     [Pass(PassNameConst)]
-    public sealed class DrawShadowPass : Pass, IGlobalShaderResource
+    public sealed class DrawShadowPass : Pass, IGlobalShaderResource, IPassDebugPreviewProvider
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。
@@ -293,6 +293,21 @@ namespace HN.HNRP
             Camera camera = cameraContext.Camera;
             cachedCameraViewMatrix = camera.worldToCameraMatrix;
             cachedCameraProjMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
+        }
+
+        /// <summary>
+        /// 把持久阴影图集暴露给渲染调试的纹理预览（支持按 slice 查看单张阴影 map）。
+        /// </summary>
+        /// <param name="texture">阴影图集；尚未分配时为 <c>null</c>。</param>
+        /// <param name="sliceCount">图集内的 map 数量（texture array 的 slice 数）。</param>
+        /// <param name="mipCount">可预览的 mip 级数（阴影图集无 mip，恒为 1）。</param>
+        /// <returns>当前存在可预览图集时返回 <c>true</c>。</returns>
+        public bool TryGetDebugPreview(out Texture texture, out int sliceCount, out int mipCount)
+        {
+            texture = shadowAtlas;
+            sliceCount = allocatedSliceCount;
+            mipCount = 1;
+            return texture != null;
         }
 
         /// <inheritdoc />

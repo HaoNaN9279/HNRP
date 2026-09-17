@@ -7,6 +7,12 @@
 #include "../Lit/LitSurfaceData.hlsl"
 #include "../Lit/LitLighting.hlsl"
 
+// 渲染调试的每像素颜色映射只需要值 → 颜色的映射函数，
+// 通道抽取在本文件内完成（依赖 Lit 的数据结构）。
+#ifdef HN_DEBUG_PER_PIXEL
+#include "../Lit/LitDebug.hlsl"
+#endif
+
 PackedVaryings VertMain(Attributes attributes)
 {
     UNITY_SETUP_INSTANCE_ID(attributes);
@@ -74,7 +80,23 @@ float4 FragMain(PackedVaryings packedVaryings)
     // float4 outColor = float4(test3.x, test3.y, test3.z, 1);
     
     float4 outColor = float4(lightingOutputData.lightingColor.rgb, lightingOutputData.alpha);
-    // float4 outColor = float4(lightingData.indirectLight.specular.r, lightingData.indirectLight.specular.g, lightingData.indirectLight.specular.b, 1);
+
+#ifdef HN_DEBUG_PER_PIXEL
+    // 渲染调试：把选中的中间值映射为颜色并按配置的透明度覆盖原渲染颜色。
+    // 逐像素在几何遮蔽范围内生效，不需要额外的全屏 pass 或 UAV 写入。
+    float4 debugRaw = HN_DebugLitChannelValue(
+        _HNRPDebugChannelId,
+        lightingInputData.normalizedScreenSpaceUV,
+        litVaryings,
+        litSurfaceData,
+        preBRDFData,
+        brdfData,
+        lightingData,
+        lightingOutputData);
+
+    outColor.rgb = HN_DebugApplyPerPixelColor(debugRaw, outColor.rgb);
+#endif
+
     return outColor;
 }
 

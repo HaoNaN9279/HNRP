@@ -15,12 +15,74 @@ namespace HN.HNRP
     /// 通用参数化对象绘制 pass。
     /// </summary>
     [Pass(PassNameConst)]
-    public sealed class DrawObjectPass : Pass
+    public sealed class DrawObjectPass : Pass, IPassDebugProvider
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。
         /// </summary>
         public const string PassNameConst = "Draw Object";
+
+        /// <summary>
+        /// 本 pass 暴露的每像素调试通道。
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// 通道 ID 必须与 <c>LitDebug.hlsl</c> 的 <c>HN_LIT_DEBUG_*</c> 宏一致。
+        /// 每条通道自带颜色映射预设：取值域不同（[0,1] 的材质参数、[-1,1] 的法线分量、
+        /// 米级的坐标、0..N 的群集计数），用同一套参数看只会得到整屏纯色。
+        /// </para>
+        /// <para>
+        /// 每像素值的求值必然发生在「有像素的地方」，也就是本 pass 的 Lit 片元着色器；
+        /// 因此<b>所有</b>每像素通道都登记在这里（含数据来自其它 pass 的群集计数通道），
+        /// 而不是登记在产出数据的 compute pass 上。群集通道读的是
+        /// <c>ClusterCullingLightPass</c> / <c>ClusterCullingReflectionProbePass</c>
+        /// 经全局绑定的掩码缓冲。
+        /// </para>
+        /// </remarks>
+        private static readonly DebugChannelDescriptor[] debugChannels =
+        {
+            new DebugChannelDescriptor(0, "Albedo", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(1, "NormalWS", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(-1f, 1f, DebugColorChannel.Red, DebugColorMapPreset.RedGreen)),
+            new DebugChannelDescriptor(2, "Smoothness", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(3, "Metallic", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(4, "Occlusion", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(5, "Emission", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 2f, DebugColorChannel.Luminance, DebugColorMapPreset.Jet)),
+            new DebugChannelDescriptor(6, "PositionWS", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 50f, DebugColorChannel.Magnitude, DebugColorMapPreset.Turbo)),
+            new DebugChannelDescriptor(7, "MainLightDiffuse", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 4f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(8, "MainLightSpecular", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 4f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(9, "AdditionalLightDiffuse", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 4f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(10, "IndirectDiffuse", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 2f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(11, "IndirectSpecular", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 2f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(12, "Alpha", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(13, "NdotV", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(14, "Roughness", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Red, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(15, "FinalColor", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 1f, DebugColorChannel.Luminance, DebugColorMapPreset.Grayscale)),
+            new DebugChannelDescriptor(16, "ClusterLightCount", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 16f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
+            new DebugChannelDescriptor(17, "ClusterProbeCount", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 8f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
+        };
+
+        /// <summary>
+        /// 本帧由宿主下发的调试选择。
+        /// </summary>
+        private PassDebugSelection debugSelection = PassDebugSelection.None;
 
         // ── 可配置参数 ──
 
@@ -204,6 +266,21 @@ namespace HN.HNRP
             rendererListParams = RendererListParams.CreateDefault();
         }
 
+        // ── 渲染调试（IPassDebugProvider） ──
+
+        /// <inheritdoc />
+        public IReadOnlyList<DebugChannelDescriptor> DebugChannels => debugChannels;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 只记录选择；真正的 keyword / uniform 绑定发生在 render func 内，
+        /// 因为只有那里才知道 RenderGraph 的命令缓冲（<c>ctx.cmd</c>）。
+        /// </remarks>
+        public void ApplyDebug(in PassDebugSelection selection)
+        {
+            debugSelection = selection;
+        }
+
         // ── 生命周期 ──
 
         /// <inheritdoc />
@@ -369,7 +446,16 @@ namespace HN.HNRP
                         BindConnectedProducerGlobals(ctx.cmd);
                     }
 
+                    // 渲染调试：按本帧选择开启每像素颜色映射。
+                    // 绑定在绘制前、关闭在绘制后，避免影响其它 pass 的着色器分支。
+                    bool debugPerPixel = BindPerPixelDebug(ctx.cmd);
+
                     ctx.cmd.DrawRendererList(data.rendererList);
+
+                    if (debugPerPixel)
+                    {
+                        RenderDebugManager.UnbindPerPixelGlobals(ctx.cmd);
+                    }
                 });
         }
 
@@ -411,6 +497,30 @@ namespace HN.HNRP
                     provider.BindGlobalShaderResources(cmd);
                 }
             }
+        }
+
+        /// <summary>
+        /// 按本帧的调试选择绑定每像素颜色映射的全局 keyword 与 uniform。
+        /// </summary>
+        /// <param name="cmd">接收绑定命令的命令缓冲。</param>
+        /// <returns>实际绑定了每像素映射时返回 <c>true</c>，调用方需在绘制后解绑。</returns>
+        private bool BindPerPixelDebug(CommandBuffer cmd)
+        {
+            if (!debugSelection.Active || debugSelection.ChannelId < 0)
+            {
+                return false;
+            }
+
+            RenderDebugState debugState = cameraContext != null ? cameraContext.DebugState : null;
+            if (debugState == null || !debugState.PerPixelActive)
+            {
+                return false;
+            }
+
+            RenderDebugManager.BindPerPixelGlobals(
+                cmd, debugState.Settings.ColorMap, debugSelection.ChannelId);
+
+            return true;
         }
 
         /// <summary>

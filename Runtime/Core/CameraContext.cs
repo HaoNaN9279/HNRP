@@ -100,6 +100,12 @@ namespace HN.HNRP
         public HNRenderPipelineRuntimeResources RuntimeResources { get; set; }
 
         /// <summary>
+        /// 本帧的渲染调试状态（由管线在记录 pass 前解析）。
+        /// 生命周期与 <see cref="CameraContext"/> 一致 —— 每帧新建，不跨帧保留。
+        /// </summary>
+        public RenderDebugState DebugState { get; set; } = new RenderDebugState();
+
+        /// <summary>
         /// 每帧填充时间、相机与光照参数的全局 shader 常量缓冲。
         /// </summary>
         public GlobalConstantBuffer ConstantBuffer { get; set; }

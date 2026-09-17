@@ -29,7 +29,7 @@ namespace HN.HNRP
     /// <seealso cref="Pass"/>
     /// <seealso cref="CameraContext"/>
     /// <seealso cref="RenderGraphAsset"/>
-    public class CameraRenderer
+    public class CameraRenderer : IDebugPreviewResolver
     {
         /// <summary>
         /// 本渲染器拥有的运行时 <see cref="Pass"/> 实例的有序列表。
@@ -100,6 +100,17 @@ namespace HN.HNRP
             CurrentTemplate = template;
             CurrentRevision = template.ParameterRevision;
             Passes = template.Build() ?? new List<Pass>();
+
+#if UNITY_EDITOR || HNRP_DEBUG_DISPLAY
+            // 调试显示 pass 由管线强制追加到列表末尾（ADR-033）：
+            // 不写入模板结构、不受 SetPassEnabled 控制、不出现在参数缓存中，
+            // 因此用户不可配置也不可禁用。未定义 HNRP_DEBUG_DISPLAY 的发布构建
+            // 里本类根本不存在（整个文件被 #if 包裹）。
+            if (Passes.Count > 0)
+            {
+                Passes.Add(new DebugDisplayPass(DebugDisplayPass.PassNameConst));
+            }
+#endif
 
             WireManualConnections();
         }
@@ -291,8 +302,83 @@ namespace HN.HNRP
                 }
 
                 pass.PreRecord(CurrentTemplate, context);
+
+                // 调试能力由 pass 自描述；宿主只负责把本帧的选择下发一次。
+                // pass 在自己的 render func 内体现选择结果，避免在错误的命令缓冲上
+                // 记录渲染命令（见 IPassDebugProvider 的说明）。
+                if (pass is IPassDebugProvider debugProvider)
+                {
+                    RenderDebugState debugState = context != null ? context.DebugState : null;
+
+                    // 按 pass 的「注册显示名」匹配，而不是实例名：
+                    // 同一类型（如 Draw Object）在图中可有多个实例（forwardOpaque /
+                    // transparency），它们理应共享同一通道选择；用实例名匹配会让
+                    // 用户选中的通道因模板命名不同而永远匹配不上。
+                    bool active = debugState != null
+                        && debugState.PerPixelActive
+                        && PassDebugRegistry.GetPassName(pass.GetType()) == debugState.PerPixelPassName;
+
+                    debugProvider.ApplyDebug(active
+                        ? new PassDebugSelection(true, debugState.PerPixelChannelId)
+                        : PassDebugSelection.None);
+                }
+
                 pass.Record(renderGraph);
             }
+        }
+
+        /// <summary>
+        /// 解析纹理预览源：按配置的 pass 实例名找到实现了
+        /// <see cref="IPassDebugPreviewProvider"/> 的 pass 并取其内部纹理。
+        /// </summary>
+        /// <param name="context">当前帧的相机上下文。</param>
+        /// <param name="texture">解析出的纹理；失败时为 <c>null</c>。</param>
+        /// <param name="slice">texture array 的 slice 索引。</param>
+        /// <param name="mip">mip 级别。</param>
+        /// <returns>解析成功返回 <c>true</c>。</returns>
+        public bool TryResolvePreview(CameraContext context, out Texture texture, out int slice, out int mip)
+        {
+            texture = null;
+            slice = 0;
+            mip = 0;
+
+            RenderDebugState state = context != null ? context.DebugState : null;
+            if (state == null || string.IsNullOrEmpty(state.Settings.PreviewPassName))
+            {
+                return false;
+            }
+
+            // 先按实例名（"drawShadow"）匹配，再回退到注册显示名（"Draw Shadow"）。
+            Pass pass = FindPass<Pass>(state.Settings.PreviewPassName);
+            if (pass == null)
+            {
+                foreach (Pass candidate in Passes)
+                {
+                    if (candidate != null
+                        && PassDebugRegistry.GetPassName(candidate.GetType()) == state.Settings.PreviewPassName)
+                    {
+                        pass = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (pass is not IPassDebugPreviewProvider provider)
+            {
+                return false;
+            }
+
+            if (!provider.TryGetDebugPreview(out texture, out _, out _) || texture == null)
+            {
+                texture = null;
+                return false;
+            }
+
+            slice = Mathf.Max(0, state.Settings.PreviewSlice);
+
+            // mip 属于「不重要参数」，由 GlobalSettings 的默认值解析得到。
+            mip = Mathf.Max(0, state.PreviewMip);
+            return true;
         }
 
         /// <summary>

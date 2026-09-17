@@ -266,6 +266,12 @@ namespace HN.HNRP
                         camera.GetHNRPAdditionalCameraData().GetOrCreateRenderer();
                     cameraRenderer.Build(renderGraphAsset);
 
+                    // 渲染调试：pass 列表就绪后解析本帧的调试状态
+                    //（需要 CameraRenderer 作为纹理预览解析器），
+                    // 使各生产者 pass 在自己的 render func 中可读到最终结论。
+                    RenderDebugManager.SetPreviewResolver(cameraRenderer);
+                    RenderDebugManager.ResolveState(cameraContext);
+
                     BeginCameraRendering(context, camera);
                     cameraRenderer.Render(renderGraph, cameraContext);
                     EndCameraRendering(context, camera);
@@ -424,6 +430,9 @@ namespace HN.HNRP
             reflectionProbeRenderer.Dispose();
 
             ConstantBuffer.ReleaseAll();
+
+            // 释放渲染调试持有的 GPU 资源（单值缓冲、标签缓冲、字模图集、颜色 LUT）。
+            RenderDebugManager.Dispose();
         }
 
         /// <summary>

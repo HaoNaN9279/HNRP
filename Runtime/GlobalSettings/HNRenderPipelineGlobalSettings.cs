@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 #if UNITY_EDITOR
@@ -135,6 +136,46 @@ namespace HN.HNRP
             resources = tempResources;
         }
 #endif
+
+
+        #region Debug
+        /// <summary>
+        /// 非 Editor 运行时是否允许渲染调试显示生效。
+        /// </summary>
+        /// <remarks>
+        /// 与编译期开关 <c>HNRP_DEBUG_DISPLAY</c> 组成两层控制：
+        /// <list type="number">
+        ///   <item>编译期 <c>HNRP_DEBUG_DISPLAY</c> —— 决定调试代码 / 资源是否纳入
+        ///     Player 构建（Editor 恒纳入，便于迭代）。</item>
+        ///   <item>本开关 —— 已纳入构建时，是否真的允许在运行时生效。</item>
+        /// </list>
+        /// 两者都开启才可在打包后的 Debug 模式中使用渲染调试。
+        /// </remarks>
+        [Tooltip("非 Editor 运行时是否允许渲染调试显示生效")]
+        public bool SupportRuntimeDebugDisplay = false;
+
+        /// <summary>
+        /// 渲染调试的默认布局与兜底参数。
+        /// </summary>
+        /// <remarks>
+        /// 这些是「设一次就很少再改」的低频参数（文本区位置 / 字号 / 预览边长 / mip /
+        /// 色带越界），刻意不放进 SceneView 浮动面板，避免面板被淹没。
+        /// 每帧由 <see cref="RenderDebugManager.ResolveState"/> 合并进帧级状态。
+        /// </remarks>
+        [Tooltip("渲染调试的默认布局与兜底参数")]
+        public RenderDebugDefaults DebugDefaults = RenderDebugDefaults.CreateDefault();
+
+        /// <summary>
+        /// 默认不显示的单值标签集合。
+        /// </summary>
+        /// <remarks>
+        /// 由 GlobalSettings 的 Debug 段（按注册点分组的值列表）维护。
+        /// <see cref="RenderDebugManager"/> 在条目首次注册时据此决定初始显示开关，
+        /// 从而让「哪些值要显示」的筛选跨脚本重载 / 会话保留。
+        /// </remarks>
+        [Tooltip("默认不显示的单值标签")]
+        public List<string> HiddenDebugValues = new();
+        #endregion
 
 
         #region RenderingLayer

@@ -17,6 +17,7 @@ MonoBehaviour:
     Blit: {fileID: 4800000, guid: 8708c14c35973cc47bc65524734fce5d, type: 3}
     BlitColorAndDepth: {fileID: 4800000, guid: 41836d17f639c0f478d6644645def258, type: 3}
     ShadowClear: {fileID: 4800000, guid: 55bfdfb485c57064390fedd9c66debb4, type: 3}
+    DebugDisplay: {fileID: 4800000, guid: 5299ba6118bdeb3428ed5911c299ec37, type: 3}
   emptyTexture: {fileID: 0}
   clusterCullingLightCS: {fileID: 7200000, guid: 03109d297f7c01a4aa905e545a97bb19, type: 3}
   clusterCullingReflectionProbeCS: {fileID: 7200000, guid: a03e1e33875fb24468b3f87b5eb0a52e, type: 3}

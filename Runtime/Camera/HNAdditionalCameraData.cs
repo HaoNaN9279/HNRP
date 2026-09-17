@@ -51,6 +51,22 @@ namespace HN.HNRP
             return cameraRenderer ??= new CameraRenderer();
         }
 
+        /// <summary>
+        /// 取本相机当前的运行时 pass 实例（只读）。
+        /// </summary>
+        /// <remarks>
+        /// 供渲染调试 UI 枚举「可供配置 / 预览的 pass 实例」（实例名、每像素通道、
+        /// 可预览纹理）。尚未构建过 pass 列表时返回空列表。
+        /// </remarks>
+        /// <returns>本相机 pass 实例列表；未渲染过时为空。</returns>
+        public IReadOnlyList<Pass> GetRuntimePasses()
+        {
+            return cameraRenderer != null ? cameraRenderer.Passes : emptyPasses;
+        }
+
+        /// <summary><see cref="GetRuntimePasses"/> 在无渲染器时返回的空列表。</summary>
+        private static readonly Pass[] emptyPasses = System.Array.Empty<Pass>();
+
         unsafe public void UpdateCameraGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
         {
             globalConstantBuffer._ScreenSize = new Vector4(BuiltinCamera.scaledPixelWidth, BuiltinCamera.scaledPixelHeight, 1.0f / BuiltinCamera.scaledPixelWidth, 1.0f / BuiltinCamera.scaledPixelHeight);

@@ -72,6 +72,8 @@ Shader "HNRP/Lit"
             #pragma multi_compile _ SCREEN_SPACE_SHADOW_MAP
             #pragma multi_compile _ CLUSTER_CULLING_REFLECTION_PROBE
             #pragma multi_compile _ CLUSTER_CULLING_LIGHT
+            // 渲染调试：全局唯一 keyword，具体通道由 _HNRPDebugChannelId 选择
+            #pragma multi_compile _ HN_DEBUG_PER_PIXEL
 
             // Unity defined Keywords
             #pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
@@ -113,7 +115,7 @@ Shader "HNRP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            #pragma enable_d3d11_debug_symbols
+            // #pragma enable_d3d11_debug_symbols
 
             #include "../Lit/LitShadowCaster.hlsl"
             ENDHLSL
