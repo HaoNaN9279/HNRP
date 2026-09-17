@@ -37,6 +37,16 @@ namespace HN.HNRP
         public bool HasCullingResults { get; set; }
 
         /// <summary>
+        /// 本次 <c>Cull</c> 实际生效的阴影距离（米），已并入相机与所有覆盖相机的方向光的
+        /// 最远级联边界。
+        /// </summary>
+        /// <remarks>
+        /// 引擎按该距离收集方向光的阴影投射者；阴影 pass 必须用同一个值作为级联分割比例的
+        /// 归一化分母，否则引擎算出的绝对级联边界与本项目 splits 错位（远端级联取不到投射者）。
+        /// </remarks>
+        public float ShadowDistance { get; set; }
+
+        /// <summary>
         /// 记录渲染命令的命令缓冲。构造时经 <see cref="CommandBufferPool.Get"/>
         /// 从池中分配，<see cref="Dispose"/> 中经 <see cref="CommandBufferPool.Release"/>
         /// 归还。

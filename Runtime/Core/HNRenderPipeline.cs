@@ -139,6 +139,15 @@ namespace HN.HNRP
 
                 if (camera.cameraType == CameraType.Reflection)
                 {
+                    // 反射相机必须有渲染目标或隶属某个场景：
+                    // - 烘焙 / RenderToCubemap 路径由 Unity 内部把相机 target 设为临时 cubemap RT，
+                    //   且相机来自某个场景；
+                    // - HNRP 自己的实时探针面渲染走 ReflectionProbeRenderer（不经由该相机列表）。
+                    if (camera.targetTexture == null && !camera.gameObject.scene.IsValid())
+                    {
+                        continue;
+                    }
+
                     // Bake/custom 触发的反射相机（ReflectionProbe.RenderProbe）：
                     // 不经过主相机的实时探针收集，直接按烘焙中探针的
                     // render graph view 渲染。临时相机不挂 HNAdditionalCameraData。
@@ -179,6 +188,18 @@ namespace HN.HNRP
                 bool gotParams = camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParams);
                 if (gotParams)
                 {
+                    // 引擎在 Cull 期按 shadowDistance 收集方向光的阴影投射者（整个阴影范围沿
+                    // 光方向外扩的体积）。HNRP 的级联分割自持、默认最远到 1000m，若不覆盖到
+                    // 级联设置的最后一级，超出 QualitySettings.shadowDistance 的投射者不会进入
+                    // CullingResults，DrawShadowPass 的 DrawShadows 也就取不到它们。
+                    cullingParams.shadowDistance = Mathf.Max(
+                        cullingParams.shadowDistance,
+                        ResolveMaxShadowDistance(camera));
+
+                    // 阴影 pass 用同一个值归一化级联分割比例：引擎按该距离换算绝对级联边界，
+                    // 比例与绝对边界必须同源，否则远端级联会取不到投射者。
+                    cameraContext.ShadowDistance = cullingParams.shadowDistance;
+
                     cameraContext.CullingResults = context.Cull(ref cullingParams);
                     cameraContext.HasCullingResults = true;
 
@@ -317,6 +338,57 @@ namespace HN.HNRP
             CommandBufferPool.Release(cmd);
 
             EndContextRendering(context, cameras);
+        }
+
+        /// <summary>
+        /// 取相机级联设置与所有「覆盖相机级联设置」方向光中最远一级的边界，
+        /// 作为引擎裁剪收集阴影投射者的距离上限。
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// 引擎在 <c>Cull</c> 期按该距离收集阴影投射者，超出该距离的投射者不会进入
+        /// <see cref="CullingResults"/>，之后无论给 <c>DrawShadows</c> 传什么裁剪数据都取不回来。
+        /// 因此这里必须取所有相关光源的最大值，而不是只取相机设置。
+        /// </para>
+        /// <para>
+        /// 覆盖光源集合由 <see cref="HNAdditionalLightData.OverrideShadowLights"/> 提供
+        /// （组件在启用 / 校验时自行登记，无需每帧遍历场景）。
+        /// </para>
+        /// </remarks>
+        /// <param name="camera">正在裁剪的相机。</param>
+        /// <returns>阴影裁剪距离（米）；无可用的级联设置时返回 <c>0</c>。</returns>
+        private static float ResolveMaxShadowDistance(Camera camera)
+        {
+            ShadowCameraSettings settings = camera.TryGetComponent(out HNAdditionalCameraData cameraData)
+                ? cameraData.ShadowSettings
+                : ShadowCameraSettings.Default;
+            settings.EnsureValid();
+
+            float maxDistance = GetMaxSplit(settings.CascadeSplits);
+
+            IReadOnlyList<HNAdditionalLightData> overrideLights = HNAdditionalLightData.OverrideShadowLights;
+            for (int i = 0; i < overrideLights.Count; i++)
+            {
+                HNAdditionalLightData lightData = overrideLights[i];
+                if (lightData == null)
+                {
+                    continue;
+                }
+
+                maxDistance = Mathf.Max(maxDistance, lightData.GetEffectiveMaxShadowDistance());
+            }
+
+            return maxDistance;
+        }
+
+        /// <summary>
+        /// 取级联分割数组的最后一项（最远边界）。
+        /// </summary>
+        /// <param name="splits">级联分割数组。</param>
+        /// <returns>最远边界（米）；数组为空时返回 <c>0</c>。</returns>
+        private static float GetMaxSplit(List<float> splits)
+        {
+            return splits != null && splits.Count > 0 ? splits[splits.Count - 1] : 0f;
         }
 
         /// <summary>

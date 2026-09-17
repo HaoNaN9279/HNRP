@@ -111,10 +111,27 @@ namespace HN.HNRP
         /// <summary>cascade 最大级数，级联边界数组固定长度。</summary>
         public const int MaxCascadeCount = 8;
 
+        /// <summary>
+        /// 8 级 cascade 的分组交界节点数量（固定 3 个，把 8 级切成 4 组）。
+        /// 仅 8 级时使用：分组只影响剔除体积的复用，不改变级数与选级。
+        /// </summary>
+        public const int GroupNodeCount = 3;
+
+        /// <summary>分组数量上限（= 引擎方向光级联剔除上限 4）。</summary>
+        public const int MaxGroupCount = GroupNodeCount + 1;
+
         /// <summary>默认的 8 级 cascade 远边界（沿相机视轴，单位米）。</summary>
         public static readonly float[] DefaultSplits =
         {
             1f, 4f, 10f, 30f, 50f, 100f, 300f, 1000f
+        };
+
+        /// <summary>
+        /// 默认的 8 级分组交界（cascade 边界索引，升序）：每 2 级一组。
+        /// </summary>
+        public static readonly int[] DefaultSplitGroups =
+        {
+            2, 4, 6
         };
 
         /// <summary>默认的 8 级 cascade 更新帧间隔。</summary>
@@ -128,6 +145,9 @@ namespace HN.HNRP
 
         [SerializeField]
         private List<float> cascadeSplits;
+
+        [SerializeField]
+        private List<int> cascadeSplitGroups;
 
         [SerializeField]
         private ShadowUpdateModeType shadowUpdateMode;
@@ -146,6 +166,7 @@ namespace HN.HNRP
                 {
                     cascadeCount = CascadeCountType.Four,
                     cascadeSplits = new List<float>(DefaultSplits),
+                    cascadeSplitGroups = new List<int>(DefaultSplitGroups),
                     shadowUpdateMode = ShadowUpdateModeType.EveryFrame,
                     cascadeTimeSlices = new List<int>(DefaultTimeSlices)
                 };
@@ -166,6 +187,16 @@ namespace HN.HNRP
         {
             get => cascadeSplits;
             set => cascadeSplits = value;
+        }
+
+        /// <summary>
+        /// 8 级 cascade 的分组交界（cascade 边界索引，升序，长度 <see cref="GroupNodeCount"/>）。
+        /// 仅当 <see cref="CascadeCount"/> 为 8 时生效；其余级数每级自成一组，忽略该值。
+        /// </summary>
+        public List<int> CascadeSplitGroups
+        {
+            get => cascadeSplitGroups;
+            set => cascadeSplitGroups = value;
         }
 
         /// <summary>阴影更新模式。</summary>
@@ -212,6 +243,66 @@ namespace HN.HNRP
             else
             {
                 EnsureIntList(cascadeTimeSlices, DefaultTimeSlices);
+            }
+
+            if (cascadeSplitGroups == null)
+            {
+                cascadeSplitGroups = new List<int>(DefaultSplitGroups);
+            }
+            else
+            {
+                EnsureGroupList(cascadeSplitGroups);
+            }
+        }
+
+        /// <summary>
+        /// 修正 8 级分组交界：补齐长度、夹取到合法交界范围并保证严格递增。
+        /// 严格递增是硬约束——分组节点重合会产生零宽组，向引擎传退化剔除区间。
+        /// </summary>
+        private static void EnsureGroupList(List<int> values)
+        {
+            for (int i = values.Count; i < GroupNodeCount; i++)
+            {
+                values.Add(DefaultSplitGroups[i < DefaultSplitGroups.Length ? i : DefaultSplitGroups.Length - 1]);
+            }
+
+            if (values.Count > GroupNodeCount)
+            {
+                values.RemoveRange(GroupNodeCount, values.Count - GroupNodeCount);
+            }
+
+            for (int i = 0; i < values.Count; i++)
+            {
+                values[i] = Mathf.Clamp(values[i], 1, MaxCascadeCount - 1);
+            }
+
+            values.Sort();
+
+            // 先自左向右推开重复项，再从右向左压回合法上界，保证落在 [1, MaxCascadeCount-1] 内严格递增。
+            for (int i = 1; i < values.Count; i++)
+            {
+                if (values[i] <= values[i - 1])
+                {
+                    values[i] = values[i - 1] + 1;
+                }
+            }
+
+            for (int i = values.Count - 1; i > 0; i--)
+            {
+                if (values[i] > MaxCascadeCount - 1)
+                {
+                    values[i] = MaxCascadeCount - 1;
+                }
+
+                if (values[i - 1] >= values[i])
+                {
+                    values[i - 1] = values[i] - 1;
+                }
+            }
+
+            if (values[0] < 1)
+            {
+                values[0] = 1;
             }
         }
 

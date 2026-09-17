@@ -25,6 +25,8 @@ MonoBehaviour:
   - rid: 6885483949488603235
   - rid: 6885483949488603236
   - rid: 6885483949488603237
+  - rid: 6885484152777080832
+  parameterRevision: 1694
   references:
     version: 2
     RefIds:
@@ -38,20 +40,8 @@ MonoBehaviour:
       data:
         passName: clusterProbe
         isEnabled: 1
-        atlasParams:
-          ColorFormat: 74
-          DepthBits: 0
-          Slices: 1
-          TextureScale: {x: 1, y: 1}
-          Width: 4096
-          Height: 4096
-          FilterMode: 2
-          WrapMode: 1
-          TextureDimension: 2
-          UseMipMap: 1
-          AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
+        atlasSliceResolution: 2048
+        atlasSliceCount: 2
     - rid: 6885483949488603233
       type: {class: ClusterCullingLightPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
@@ -147,3 +137,15 @@ MonoBehaviour:
           ListKind: 0
           RenderingLayerMask: 1
         receiveShadow: 1
+    - rid: 6885484152777080832
+      type: {class: DrawShadowPass, ns: HN.HNRP, asm: HN.HNRP}
+      data:
+        passName: drawShadow
+        isEnabled: 1
+        sliceResolution: 4096
+        sliceCount: 1
+        shadowNearPlaneOffset: 0.1
+        shadowStrength: 1
+        shadowSoft: 0
+        depthBias: 1
+        slopBias: 2.5

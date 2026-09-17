@@ -16,6 +16,12 @@ namespace HN.HNRP
             SyncBuiltinShadows();
             cascadeShadow.EnsureValid();
             shadowSettings.EnsureValid();
+            SyncOverrideRegistration();
+        }
+
+        void OnDisable()
+        {
+            overrideShadowLights.Remove(this);
         }
 
         void OnValidate()
@@ -23,6 +29,48 @@ namespace HN.HNRP
             builtinLight = GetComponent<Light>();
             SyncBuiltinShadows();
             shadowSettings.EnsureValid();
+            SyncOverrideRegistration();
+        }
+
+        /// <summary>
+        /// 同步本光在「覆盖相机的方向光」注册表中的存在状态。
+        /// </summary>
+        /// <remarks>
+        /// 管线必须在 <c>Cull</c> 之前知道所有覆盖光源的最远级联边界（决定本次裁剪的
+        /// shadowDistance），而裁剪结果要 Cull 之后才有；故由组件在启用 / 校验时自行登记，
+        /// 避免每帧遍历场景（<c>Light.GetLights</c> 在 2022.3 已废弃）。
+        /// </remarks>
+        private void SyncOverrideRegistration()
+        {
+            bool shouldRegister = enableShadow
+                && overrideCameraShadowSettings
+                && BuiltinLight != null
+                && BuiltinLight.type == LightType.Directional;
+
+            bool registered = overrideShadowLights.Contains(this);
+            if (shouldRegister && !registered)
+            {
+                overrideShadowLights.Add(this);
+            }
+            else if (!shouldRegister && registered)
+            {
+                overrideShadowLights.Remove(this);
+            }
+        }
+
+        /// <summary>
+        /// 本光生效的最远级联边界（仅覆盖开关开启且启用阴影时有意义）。
+        /// </summary>
+        /// <returns>最远一级 cascade 的远边界（米）；不适用时返回 <c>0</c>。</returns>
+        public float GetEffectiveMaxShadowDistance()
+        {
+            if (!enableShadow || !overrideCameraShadowSettings)
+            {
+                return 0f;
+            }
+
+            List<float> splits = shadowSettings.CascadeSplits;
+            return splits != null && splits.Count > 0 ? splits[splits.Count - 1] : 0f;
         }
 
         /// <summary>
@@ -81,7 +129,11 @@ namespace HN.HNRP
         public bool EnableShadow
         {
             get => enableShadow;
-            set => enableShadow = value;
+            set
+            {
+                enableShadow = value;
+                SyncOverrideRegistration();
+            }
         }
 
         /// <summary>
@@ -101,7 +153,11 @@ namespace HN.HNRP
         public bool OverrideCameraShadowSettings
         {
             get => overrideCameraShadowSettings;
-            set => overrideCameraShadowSettings = value;
+            set
+            {
+                overrideCameraShadowSettings = value;
+                SyncOverrideRegistration();
+            }
         }
 
         /// <summary>
@@ -141,6 +197,19 @@ namespace HN.HNRP
             set => shadowSettings.CascadeTimeSlices = value;
         }
 
+
+        /// <summary>
+        /// 启用阴影且覆盖相机级联设置的方向光注册表。
+        /// </summary>
+        /// <remarks>
+        /// 由 <see cref="SyncOverrideRegistration"/> 在组件启用 / 校验时维护；
+        /// 管线在裁剪前遍历它计算本次 <c>shadowDistance</c>。
+        /// </remarks>
+        private static readonly List<HNAdditionalLightData> overrideShadowLights =
+            new List<HNAdditionalLightData>();
+
+        /// <summary>当前登记的「覆盖相机级联设置」方向光（只读）。</summary>
+        public static IReadOnlyList<HNAdditionalLightData> OverrideShadowLights => overrideShadowLights;
 
         [SerializeField]
         private Light builtinLight;

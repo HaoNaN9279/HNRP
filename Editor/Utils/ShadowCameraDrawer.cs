@@ -29,6 +29,15 @@ namespace HN.HNRP.Editor
         private const float PartitionWidth = 2f;
         private const float InspectorLabelWidth = 96f;
 
+        /// <summary>8 级分组交界轨道的高度（仅在 cascade 级数为 8 时占用）。</summary>
+        private const float GroupTrackHeight = 16f;
+
+        /// <summary>分组交界节点的宽度。</summary>
+        private const float GroupNodeWidth = 10f;
+
+        /// <summary>分组交界节点的高度。</summary>
+        private const float GroupNodeHeight = 12f;
+
         private static readonly string[] CascadeCountNames = { "1", "2", "4", "8" };
         private static readonly int[] CascadeCountValues = { 1, 2, 4, 8 };
 
@@ -57,9 +66,11 @@ namespace HN.HNRP.Editor
         };
 
         private static readonly int SliderControlHash = "HNRP.ShadowCameraSlider".GetHashCode();
+        private static readonly int GroupTrackControlHash = "HNRP.ShadowCameraGroupTrack".GetHashCode();
 
         // 拖拽状态在重绘之间保持。
         private static int activeHandle = -1;
+        private static int activeGroupNode = -1;
 
         private static GUIStyle downSnatchStyle;
 
@@ -77,6 +88,11 @@ namespace HN.HNRP.Editor
             float height = line;                       // Cascade Count
             height += space + line;                    // Update Mode
             height += space + SliderTotalHeight;       // 级联分割滑条
+
+            if (GetCascadeCount(property) == (int)CascadeCountType.Eight)
+            {
+                height += space + GroupTrackHeight;    // 8 级分组交界轨道
+            }
 
             if (GetSelectedCascade(property) > 0)
             {
@@ -131,6 +147,20 @@ namespace HN.HNRP.Editor
                 cascadeCount,
                 property.propertyPath);
             y += SliderTotalHeight + space;
+
+            // 分组交界轨道：仅 8 级（合并为 4 组）时需要，其余级数每级自成一组。
+            SerializedProperty groupsProperty = property.FindPropertyRelative("cascadeSplitGroups");
+            if (cascadeCount == (int)CascadeCountType.Eight
+                && groupsProperty != null
+                && groupsProperty.arraySize == ShadowCameraSettings.GroupNodeCount)
+            {
+                DrawGroupTrack(
+                    new Rect(position.x, y, position.width, GroupTrackHeight),
+                    groupsProperty,
+                    splitsProperty,
+                    cascadeCount);
+                y += GroupTrackHeight + space;
+            }
 
             // 级联信息按需显示：不需要时直接隐藏，而不是灰显。
             if (selectedCascade > 0)
@@ -340,6 +370,219 @@ namespace HN.HNRP.Editor
                     }
                     break;
             }
+        }
+
+        /// <summary>
+        /// 绘制 8 级 cascade 的分组交界轨道。
+        /// 3 个节点只允许落在 cascade 交界处，且保持严格顺序（不可重合）。
+        /// </summary>
+        private static void DrawGroupTrack(
+            Rect rowRect,
+            SerializedProperty groupsProperty,
+            SerializedProperty splitsProperty,
+            int cascadeCount)
+        {
+            Rect barRect = new Rect(
+                rowRect.x + SliderBarMargin,
+                rowRect.y,
+                rowRect.width - SliderBarMargin * 2f,
+                rowRect.height);
+
+            float maxDistance = GetSplitValue(splitsProperty, cascadeCount - 1);
+            if (maxDistance <= 0f)
+            {
+                maxDistance = 1f;
+            }
+
+            HandleGroupTrackInput(rowRect, barRect, groupsProperty, splitsProperty, cascadeCount, maxDistance);
+
+            if (Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            int nodeCount = ShadowCameraSettings.GroupNodeCount;
+
+            // 组区间着色：用组内首级的配色铺底，直观呈现"哪些级共享剔除结果"。
+            int previousBoundary = 0;
+            for (int group = 0; group <= nodeCount; group++)
+            {
+                int endBoundary = group < nodeCount
+                    ? GetGroupNodeValue(groupsProperty, group)
+                    : cascadeCount;
+
+                float xMin = BoundaryX(barRect, splitsProperty, previousBoundary, maxDistance);
+                float xMax = BoundaryX(barRect, splitsProperty, endBoundary, maxDistance);
+
+                Color previousBackground = GUI.backgroundColor;
+                GUI.backgroundColor = CascadeColors[Mathf.Clamp(previousBoundary, 0, CascadeColors.Length - 1)];
+                GUI.Box(
+                    new Rect(xMin, rowRect.y + 1f, Mathf.Max(0f, xMax - xMin), rowRect.height - 2f),
+                    GUIContent.none,
+                    SliderBackgroundStyle);
+                GUI.backgroundColor = previousBackground;
+
+                previousBoundary = endBoundary;
+            }
+
+            for (int i = 0; i < nodeCount; i++)
+            {
+                float x = BoundaryX(barRect, splitsProperty, GetGroupNodeValue(groupsProperty, i), maxDistance);
+                Rect nodeRect = GetGroupNodeRect(x, barRect);
+                EditorGUIUtility.AddCursorRect(nodeRect, MouseCursor.ResizeHorizontal);
+                DrawSnatchHandle(nodeRect, SelectionColor, activeGroupNode == i);
+            }
+        }
+
+        private static void HandleGroupTrackInput(
+            Rect rowRect,
+            Rect barRect,
+            SerializedProperty groupsProperty,
+            SerializedProperty splitsProperty,
+            int cascadeCount,
+            float maxDistance)
+        {
+            Event currentEvent = Event.current;
+            int controlId = GUIUtility.GetControlID(GroupTrackControlHash, FocusType.Passive, barRect);
+            int nodeCount = ShadowCameraSettings.GroupNodeCount;
+
+            int hoveredNode = -1;
+            for (int i = 0; i < nodeCount; i++)
+            {
+                float x = BoundaryX(barRect, splitsProperty, GetGroupNodeValue(groupsProperty, i), maxDistance);
+                if (GetGroupNodeRect(x, barRect).Contains(currentEvent.mousePosition))
+                {
+                    hoveredNode = i;
+                }
+            }
+
+            switch (currentEvent.type)
+            {
+                case EventType.MouseDown:
+                    if (currentEvent.button != 0
+                        || hoveredNode < 0
+                        || !rowRect.Contains(currentEvent.mousePosition))
+                    {
+                        break;
+                    }
+
+                    GUIUtility.hotControl = controlId;
+                    activeGroupNode = hoveredNode;
+                    currentEvent.Use();
+                    break;
+
+                case EventType.MouseDrag:
+                    if (GUIUtility.hotControl != controlId
+                        || activeGroupNode < 0
+                        || activeGroupNode >= nodeCount)
+                    {
+                        break;
+                    }
+
+                    float normalized = (currentEvent.mousePosition.x - barRect.x) / Mathf.Max(1f, barRect.width);
+                    float draggedDistance = NormalizedToDistance(normalized, maxDistance);
+                    int boundary = FindNearestBoundary(splitsProperty, cascadeCount, draggedDistance);
+
+                    // 严格顺序：只能落在相邻节点之间的交界上，不允许重合（重合会产生零宽组）。
+                    int lower = activeGroupNode > 0 ? GetGroupNodeValue(groupsProperty, activeGroupNode - 1) : 0;
+                    int upper = activeGroupNode < nodeCount - 1
+                        ? GetGroupNodeValue(groupsProperty, activeGroupNode + 1)
+                        : cascadeCount;
+
+                    SetGroupNodeValue(
+                        groupsProperty,
+                        activeGroupNode,
+                        Mathf.Clamp(boundary, lower + 1, upper - 1));
+                    GUI.changed = true;
+                    currentEvent.Use();
+                    break;
+
+                case EventType.MouseUp:
+                    if (GUIUtility.hotControl == controlId)
+                    {
+                        GUIUtility.hotControl = 0;
+                        activeGroupNode = -1;
+                        currentEvent.Use();
+                    }
+                    break;
+            }
+        }
+
+        private static int GetGroupNodeValue(SerializedProperty groupsProperty, int index)
+        {
+            if (groupsProperty.arraySize == 0)
+            {
+                return 1;
+            }
+
+            index = Mathf.Clamp(index, 0, groupsProperty.arraySize - 1);
+            int value = groupsProperty.GetArrayElementAtIndex(index).intValue;
+            return Mathf.Clamp(value, 1, ShadowCameraSettings.MaxCascadeCount - 1);
+        }
+
+        private static void SetGroupNodeValue(SerializedProperty groupsProperty, int index, int value)
+        {
+            if (index < 0 || index >= groupsProperty.arraySize)
+            {
+                return;
+            }
+
+            groupsProperty.GetArrayElementAtIndex(index).intValue =
+                Mathf.Clamp(value, 1, ShadowCameraSettings.MaxCascadeCount - 1);
+        }
+
+        /// <summary>
+        /// 把 cascade 交界（边界索引 <c>0..级数</c>）映射到轨道 x 坐标。
+        /// 边界 <c>b</c> 的位置即第 <c>b-1</c> 级的远边界。
+        /// </summary>
+        private static float BoundaryX(
+            Rect barRect,
+            SerializedProperty splitsProperty,
+            int boundaryIndex,
+            float maxDistance)
+        {
+            if (boundaryIndex <= 0)
+            {
+                return barRect.x;
+            }
+
+            return barRect.x
+                + DistanceToNormalized(GetSplitValue(splitsProperty, boundaryIndex - 1), maxDistance) * barRect.width;
+        }
+
+        /// <summary>
+        /// 按世界距离找最近的 cascade 交界索引（吸附用）。
+        /// </summary>
+        private static int FindNearestBoundary(SerializedProperty splitsProperty, int cascadeCount, float distance)
+        {
+            int nearest = 1;
+            float nearestDelta = float.MaxValue;
+            for (int boundary = 1; boundary < cascadeCount; boundary++)
+            {
+                float delta = Mathf.Abs(GetSplitValue(splitsProperty, boundary - 1) - distance);
+                if (delta < nearestDelta)
+                {
+                    nearestDelta = delta;
+                    nearest = boundary;
+                }
+            }
+
+            return nearest;
+        }
+
+        private static Rect GetGroupNodeRect(float boundaryX, Rect barRect)
+        {
+            return new Rect(
+                boundaryX - GroupNodeWidth * 0.5f,
+                barRect.y + (barRect.height - GroupNodeHeight) * 0.5f,
+                GroupNodeWidth,
+                GroupNodeHeight);
+        }
+
+        private static int GetCascadeCount(SerializedProperty property)
+        {
+            SerializedProperty countProperty = property.FindPropertyRelative("cascadeCount");
+            return countProperty != null ? NormalizeCascadeCount(countProperty.intValue) : 4;
         }
 
         private static int GetSelectedCascade(SerializedProperty property)

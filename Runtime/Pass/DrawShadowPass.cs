@@ -88,6 +88,12 @@ namespace HN.HNRP
         [SerializeField]
         private float shadowSoft = 0f;
 
+        [SerializeField]
+        private float depthBias = 1.0f;
+
+        [SerializeField]
+        private float slopBias = 2.5f;
+
         /// <summary>获取或设置 atlas 单 slice 分辨率。</summary>
         public int SliceResolution
         {
@@ -162,6 +168,17 @@ namespace HN.HNRP
 
         /// <summary>方向光矩阵计算复用的远平面视锥角点缓冲（避免每帧堆分配）。</summary>
         private readonly Vector3[] farCornersScratch = new Vector3[4];
+
+        /// <summary>方向光分组结果复用列表（避免每帧堆分配）。</summary>
+        private readonly List<CascadeGroup> cascadeGroupsScratch =
+            new List<CascadeGroup>(ShadowCameraSettings.MaxGroupCount);
+
+        /// <summary>本帧各组的引擎剔除结果（按组下标索引），由组内各级共享。</summary>
+        private readonly ShadowSplitData[] groupSplitDataScratch =
+            new ShadowSplitData[ShadowCameraSettings.MaxGroupCount];
+
+        /// <summary>本帧各组剔除结果是否已成功取得；失败时该组本帧不绘制投射者。</summary>
+        private readonly bool[] groupSplitDataReady = new bool[ShadowCameraSettings.MaxGroupCount];
 
         /// <summary>本帧相机视图矩阵（每帧缓存一次，供各 map 签名比较复用）。</summary>
         private Matrix4x4 cachedCameraViewMatrix;
@@ -590,7 +607,7 @@ namespace HN.HNRP
                 cascadeCount = cascadeCount,
                 cascadeSettings = cascadeSettings,
                 cascadeHash = isDirectional
-                    ? ComputeCascadeHash(cascadeCount, cascadeSettings.CascadeSplits)
+                    ? ComputeCascadeHash(cascadeCount, cascadeSettings.CascadeSplits, cascadeSettings.CascadeSplitGroups)
                     : 0,
                 // 方向光槽位（0 起）对应 _ShadowCameraDatas 下标；其他类型无意义。
                 cameraDataIndex = isDirectional ? directionalCount - 1 : -1,
@@ -825,6 +842,20 @@ namespace HN.HNRP
                         BuildShadowCameraData(selected.cascadeSettings, selected.cascadeCount);
                 }
 
+                // 方向光：先按级数与分组交界切组，并清空本帧的组级剔除结果缓存。
+                // 组级剔除结果只在组内出现需重绘的 cascade 时才向引擎索取（惰性）。
+                bool isDirectionalLight = selected.lightType == LightType.Directional;
+                if (isDirectionalLight)
+                {
+                    CascadeShadowGrouping.BuildGroups(
+                        selected.cascadeSettings.CascadeCount,
+                        selected.cascadeSettings.CascadeSplitGroups,
+                        cascadeGroupsScratch);
+
+                    System.Array.Clear(groupSplitDataScratch, 0, groupSplitDataScratch.Length);
+                    System.Array.Clear(groupSplitDataReady, 0, groupSplitDataReady.Length);
+                }
+
                 int mapCount = GetMapCount(selected);
                 bool allAllocated = true;
                 for (int sub = 0; sub < mapCount; sub++)
@@ -856,7 +887,7 @@ namespace HN.HNRP
 
                     if (needMatrices)
                     {
-                        if (ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj))
+                        if (ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
                         {
                             ShadowMapData mapData = default;
                             mapData.shadowParams = new Vector4(shadowStrength, shadowSoft, sub, 0f);
@@ -866,12 +897,34 @@ namespace HN.HNRP
 
                             if (shouldRedraw)
                             {
-                                drawCommands.Add(new ShadowDrawCommand
+                                ShadowDrawCommand command = new ShadowDrawCommand
                                 {
                                     view = view,
                                     proj = proj,
                                     allocation = resident.allocation,
-                                });
+                                    lightIndex = lightIndex,
+                                    lightType = selected.lightType,
+                                    splitData = splitData,
+                                    hasCasters = true,
+                                };
+
+                                if (isDirectionalLight)
+                                {
+                                    // 方向光的剔除体积取自引擎的组级结果：组内各级共享一次计算，
+                                    // 与本级手写正交矩阵解耦（矩阵仍按本级 splits 拟合）。
+                                    int groupIndex = CascadeShadowGrouping.FindGroup(cascadeGroupsScratch, sub);
+                                    if (groupIndex >= 0)
+                                    {
+                                        command.splitData = GetDirectionalGroupSplitData(selected, groupIndex);
+                                        command.hasCasters = groupSplitDataReady[groupIndex];
+                                    }
+                                    else
+                                    {
+                                        command.hasCasters = false;
+                                    }
+                                }
+
+                                drawCommands.Add(command);
                             }
                         }
                         else
@@ -980,9 +1033,10 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// 计算方向光 cascade 级数与分割的哈希，用于签名比较与缓存失效判断。
+        /// 计算方向光 cascade 级数、分割与分组交界的哈希，用于签名比较与缓存失效判断。
+        /// 分组交界影响每级所用的剔除体积（可能间接影响可见阴影），必须纳入哈希。
         /// </summary>
-        private static int ComputeCascadeHash(int cascadeCount, List<float> splits)
+        private static int ComputeCascadeHash(int cascadeCount, List<float> splits, List<int> splitGroups)
         {
             int hash = cascadeCount * 397;
             if (splits != null)
@@ -990,6 +1044,14 @@ namespace HN.HNRP
                 for (int i = 0; i < splits.Count; i++)
                 {
                     hash = (hash * 31) + splits[i].GetHashCode();
+                }
+            }
+
+            if (splitGroups != null)
+            {
+                for (int i = 0; i < splitGroups.Count; i++)
+                {
+                    hash = (hash * 31) + splitGroups[i];
                 }
             }
 
@@ -1065,14 +1127,24 @@ namespace HN.HNRP
         /// <summary>
         /// 计算第 <paramref name="sub"/> 张 map 的视图 / 投影矩阵与裁剪数据。
         /// </summary>
+        /// <param name="selected">本 map 所属的光源。</param>
+        /// <param name="sub">map 在光源内的子索引（cascade / 面）。</param>
+        /// <param name="view">输出的光源视图矩阵。</param>
+        /// <param name="proj">输出的光源投影矩阵。</param>
+        /// <param name="splitData">
+        /// 输出的裁剪数据，供 <c>DrawShadows</c> 二次裁剪投射者。
+        /// 方向光返回 <c>default</c>：其剔除体积由 <see cref="GetDirectionalGroupSplitData"/> 按组提供。
+        /// </param>
         private bool ComputeMatrices(
             SelectedLight selected,
             int sub,
             out Matrix4x4 view,
-            out Matrix4x4 proj)
+            out Matrix4x4 proj,
+            out ShadowSplitData splitData)
         {
             view = Matrix4x4.identity;
             proj = Matrix4x4.identity;
+            splitData = default;
 
             CullingResults cullingResults = cameraContext.CullingResults;
             switch (selected.lightType)
@@ -1082,13 +1154,13 @@ namespace HN.HNRP
 
                 case LightType.Spot:
                     return cullingResults.ComputeSpotShadowMatricesAndCullingPrimitives(
-                        selected.lightIndex, out view, out proj, out _);
+                        selected.lightIndex, out view, out proj, out splitData);
 
                 case LightType.Point:
                 {
                     if (!cullingResults.ComputePointShadowMatricesAndCullingPrimitives(
                             selected.lightIndex, (CubemapFace)sub, PointLightFovBias,
-                            out view, out proj, out _))
+                            out view, out proj, out splitData))
                     {
                         return false;
                     }
@@ -1179,6 +1251,84 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// 取某方向光某组的引擎剔除结果：组内各级共享一次计算，帧内缓存。
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// 引擎的方向光剔除接口只支持 1/2/4 级，故 8 级按分组交界合并为 ≤4 组后按组索取；
+        /// 每级的手写正交矩阵仍按本级 splits 拟合，只有「从裁剪结果中取哪些投射者」
+        /// 这一步使用组级体积（组体积是该组所有级联范围的超集，故不会漏投影）。
+        /// </para>
+        /// <para>
+        /// 分割比例的分母必须与 Cull 期实际生效的 <c>shadowDistance</c> 一致
+        /// （见 <see cref="CameraContext.ShadowDistance"/>），否则引擎算出的绝对边界
+        /// 与本项目 splits 错位，远端级联会取不到投射者。
+        /// </para>
+        /// </remarks>
+        /// <param name="selected">所属方向光。</param>
+        /// <param name="groupIndex">组下标（0 起）。</param>
+        /// <returns>该组的剔除结果；引擎计算失败时返回 <c>default</c> 且对应 ready 标记为 <c>false</c>。</returns>
+        private ShadowSplitData GetDirectionalGroupSplitData(SelectedLight selected, int groupIndex)
+        {
+            if (groupIndex < 0 || groupIndex >= groupSplitDataScratch.Length)
+            {
+                return default;
+            }
+
+            if (groupSplitDataReady[groupIndex])
+            {
+                return groupSplitDataScratch[groupIndex];
+            }
+
+            float shadowDistance = ResolveFrameShadowDistance(selected);
+            if (shadowDistance <= 0f)
+            {
+                return default;
+            }
+
+            // 空组已被分组逻辑排除，此处恒有 [1, MaxGroupCount] 个组。
+            int splitCount = Mathf.Clamp(cascadeGroupsScratch.Count, 1, ShadowCameraSettings.MaxGroupCount);
+            Vector3 ratios = CascadeShadowGrouping.BuildSplitRatio(
+                selected.cascadeSettings.CascadeSplits,
+                cascadeGroupsScratch,
+                shadowDistance);
+
+            if (cameraContext.CullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                    selected.lightIndex,
+                    groupIndex,
+                    splitCount,
+                    ratios,
+                    selected.resolution,
+                    shadowNearPlaneOffset,
+                    out _,
+                    out _,
+                    out ShadowSplitData splitData))
+            {
+                // 不做跨级联混合裁剪，避免组体积被进一步收缩而漏掉组内其它级的投射者。
+                splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                groupSplitDataScratch[groupIndex] = splitData;
+                groupSplitDataReady[groupIndex] = true;
+            }
+
+            return groupSplitDataScratch[groupIndex];
+        }
+
+        /// <summary>
+        /// 取本帧用于归一化分割比例的阴影距离；缺失时退回该光自身的最远 splits。
+        /// </summary>
+        private float ResolveFrameShadowDistance(SelectedLight selected)
+        {
+            float shadowDistance = cameraContext.ShadowDistance;
+            if (shadowDistance > 0f)
+            {
+                return shadowDistance;
+            }
+
+            List<float> splits = selected.cascadeSettings.CascadeSplits;
+            return splits != null && splits.Count > 0 ? splits[splits.Count - 1] : 0f;
+        }
+
+        /// <summary>
         /// 构建「世界 → 阴影图坐标」矩阵（含 xy 的 [0,1] remap，不含 atlas 偏移）。
         /// </summary>
         /// <remarks>
@@ -1261,23 +1411,12 @@ namespace HN.HNRP
 
             // 2) 重绘：局部清远深度后把投射者几何直接画进本 map 区域；
             //    未重绘的 map 内容跨帧保留。
-            //    投射者绘制设置每帧只构建一次，逐 map 仅切换光视图 / 投影矩阵与 viewport。
-            //    ScriptableRenderContext.DrawRenderers 为 context 级 API，读取已提交到
+            //    逐 map 切换光视图 / 投影矩阵与 viewport，并用 context.DrawShadows 绘制。
+            //    ScriptableRenderContext.DrawShadows 为 context 级 API，读取已提交到
             //    context 的状态，故每次绘制前先 ExecuteCommandBuffer 刷新命令缓冲
             //    （与 URP 的 ShadowUtils.RenderShadowSlice 一致）。
             if (drawCommands.Count > 0 && cameraContext.Camera != null)
             {
-                var sortingSettings = new SortingSettings(cameraContext.Camera)
-                {
-                    criteria = SortingCriteria.CommonOpaque,
-                };
-                var drawingSettings = new DrawingSettings(ShaderPassNames.ShadowCasterName, sortingSettings)
-                {
-                    perObjectData = PerObjectData.None,
-                    enableInstancing = true,
-                };
-                var filteringSettings = new FilteringSettings(HNRenderQueue.AllOpaque, ~0);
-
                 for (int i = 0; i < drawCommands.Count; i++)
                 {
                     ShadowDrawCommand command = drawCommands[i];
@@ -1298,7 +1437,7 @@ namespace HN.HNRP
                     }
 
                     // 深度偏置抑制自阴影；光矩阵决定投射者落到区域内的位置。
-                    cmd.SetGlobalDepthBias(1.0f, 2.5f);
+                    cmd.SetGlobalDepthBias(depthBias, slopBias);
 
                     // 注意：SetViewProjectionMatrices 只作用于引擎内置矩阵（剔除 / LOD），
                     // 本项目 shader 的 UNITY_MATRIX_V / VP 来自自定义 ShaderVariablesGlobal（b0，
@@ -1310,7 +1449,7 @@ namespace HN.HNRP
                         GetShadowDrawProjection(command.proj) * command.view;
 
                     // 逐 map 推送：_ShadowViewProj 随 map 变化，必须与随后的 ExecuteCommandBuffer
-                    // 一起提交，确保 DrawRenderers 读到本 map 的矩阵。
+                    // 一起提交，确保 DrawShadows 读到本 map 的矩阵。
                     ConstantBuffer.PushGlobal(
                         cmd,
                         shadowViewProjParams,
@@ -1319,9 +1458,25 @@ namespace HN.HNRP
                     ctx.renderContext.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
 
-                    // 直接把投射者画进当前绑定的 atlas 区域（取代引擎 DrawShadows）。
-                    ctx.renderContext.DrawRenderers(
-                        cameraContext.CullingResults, ref drawingSettings, ref filteringSettings);
+                    // 用引擎 DrawShadows 取代 DrawRenderers：DrawRenderers 只能取相机可见集，
+                    // 会漏掉相机视锥外、但投影落在视锥内的投射者（阴影跳变根因）；
+                    // DrawShadows 取引擎裁剪期按光源收集的投射者集合，并用 splitData 做二次裁剪。
+                    // 方向光的 splitData 为「组级」引擎结果（见 GetDirectionalGroupSplitData），
+                    // 组内各级共享，且 8 级也不再受引擎 1/2/4 级 cascade 的限制。
+                    if (command.hasCasters)
+                    {
+                        var shadowDrawingSettings = new ShadowDrawingSettings(
+                            cameraContext.CullingResults,
+                            command.lightIndex,
+                            command.lightType == LightType.Directional
+                                ? BatchCullingProjectionType.Orthographic
+                                : BatchCullingProjectionType.Perspective)
+                        {
+                            splitData = command.splitData,
+                            objectsFilter = ShadowObjectsFilter.AllObjects,
+                        };
+                        ctx.renderContext.DrawShadows(ref shadowDrawingSettings);
+                    }
 
                     cmd.DisableScissorRect();
                     cmd.SetGlobalDepthBias(0f, 0f);
@@ -1408,6 +1563,21 @@ namespace HN.HNRP
             public Matrix4x4 view;
             public Matrix4x4 proj;
             public TextureAllocatorResult allocation;
+
+            /// <summary>投射光源在 <c>CullingResults.visibleLights</c> 中的下标（供 <c>DrawShadows</c> 定位投射者集合）。</summary>
+            public int lightIndex;
+
+            /// <summary>投射光源类型（决定 <c>DrawShadows</c> 的投影类型）。</summary>
+            public LightType lightType;
+
+            /// <summary>本 map 的裁剪数据（供引擎二次裁剪投射者）。</summary>
+            public ShadowSplitData splitData;
+
+            /// <summary>
+            /// 本 map 是否存在可用投射者。方向光取组级剔除结果失败时为 <c>false</c>：
+            /// 仍执行清屏（避免残留上一帧内容），但不提交投射者绘制。
+            /// </summary>
+            public bool hasCasters;
         }
 
         private struct ShadowCopyCommand
