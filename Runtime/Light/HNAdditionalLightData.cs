@@ -13,6 +13,7 @@ namespace HN.HNRP
         void OnEnable()
         {
             builtinLight = GetComponent<Light>();
+            EnsureValid();
             SyncBuiltinShadows();
             cascadeShadow.EnsureValid();
             shadowSettings.EnsureValid();
@@ -27,9 +28,23 @@ namespace HN.HNRP
         void OnValidate()
         {
             builtinLight = GetComponent<Light>();
+            EnsureValid();
             SyncBuiltinShadows();
             shadowSettings.EnsureValid();
             SyncOverrideRegistration();
+        }
+
+        /// <summary>
+        /// 修正非法取值：penumbraRadius 收敛到 [0, 9]；阴影模式收敛到合法枚举。
+        /// </summary>
+        private void EnsureValid()
+        {
+            if (shadowType != LightShadowType.Hard && shadowType != LightShadowType.Soft)
+            {
+                shadowType = LightShadowType.Hard;
+            }
+
+            penumbraRadius = Mathf.Clamp(penumbraRadius, MinPenumbraRadius, MaxPenumbraRadius);
         }
 
         /// <summary>
@@ -92,7 +107,9 @@ namespace HN.HNRP
                 return;
             }
 
-            builtinLight.shadows = enableShadow ? LightShadows.Soft : LightShadows.None;
+            builtinLight.shadows = !enableShadow
+                ? LightShadows.None
+                : (shadowType == LightShadowType.Soft ? LightShadows.Soft : LightShadows.Hard);
         }
 
 
@@ -132,9 +149,42 @@ namespace HN.HNRP
             set
             {
                 enableShadow = value;
+                SyncBuiltinShadows();
                 SyncOverrideRegistration();
             }
         }
+
+        /// <summary>
+        /// 本光源的阴影模式（硬 / 软）。仅 <see cref="EnableShadow"/> 开启时有意义。
+        /// </summary>
+        public LightShadowType ShadowType
+        {
+            get => shadowType;
+            set
+            {
+                shadowType = value;
+                SyncBuiltinShadows();
+            }
+        }
+
+        /// <summary>
+        /// 软阴影的光源尺寸半径，单位为「阴影 map mip 层级」（0–9，可小数）。
+        /// 值 = log2(光源在 map level 0 下的 texel 半径)；仅 Soft 模式生效。
+        /// </summary>
+        public float PenumbraRadius
+        {
+            get => penumbraRadius;
+            set => penumbraRadius = Mathf.Clamp(value, MinPenumbraRadius, MaxPenumbraRadius);
+        }
+
+        /// <summary>本光源是否启用软阴影（EnableShadow 且模式为 Soft）。</summary>
+        public bool IsSoftShadow => enableShadow && shadowType == LightShadowType.Soft;
+
+        /// <summary>Penumbra Radius 最小值（对应 mip 0）。</summary>
+        public const float MinPenumbraRadius = 0f;
+
+        /// <summary>Penumbra Radius 最大值：最小 brick 512 = 2^9，最高一级 mip 为 1 像素。</summary>
+        public const float MaxPenumbraRadius = 9f;
 
         /// <summary>
         /// 每张阴影 map 的分辨率。
@@ -225,6 +275,12 @@ namespace HN.HNRP
 
         [SerializeField]
         private bool enableShadow = false;
+
+        [SerializeField]
+        private LightShadowType shadowType = LightShadowType.Hard;
+
+        [SerializeField, Range(MinPenumbraRadius, MaxPenumbraRadius)]
+        private float penumbraRadius = 3f;
 
         [SerializeField]
         private bool overrideCameraShadowSettings = false;

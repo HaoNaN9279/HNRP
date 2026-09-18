@@ -8,6 +8,13 @@ namespace HN.HNRP
     /// </summary>
     public struct ShadowLightData
     {
+        /// <summary>
+        /// 光源世界位置 + 半径倒数：xyz=位置，w=1/range（方向光为 0）。
+        /// 供矩图软阴影计算接收者线性深度（与投射者写入端同式）。
+        /// 置于结构体首部以满足 float4 的 16 字节对齐。
+        /// </summary>
+        public Vector4 lightPosRange;
+
         /// <summary>该 light 在可见光列表中的索引（= buffer 下标）。</summary>
         public int lightIndex;
 
@@ -51,7 +58,7 @@ namespace HN.HNRP
     /// </summary>
     public struct ShadowMapData
     {
-        /// <summary>x=strength, y=soft, z=cascadeIndex/faceIndex, w=预留。</summary>
+        /// <summary>x=strength, y=soft(0/1), z=cascadeIndex/faceIndex, w=penumbraRadius。</summary>
         public Vector4 shadowParams;
 
         /// <summary>世界 → 阴影裁剪矩阵（含 [0,1] remap，不含 atlas offset）。</summary>
@@ -71,14 +78,26 @@ namespace HN.HNRP
         /// <summary>atlas 单 slice 分辨率。</summary>
         public float _ShadowSliceResolution;
 
+        /// <summary>VSSM 最小方差（抑制自阴影 / 漏光）。</summary>
+        public float _ShadowMinVariance;
+
+        /// <summary>VSSM 漏光偏置（0–1，越大越暗越不漏光）。</summary>
+        public float _ShadowLightLeakBias;
+
+        /// <summary>矩图可用的最大 mip 层级（= 9）。</summary>
+        public float _ShadowMaxMipLevel;
+
+        /// <summary>矩图手工比较的接收者深度偏置（线性归一化单位）。</summary>
+        public float _ShadowMomentDepthBias;
+
+        /// <summary>VSSM blocker search 采样 mip 层级。</summary>
+        public float _ShadowBlockerSearchMip;
+
         /// <summary>对齐占位（无数据语义）。</summary>
         public float padding0;
 
         /// <summary>对齐占位（无数据语义）。</summary>
         public float padding1;
-
-        /// <summary>对齐占位（无数据语义）。</summary>
-        public float padding2;
     }
 
     /// <summary>
@@ -92,5 +111,11 @@ namespace HN.HNRP
     {
         /// <summary>世界 → 光源裁剪矩阵（阴影投射 pass 用）。</summary>
         public Matrix4x4 _ShadowViewProj;
+
+        /// <summary>光源世界位置 + 半径倒数：xyz=位置，w=1/range（方向光为 0）。</summary>
+        public Vector4 _ShadowLightPosRange;
+
+        /// <summary>x=1 表示透视（局部光，用距离/range 求线性深度），0 表示正交（方向光，用裁剪 z）。</summary>
+        public Vector4 _ShadowDepthFlags;
     }
 }

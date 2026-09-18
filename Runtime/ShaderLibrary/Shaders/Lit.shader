@@ -97,10 +97,13 @@ Shader "HNRP/Lit"
                 "LightMode" = "ShadowCaster"
             }
 
-            ZWrite On
-            // 阴影图采用非 reversed-Z 约定（near=0 / far=1）：用 LEqual 保留离光源最近者。
-            ZTest LEqual
-            ColorMask 0
+            // 矩图 atlas 为单张 RG16F（无深度附件）：用 Min blend 直接保留最近投射者的矩
+            // （z 与 z² 同单调，逐通道 min 等价于取最近深度）。区域复位由 ShadowClear 覆盖写入 (1,1)。
+            ZWrite Off
+            ZTest Always
+            Blend One One
+            BlendOp Min
+            ColorMask RG
             Cull[_CullMode]
 
             HLSLPROGRAM

@@ -15,6 +15,10 @@
 // 常量缓冲，内容始终是当前相机矩阵，不随引擎的 SetViewProjectionMatrices 变化。
 GLOBAL_CBUFFER_START(_ShadowViewProjBuffer, b4)
     float4x4 _ShadowViewProj;
+    // 矩图软阴影用：光源世界位置 + 1/range（方向光 w=0）。
+    float4   _ShadowLightPosRange;
+    // x=1 表示透视（局部光），0 表示正交（方向光）。
+    float4   _ShadowDepthFlags;
 CBUFFER_END
 
 struct ShadowCasterAttributes
@@ -33,6 +37,7 @@ struct ShadowCasterVaryings
 #if defined(_BASEMAP)
     float2 uv0 : TEXCOORD0;
 #endif
+    float3 positionWS : TEXCOORD1;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -54,6 +59,7 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 #if defined(_BASEMAP)
     output.uv0 = TRANSFORM_TEX(input.uv0, _BaseMap);
 #endif
+    output.positionWS = positionWS;
     return output;
 }
 
@@ -68,7 +74,27 @@ half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
 #endif
     clip(alpha - _Cutoff);
 #endif
-    return 0;
+
+    // 矩图：写归一化线性深度与深度平方（0=近光，1=远光），
+    // 与采样端 GetReceiverLinearDepth 严格同式；由 BlendOp Min 保留最近投射者。
+    // 注意：变量不能命名为 linear —— 它是 HLSL 保留字（插值修饰符）。
+    float linearDepth;
+    if (_ShadowDepthFlags.x > 0.5)
+    {
+        // 透视局部光：到光源的距离 / range。
+        linearDepth = length(input.positionWS - _ShadowLightPosRange.xyz) * _ShadowLightPosRange.w;
+    }
+    else
+    {
+        // 正交方向光：裁剪 z 已是线性；平台 reversed-Z 时翻转到 near=0 / far=1。
+        linearDepth = input.positionCS.z;
+#if UNITY_REVERSED_Z
+        linearDepth = 1.0 - linearDepth;
+#endif
+    }
+
+    linearDepth = saturate(linearDepth);
+    return half4(linearDepth, linearDepth * linearDepth, 0.0, 1.0);
 }
 
 #endif

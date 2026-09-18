@@ -60,6 +60,28 @@ namespace HN.HNRP
         /// <summary>点光阴影面的 fov 偏置（度），用于避免面与面之间的裂缝。</summary>
         private const float PointLightFovBias = 2.0f;
 
+        /// <summary>
+        /// 矩图最大 mip 层级：最小 brick 为 512 = 2^9，故最高一级 mip 恰为 1 像素；
+        /// 同时约束 <see cref="HNAdditionalLightData.PenumbraRadius"/> 的取值范围。
+        /// </summary>
+        public const int MaxShadowMipLevel = 9;
+
+        /// <summary>
+        /// 某分辨率 map 的矩图最大 mip 层级（受 <see cref="MaxShadowMipLevel"/> 限制）。
+        /// </summary>
+        /// <param name="resolution">map level 0 的分辨率（2 的幂）。</param>
+        /// <returns>可用的最大 mip 层级；非法分辨率返回 <c>0</c>。</returns>
+        public static int GetMaxMomentMipLevel(int resolution)
+        {
+            if (resolution <= 0)
+            {
+                return 0;
+            }
+
+            int level = Mathf.FloorToInt(Mathf.Log(resolution, 2f));
+            return Mathf.Clamp(level, 0, MaxShadowMipLevel);
+        }
+
         // ── 可配置参数 ──
 
         /// <summary>
@@ -84,15 +106,33 @@ namespace HN.HNRP
         [SerializeField]
         private float shadowStrength = 1f;
 
-        /// <summary>软阴影系数（写入 <c>shadowParams.y</c>）。</summary>
-        [SerializeField]
-        private float shadowSoft = 0f;
-
         [SerializeField]
         private float depthBias = 1.0f;
 
         [SerializeField]
         private float slopBias = 2.5f;
+
+        /// <summary>
+        /// 软阴影总开关：关闭后即使有 light 选择 Soft，也维持硬阴影路径。
+        /// </summary>
+        [SerializeField]
+        private bool softShadowEnabled = true;
+
+        /// <summary>VSSM 最小方差（抑制自阴影 / 漏光）。</summary>
+        [SerializeField]
+        private float minVariance = 0.0001f;
+
+        /// <summary>VSSM 漏光偏置（0–1）。</summary>
+        [SerializeField, Range(0f, 1f)]
+        private float lightLeakBias = 0.05f;
+
+        /// <summary>矩图手工比较的接收者深度偏置（线性归一化单位）。</summary>
+        [SerializeField]
+        private float momentDepthBias = 0.002f;
+
+        /// <summary>VSSM blocker search 采样 mip 层级。</summary>
+        [SerializeField, Range(0f, 4f)]
+        private float blockerSearchMip = 1f;
 
         /// <summary>获取或设置 atlas 单 slice 分辨率。</summary>
         public int SliceResolution
@@ -125,6 +165,9 @@ namespace HN.HNRP
         private RTHandle shadowAtlas;
         private int allocatedResolution;
         private int allocatedSliceCount;
+
+        /// <summary>当前 atlas 是否为矩图（软阴影）格式。</summary>
+        private bool allocatedSoftMode;
         private TextureAllocator textureAllocator;
 
         /// <summary>atlas 重分配后需要在下次 render func 内经 RenderGraph 命令缓冲整图清空。</summary>
@@ -162,6 +205,21 @@ namespace HN.HNRP
 
         /// <summary>本帧因 atlas 重分配需要搬移的 map（暂存）。</summary>
         private readonly List<ShadowCopyCommand> copyCommands = new List<ShadowCopyCommand>();
+
+        /// <summary>本帧跨 slice 搬移的软 map 需重建 mip 的区域（暂存）。</summary>
+        private readonly List<ShadowMipUpdateCommand> mipUpdateCommands = new List<ShadowMipUpdateCommand>();
+
+        /// <summary>本帧所有需更新 mip 的软 map（重绘 + 跨 slice 搬移，暂存）。</summary>
+        private readonly List<ShadowMipUpdateCommand> mipDirtyMaps = new List<ShadowMipUpdateCommand>();
+
+        /// <summary>矩图 mip 生成的区域描述数组（逐帧复用，按需扩容）。</summary>
+        private ShadowMipRegion[] mipRegionsArray;
+
+        /// <summary>矩图 mip 生成的区域描述缓冲（上传给 compute shader）。</summary>
+        private ComputeBuffer mipRegionsBuffer;
+
+        /// <summary>本帧是否启用矩图（软阴影）路径。</summary>
+        private bool frameSoftShadowMode;
 
         /// <summary>方向光矩阵计算复用的近平面视锥角点缓冲（避免每帧堆分配）。</summary>
         private readonly Vector3[] nearCornersScratch = new Vector3[4];
@@ -250,9 +308,12 @@ namespace HN.HNRP
                 return;
             }
 
-            EnsureResources();
             UpdateCameraShadowSettings();
             CacheCameraMatrices();
+
+            // 先判定本帧是否启用软阴影（决定 atlas 格式），再分配资源。
+            DetectSoftShadowMode();
+            EnsureResources();
 
             BuildSelectedLights();
             UpdateResidentMaps();
@@ -317,13 +378,15 @@ namespace HN.HNRP
         /// </summary>
         /// <param name="texture">阴影图集；尚未分配时为 <c>null</c>。</param>
         /// <param name="sliceCount">图集内的 map 数量（texture array 的 slice 数）。</param>
-        /// <param name="mipCount">可预览的 mip 级数（阴影图集无 mip，恒为 1）。</param>
+        /// <param name="mipCount">可预览的 mip 级数（硬阴影图集无 mip；矩图有完整 mip 链）。</param>
         /// <returns>当前存在可预览图集时返回 <c>true</c>。</returns>
         public bool TryGetDebugPreview(out Texture texture, out int sliceCount, out int mipCount)
         {
             texture = shadowAtlas;
             sliceCount = allocatedSliceCount;
-            mipCount = 1;
+            mipCount = allocatedSoftMode
+                ? Mathf.FloorToInt(Mathf.Log(allocatedResolution, 2f)) + 1
+                : 1;
             return texture != null;
         }
 
@@ -331,8 +394,7 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             // 注意：pass 每相机复用，此处仅在模板重建 / 渲染器销毁时被调用。
-            shadowAtlas?.Release();
-            shadowAtlas = null;
+            ReleaseAtlas();
 
             shadowLightDatasBuffer?.Release();
             shadowLightDatasBuffer = null;
@@ -340,6 +402,8 @@ namespace HN.HNRP
             shadowMapDatasBuffer = null;
             shadowCameraDatasBuffer?.Release();
             shadowCameraDatasBuffer = null;
+            mipRegionsBuffer?.Release();
+            mipRegionsBuffer = null;
 
             CoreUtils.Destroy(shadowClearMaterial);
             shadowClearMaterial = null;
@@ -350,8 +414,11 @@ namespace HN.HNRP
                 System.Array.Clear(residentMaps, 0, residentMaps.Length);
             }
             activeResidentMaps.Clear();
+            mipUpdateCommands.Clear();
             allocatedResolution = 0;
             allocatedSliceCount = 0;
+            allocatedSoftMode = false;
+            frameSoftShadowMode = false;
             cameraContext = null;
         }
 
@@ -440,6 +507,20 @@ namespace HN.HNRP
             /// <summary>光源视图投影矩阵常量缓冲（_ShadowViewProj，逐 map 更新）。
             /// 值：<c>_ShadowViewProjBuffer</c>。</summary>
             public static readonly int shadowViewProjBuffer = Shader.PropertyToID("_ShadowViewProjBuffer");
+
+            // ── 矩图 mip 生成（ShadowMipmapCS）──
+
+            /// <summary>矩图 mip 生成：源 mip 纹理。</summary>
+            public static readonly int mipSource = Shader.PropertyToID("_SourceMip");
+
+            /// <summary>矩图 mip 生成：目标 mip 纹理。</summary>
+            public static readonly int mipDest = Shader.PropertyToID("_DestMip");
+
+            /// <summary>矩图 mip 生成：本级待更新区域数组（StructuredBuffer）。</summary>
+            public static readonly int mipRegions = Shader.PropertyToID("_Regions");
+
+            /// <summary>矩图 mip 生成：本级区域数量。</summary>
+            public static readonly int mipRegionCount = Shader.PropertyToID("_RegionCount");
         }
     }
 }

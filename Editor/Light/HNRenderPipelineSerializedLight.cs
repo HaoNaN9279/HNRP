@@ -32,6 +32,8 @@ namespace HN.HNRP.Editor
             renderingLayerMask = serializedAdditionalDataObject.FindProperty("renderingLayerMask");
             cascadeShadowProperty = serializedAdditionalDataObject.FindProperty("cascadeShadow");
             enableShadowProperty = serializedAdditionalDataObject.FindProperty("enableShadow");
+            shadowTypeProperty = serializedAdditionalDataObject.FindProperty("shadowType");
+            penumbraRadiusProperty = serializedAdditionalDataObject.FindProperty("penumbraRadius");
             overrideCameraShadowSettingsProperty =
                 serializedAdditionalDataObject.FindProperty("overrideCameraShadowSettings");
             shadowSettingsProperty = serializedAdditionalDataObject.FindProperty("shadowSettings");
@@ -69,6 +71,12 @@ namespace HN.HNRP.Editor
         public SerializedProperty renderingLayerMask { get; private set; }
         public SerializedProperty cascadeShadowProperty { get; private set; }
         public SerializedProperty enableShadowProperty { get; private set; }
+
+        /// <summary>光源阴影模式（硬 / 软）。</summary>
+        public SerializedProperty shadowTypeProperty { get; private set; }
+
+        /// <summary>软阴影 Penumbra Radius（0–9）。</summary>
+        public SerializedProperty penumbraRadiusProperty { get; private set; }
 
         /// <summary>方向光是否用自身级联设置覆盖相机设置。</summary>
         public SerializedProperty overrideCameraShadowSettingsProperty { get; private set; }

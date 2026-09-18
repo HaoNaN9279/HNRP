@@ -21,3 +21,4 @@ MonoBehaviour:
   emptyTexture: {fileID: 0}
   clusterCullingLightCS: {fileID: 7200000, guid: 03109d297f7c01a4aa905e545a97bb19, type: 3}
   clusterCullingReflectionProbeCS: {fileID: 7200000, guid: a03e1e33875fb24468b3f87b5eb0a52e, type: 3}
+  shadowMipmapCS: {fileID: 7200000, guid: 40bb84d4309426f4d9eec522eb07d763, type: 3}

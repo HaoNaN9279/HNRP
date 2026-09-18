@@ -45,6 +45,14 @@ namespace HN.HNRP
                 lightData.typeAndCascadeCount = PackLightTypeAndCascadeCount(
                     selected.lightType, selected.cascadeCount);
 
+                // 光源位置 / 半径倒数：供矩图软阴影在采样端计算接收者线性深度。
+                Vector3 lightPosition = selected.lightLocalToWorld.GetColumn(3);
+                float invRange = selected.lightType == LightType.Directional
+                    ? 0f
+                    : 1f / Mathf.Max(selected.lightRange, 0.0001f);
+                lightData.lightPosRange = new Vector4(
+                    lightPosition.x, lightPosition.y, lightPosition.z, invRange);
+
                 // 方向光：记录本光源的 cascade 参数槽位并写入对应 splits。
                 if (selected.lightType == LightType.Directional
                     && selected.cameraDataIndex >= 0
@@ -90,20 +98,31 @@ namespace HN.HNRP
                         lightData.blockDatas1 |= field << ((sub - 4) * 8);
                     }
 
+                    // Hard/Soft 切换会改变 map 内容语义（矩图需要 mip 链），强制重绘一次，
+                    // 保证切到 Soft 的 map 在本帧生成完整 mip。
+                    if (resident.soft != selected.soft)
+                    {
+                        resident.soft = selected.soft;
+                        resident.hasSignature = false;
+                    }
+
                     // 先判定是否重绘，再只计算一次矩阵：结果同时供阴影表与绘制命令使用。
                     // 非重绘且已有有效缓存时跳过 ComputeMatrices（签名已覆盖所有影响矩阵的输入）。
                     bool shouldRedraw = ShouldRedrawMap(selected, resident, sub);
+                    float softFlag = selected.soft ? 1f : 0f;
                     bool needMatrices = shouldRedraw
                         || !resident.hasMapData
                         || resident.mapData.shadowParams.x != shadowStrength
-                        || resident.mapData.shadowParams.y != shadowSoft;
+                        || resident.mapData.shadowParams.y != softFlag
+                        || resident.mapData.shadowParams.w != selected.penumbraRadius;
 
                     if (needMatrices)
                     {
                         if (ComputeMatrices(selected, sub, out Matrix4x4 view, out Matrix4x4 proj, out ShadowSplitData splitData))
                         {
                             ShadowMapData mapData = default;
-                            mapData.shadowParams = new Vector4(shadowStrength, shadowSoft, sub, 0f);
+                            mapData.shadowParams = new Vector4(
+                                shadowStrength, softFlag, sub, selected.penumbraRadius);
                             mapData.worldToShadow = GetShadowTransform(proj, view);
                             resident.mapData = mapData;
                             resident.hasMapData = true;
@@ -119,6 +138,9 @@ namespace HN.HNRP
                                     lightType = selected.lightType,
                                     splitData = splitData,
                                     hasCasters = true,
+                                    soft = selected.soft,
+                                    lightPosRange = lightData.lightPosRange,
+                                    isDirectional = selected.lightType == LightType.Directional,
                                 };
 
                                 if (isDirectionalLight)
@@ -163,6 +185,11 @@ namespace HN.HNRP
             }
 
             shadowGlobalParams._ShadowSliceResolution = allocatedResolution;
+            shadowGlobalParams._ShadowMinVariance = minVariance;
+            shadowGlobalParams._ShadowLightLeakBias = lightLeakBias;
+            shadowGlobalParams._ShadowMaxMipLevel = MaxShadowMipLevel;
+            shadowGlobalParams._ShadowMomentDepthBias = momentDepthBias;
+            shadowGlobalParams._ShadowBlockerSearchMip = blockerSearchMip;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();

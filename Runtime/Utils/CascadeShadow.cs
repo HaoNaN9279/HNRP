@@ -37,6 +37,18 @@ namespace HN.HNRP
     }
 
     /// <summary>
+    /// 光源阴影模式：硬阴影直接比较深度；软阴影走 PCSS（VSSM 优化）。
+    /// </summary>
+    public enum LightShadowType
+    {
+        /// <summary>硬阴影。</summary>
+        Hard = 0,
+
+        /// <summary>软阴影。</summary>
+        Soft = 1
+    }
+
+    /// <summary>
     /// 标记 <see cref="CascadeShadowSettings"/> 字段，交给 CascadeShadowDrawer 自定义绘制。
     /// </summary>
     public class CascadeShadowAttribute : PropertyAttribute

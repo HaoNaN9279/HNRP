@@ -284,6 +284,20 @@ namespace HN.HNRP.Editor
                 return;
             }
 
+            // 阴影模式：Hard 走原硬件比较路径，Soft 走 PCSS（VSSM）。
+            if (p.shadowTypeProperty != null)
+            {
+                EditorGUILayout.PropertyField(p.shadowTypeProperty, Styles.shadowType);
+            }
+
+            bool isSoftShadow = p.shadowTypeProperty != null
+                && !p.shadowTypeProperty.hasMultipleDifferentValues
+                && p.shadowTypeProperty.intValue == (int)LightShadowType.Soft;
+            if (isSoftShadow && p.penumbraRadiusProperty != null)
+            {
+                EditorGUILayout.PropertyField(p.penumbraRadiusProperty, Styles.penumbraRadius);
+            }
+
             EditorGUILayout.PropertyField(p.cascadeShadowProperty, Styles.cascadeShadow);
 
             // 方向光可用自身级联设置覆盖相机设置；面板复用相机的 ShadowCameraDrawer。
@@ -332,6 +346,8 @@ namespace HN.HNRP.Editor
 
             public static readonly GUIContent cascadeShadow = EditorGUIUtility.TrTextContent("Shadow Resolution", "该光源阴影 map 的分辨率。级联级数、级联边界与更新模式默认属于相机，见相机的 Shadows 设置。");
             public static readonly GUIContent enableShadow = EditorGUIUtility.TrTextContent("Enable Shadow", "开启后该光源参与阴影绘制。");
+            public static readonly GUIContent shadowType = EditorGUIUtility.TrTextContent("Shadow Type", "Hard：硬件比较采样；Soft：PCSS + VSSM 软阴影（切换后阴影图集改为矩图并生成 mipmap）。");
+            public static readonly GUIContent penumbraRadius = EditorGUIUtility.TrTextContent("Penumbra Radius", "软阴影光源尺寸半径，单位为目标 mip 层级（0–9，可小数）。0 = 锐利，9 = 最柔和（对应 512 brick 的 1 像素级 mip）。");
             public static readonly GUIContent overrideCameraShadowSettings = EditorGUIUtility.TrTextContent(
                 "Override Camera Cascade",
                 "开启后用本方向光自身的级联设置覆盖相机的级联设置，并按本光的级联分割为该光重新计算剔除结果。\n\n"
