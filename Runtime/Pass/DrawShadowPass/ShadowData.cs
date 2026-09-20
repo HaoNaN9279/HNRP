@@ -78,7 +78,7 @@ namespace HN.HNRP
         /// <summary>atlas 单 slice 分辨率。</summary>
         public float _ShadowSliceResolution;
 
-        /// <summary>VSSM 最小方差（抑制自阴影 / 漏光）。</summary>
+        /// <summary>VSSM 最小方差（相对量，着色器按接收者深度平方缩放，抑制自阴影 / 漏光）。</summary>
         public float _ShadowMinVariance;
 
         /// <summary>VSSM 漏光偏置（0–1，越大越暗越不漏光）。</summary>
@@ -90,14 +90,14 @@ namespace HN.HNRP
         /// <summary>矩图手工比较的接收者深度偏置（线性归一化单位）。</summary>
         public float _ShadowMomentDepthBias;
 
-        /// <summary>VSSM blocker search 采样 mip 层级。</summary>
-        public float _ShadowBlockerSearchMip;
+        /// <summary>遮挡分量占比下限：防止遮挡分量反解在 occ→0 时发散，同时充当「无遮挡」判据。</summary>
+        public float _ShadowBlockerMinOcc;
 
-        /// <summary>对齐占位（无数据语义）。</summary>
-        public float padding0;
+        /// <summary>分层 blocker 搜索的遮挡占比阈值：核内遮挡占比达到该值即认为该核尺寸已捕获遮挡物。</summary>
+        public float _ShadowBlockerOccThreshold;
 
-        /// <summary>对齐占位（无数据语义）。</summary>
-        public float padding1;
+        /// <summary>最小方差随深度平方缩放时的深度下限（避免近光处缩放趋零）。</summary>
+        public float _ShadowMinVarianceDepthFloor;
     }
 
     /// <summary>

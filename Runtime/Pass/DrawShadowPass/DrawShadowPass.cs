@@ -118,9 +118,16 @@ namespace HN.HNRP
         [SerializeField]
         private bool softShadowEnabled = true;
 
-        /// <summary>VSSM 最小方差（抑制自阴影 / 漏光）。</summary>
+        /// <summary>
+        /// VSSM 最小方差（相对量）：着色器按 <c>max(接收者深度, 深度下限)²</c> 缩放后使用，
+        /// 使深度容差的相对尺度在近 / 远级联（深度范围不同）间保持一致。
+        /// </summary>
         [SerializeField]
         private float minVariance = 0.0001f;
+
+        /// <summary>最小方差随深度平方缩放时的深度下限（避免近光处缩放趋零）。</summary>
+        [SerializeField]
+        private float minVarianceDepthFloor = 0.5f;
 
         /// <summary>VSSM 漏光偏置（0–1）。</summary>
         [SerializeField, Range(0f, 1f)]
@@ -130,9 +137,13 @@ namespace HN.HNRP
         [SerializeField]
         private float momentDepthBias = 0.002f;
 
-        /// <summary>VSSM blocker search 采样 mip 层级。</summary>
-        [SerializeField, Range(0f, 4f)]
-        private float blockerSearchMip = 1f;
+        /// <summary>遮挡分量占比下限：防反解发散，同时充当「无遮挡 ⇒ 完全受光」的判据。</summary>
+        [SerializeField]
+        private float blockerMinOcc = 0.004f;
+
+        /// <summary>分层 blocker 搜索的遮挡占比阈值：达到该占比即认为该核尺寸已捕获遮挡物。</summary>
+        [SerializeField]
+        private float blockerOccThreshold = 0.05f;
 
         /// <summary>获取或设置 atlas 单 slice 分辨率。</summary>
         public int SliceResolution
@@ -356,7 +367,7 @@ namespace HN.HNRP
         {
             HNAdditionalCameraData cameraData = cameraContext.AdditionalCameraData;
             frameShadowCameraSettings = cameraData != null
-                ? cameraData.ShadowSettings
+                ? cameraData.GetEffectiveShadowSettings()
                 : ShadowCameraSettings.Default;
 
             frameShadowCameraSettings.EnsureValid();

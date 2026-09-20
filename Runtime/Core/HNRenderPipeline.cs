@@ -360,7 +360,7 @@ namespace HN.HNRP
         private static float ResolveMaxShadowDistance(Camera camera)
         {
             ShadowCameraSettings settings = camera.TryGetComponent(out HNAdditionalCameraData cameraData)
-                ? cameraData.ShadowSettings
+                ? cameraData.GetEffectiveShadowSettings()
                 : ShadowCameraSettings.Default;
             settings.EnsureValid();
 

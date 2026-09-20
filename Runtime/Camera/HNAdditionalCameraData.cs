@@ -215,6 +215,89 @@ namespace HN.HNRP
             set => shadowSettings = value;
         }
 
+        /// <summary>
+        /// 取渲染阴影实际使用的级联设置。
+        /// </summary>
+        /// <remarks>
+        /// SceneView 相机在 Editor 下跟随主游戏相机（<see cref="Camera.main"/> 优先，其次首个启用且
+        /// 挂有本组件的 Game 相机），使 Scene View 与 Game View 的阴影保持一致；无可用来源时退回
+        /// 自身设置。其它类型相机直接使用自身设置。返回值为已 <see cref="ShadowCameraSettings.EnsureValid"/>
+        /// 的副本。
+        /// </remarks>
+        /// <returns>本相机生效的级联阴影设置。</returns>
+        public ShadowCameraSettings GetEffectiveShadowSettings()
+        {
+#if UNITY_EDITOR
+            if (BuiltinCamera != null && BuiltinCamera.cameraType == CameraType.SceneView)
+            {
+                HNAdditionalCameraData source = FindEditorShadowSettingsSource();
+                if (source != null && source != this)
+                {
+                    ShadowCameraSettings sceneViewSettings = source.shadowSettings;
+                    sceneViewSettings.EnsureValid();
+                    return sceneViewSettings;
+                }
+            }
+#endif
+
+            ShadowCameraSettings settings = shadowSettings;
+            settings.EnsureValid();
+            return settings;
+        }
+
+#if UNITY_EDITOR
+        /// <summary>SceneView 阴影设置来源的缓存（Editor 专用）。</summary>
+        private static HNAdditionalCameraData editorShadowSettingsSource;
+
+        /// <summary>
+        /// 查找 SceneView 阴影设置的来源相机：优先 <see cref="Camera.main"/>，否则取首个启用且
+        /// 类型为 <see cref="CameraType.Game"/> 的相机。结果缓存；来源失效（被销毁 / 禁用 / 改类型）
+        /// 时重新查找。
+        /// </summary>
+        private static HNAdditionalCameraData FindEditorShadowSettingsSource()
+        {
+            if (editorShadowSettingsSource != null)
+            {
+                Camera cachedCamera = editorShadowSettingsSource.BuiltinCamera;
+                if (cachedCamera != null
+                    && cachedCamera.isActiveAndEnabled
+                    && cachedCamera.cameraType == CameraType.Game)
+                {
+                    return editorShadowSettingsSource;
+                }
+
+                editorShadowSettingsSource = null;
+            }
+
+            Camera mainCamera = Camera.main;
+            if (IsValidShadowSource(mainCamera))
+            {
+                editorShadowSettingsSource = mainCamera.GetHNRPAdditionalCameraData();
+                return editorShadowSettingsSource;
+            }
+
+            Camera[] cameras = Camera.allCameras;
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                Camera candidate = cameras[i];
+                if (IsValidShadowSource(candidate))
+                {
+                    editorShadowSettingsSource = candidate.GetHNRPAdditionalCameraData();
+                    return editorShadowSettingsSource;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsValidShadowSource(Camera camera)
+        {
+            return camera != null
+                && camera.cameraType == CameraType.Game
+                && camera.isActiveAndEnabled;
+        }
+#endif
+
         /// <summary>方向光阴影级联级数。</summary>
         public CascadeCountType CascadeCount
         {

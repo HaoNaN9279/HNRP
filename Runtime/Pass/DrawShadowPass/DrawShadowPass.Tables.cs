@@ -189,7 +189,9 @@ namespace HN.HNRP
             shadowGlobalParams._ShadowLightLeakBias = lightLeakBias;
             shadowGlobalParams._ShadowMaxMipLevel = MaxShadowMipLevel;
             shadowGlobalParams._ShadowMomentDepthBias = momentDepthBias;
-            shadowGlobalParams._ShadowBlockerSearchMip = blockerSearchMip;
+            shadowGlobalParams._ShadowBlockerMinOcc = blockerMinOcc;
+            shadowGlobalParams._ShadowBlockerOccThreshold = blockerOccThreshold;
+            shadowGlobalParams._ShadowMinVarianceDepthFloor = minVarianceDepthFloor;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();
