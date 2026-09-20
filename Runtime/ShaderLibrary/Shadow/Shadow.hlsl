@@ -5,9 +5,9 @@
 #include "../Core/Input.hlsl"
 
 #ifdef HN_DEBUG_PER_PIXEL
-/// 每像素调试：本像素最近一次 soft shadow VSSM 采样实际使用的滤波 mip。
-/// 由 <see>SampleVssmMoments</see> 写入，供 LitDebug 的 ShadowMip 通道读取。
-float _HNRPShadowDebugMip;
+/// 每像素调试：本像素最近一次 soft shadow PCSS 采样实际使用的滤波半径（texel）。
+/// 由 <see>SamplePcss</see> 写入，供 LitDebug 的 ShadowFilterRadius 通道读取。
+float _HNRPShadowDebugPcss;
 #endif
 
 // ── GPU 数据布局（须与 C# DrawShadowPass.cs 一致）──
@@ -41,14 +41,14 @@ struct ShadowMapData
 // 阴影全局标量常量缓冲（b1）。
 // 布局按 16 字节对齐：共 8 个 float。
 GLOBAL_CBUFFER_START(_ShadowMapParamsBuffer, b1)
-    float    _ShadowSliceResolution;          // atlas 单 slice 分辨率
-    float    _ShadowMinVariance;              // VSSM 最小方差（按接收者深度平方缩放的相对量）
-    float    _ShadowLightLeakBias;            // VSSM 漏光偏置
-    float    _ShadowMaxMipLevel;              // 矩图最大 mip 层级（= 9）
-    float    _ShadowMomentDepthBias;          // 矩图手工比较的接收者深度偏置
-    float    _ShadowBlockerMinOcc;            // 遮挡分量占比下限（防反解发散 / 无遮挡判据）
-    float    _ShadowBlockerOccThreshold;      // 分层 blocker 搜索的遮挡占比阈值
-    float    _ShadowMinVarianceDepthFloor;    // 最小方差深度缩放的深度下限
+    float    _ShadowSliceResolution;      // atlas 单 slice 分辨率
+    float    _ShadowDepthBias;            // 接收者深度偏置（归一化线性深度单位）
+    float    _ShadowSoftness;             // 半影尺寸全局乘子
+    float    _ShadowMinFilterRadius;      // 最小滤波半径（texel）
+    float    _ShadowMaxFilterRadius;      // 全局最大滤波半径（texel）
+    float    _ShadowBlockerSampleCount;   // blocker 搜索采样数
+    float    _ShadowFilterSampleCount;    // PCF 滤波采样数
+    float    _ShadowPcssPad;              // 对齐占位（无数据语义）
 CBUFFER_END
 
 #define _SHADOW_SLICE_RESOLUTION (_ShadowSliceResolution)
@@ -57,10 +57,10 @@ CBUFFER_END
 StructuredBuffer<ShadowLightData> _ShadowLightDatas;
 StructuredBuffer<ShadowMapData> _ShadowMapDatas;
 StructuredBuffer<ShadowCameraData> _ShadowCameraDatas;
-// 阴影图集为单张 RG16F 矩图（R=线性深度，G=深度²），无硬件比较采样器。
-// 采样器名绑定纹理自身设置（Bilinear / Clamp），避免与 core 全局 sampler_LinearClamp 重定义。
+// 阴影图集为单张 R16 深度图（仅归一化线性深度，无深度平方、无 mip）。
+// Hard 模式使用 sampler_LinearClamp 3x3
+// PCSS 采样用 CoreRP 全局 sampler_PointClamp（逐 texel 精确比较）。
 TEXTURE2D_ARRAY(_ShadowMapArray);
-SAMPLER(sampler_ShadowMapArray);
 #endif
 
 // ── 两级查表 ──
@@ -160,175 +160,165 @@ float GetReceiverLinearDepth(ShadowLightData lightData, int lightType, float3 po
     return saturate(linearDepth);
 }
 
-/// VSSM 最小方差：随接收者深度平方缩放。
-/// 深度是归一化量（世界深度 ≈ 归一化深度 × 级联深度范围），
-/// 固定的归一化方差在近 / 远级联（深度范围不同）下对应不同的世界尺度；
-/// 按深度平方缩放后，深度容差的相对尺度在各段级联间一致。
-float ShadowMinVariance(float receiverDepth)
+// ── PCSS 旋转泊松采样 ──
+
+/// 16 点泊松盘（单位圆，Bridson 算法生成，最小间距 ≈ 0.356）。
+/// 配合每像素旋转，用较少采样获得去带状的低差异软阴影核。
+static const float2 HN_PoissonDisk16[16] =
 {
-    float scale = max(receiverDepth, _ShadowMinVarianceDepthFloor);
-    return _ShadowMinVariance * scale * scale;
+    float2(-0.294818f, -0.008245f),
+    float2(-0.630358f, -0.142079f),
+    float2(-0.469005f, -0.513162f),
+    float2(-0.332239f, -0.841568f),
+    float2( 0.037677f, -0.987452f),
+    float2( 0.039828f, -0.535887f),
+    float2( 0.046544f, -0.119872f),
+    float2( 0.411117f, -0.256146f),
+    float2( 0.999987f, -0.005137f),
+    float2( 0.496805f,  0.153325f),
+    float2( 0.376699f,  0.539086f),
+    float2( 0.313545f,  0.921518f),
+    float2( 0.083827f,  0.251791f),
+    float2(-0.106788f,  0.779910f),
+    float2(-0.330317f,  0.481360f),
+    float2(-0.642503f,  0.282557f),
+};
+
+/// 旋转泊松盘采样点（每像素随机旋转，打散采样去相关带来的带状伪影）。
+float2 RotatePoissonSample(float2 sample, float angle)
+{
+    float sinA, cosA;
+    sincos(angle, sinA, cosA);
+    return float2(
+        sample.x * cosA - sample.y * sinA,
+        sample.x * sinA + sample.y * cosA);
 }
 
-/// 由半影核矩解出「遮挡分量」的占比与平均深度。
-/// <para>
-/// 核内深度建模为两个分量：遮挡分量 zOcc（权重 occ）与非遮挡分量 vLit（权重 1−occ）：
-/// <code>
-/// μ   = occ·zOcc + (1−occ)·vLit
-/// Var = occ·(1−occ)·(zOcc − vLit)²
-/// </code>
-/// 把 vLit 视为已知量即可精确反解（消去 zOcc）：
-/// <code>
-/// B = vLit − μ   ⇒   occ = B² / (B² + Var)   ⇒   zOcc = vLit − B / occ
-/// </code>
-/// vLit 取「非遮挡样本」所在深度 = <c>max(接收者深度, 核均值)</c>：
-/// <list type="bullet">
-/// <item>μ ≤ 接收者深度：非遮挡样本落在接收面自身上（接收面写入阴影图）→ vLit = 接收者深度，
-/// 此时反解精确；</item>
-/// <item>μ &gt; 接收者深度：核均值比接收者更远离光源，说明核内混入了被 <c>ShadowClear</c> 清成
-/// 远平面的空纹素，或仅仅是足迹内的深度起伏 → 取 B = 0 ⇒ occ = 下限 ⇒ 判「无遮挡」。</item>
-/// </list>
-/// 用 <c>max</c> 保证 B ≥ 0 是刻意的：若允许 B &lt; 0，核均值因足迹内深度起伏略高于接收者深度时
-/// 会反解出「≈ 全遮挡」，把受光面整片染黑。故此处一律退化为「无遮挡」（只会偏亮，不会偏黑）。
-/// occ 下限 <c>_ShadowBlockerMinOcc</c> 保证 occ→0 时 zOcc 不发散。
-/// </para>
-/// <remarks>
-/// 不用 Chebyshev 的「接收者比核均值更近光 ⇒ 完全受光」硬早退：
-/// 模糊核是多表面混合，核均值不代表单一表面，硬早退会把整块核抹成受光（核宽度漏光）；
-/// 且它使 occ 恒为 0，进而令 separation 塌到 0（半影在硬 / 软之间二值跳变）。
-/// </remarks>
-void DecodeBlockerMoments(float2 moments, float receiverDepth, out float occ, out float zOcc)
+/// PCSS Step1：blocker 搜索。
+/// 返回 false 表示搜索核内无遮挡样本（接收者完全受光，可直接早退）。
+bool SearchBlocker(
+    float2 atlasUV,
+    float4 scaleOffset,
+    int sliceIndex,
+    float searchRadiusTexels,
+    float texel,
+    float rotation,
+    int sampleCount,
+    float receiverDepth,
+    out float avgBlockerDepth)
 {
-    float variance = max(moments.y - moments.x * moments.x, ShadowMinVariance(receiverDepth));
-    float vLit = max(receiverDepth, moments.x);
-    float b = vLit - moments.x;
-    float b2 = b * b;
-    occ = clamp(b2 / max(b2 + variance, 1e-8), _ShadowBlockerMinOcc, 1.0);
-    zOcc = clamp(vLit - b / occ, 0.0, receiverDepth);
-}
+    avgBlockerDepth = 0.0;
+    float blockerSum = 0.0;
+    int blockerCount = 0;
 
-/// 取任意滤波半径（以 mip 层级表示）的深度均值 / 深度平方均值。
-/// 区域归一化边界与 mip 无关，仅半 texel 内缩随 mip 变化；
-/// 相邻两级 mip 线性插值（类 Trilinear），支持小数 mip。
-float2 SampleShadowMoments(float2 atlasUV, float4 scaleOffset, int sliceIndex, float mip, float maxMip)
-{
-    float level = clamp(mip, 0.0, maxMip);
-    float atlasResAtMip = _ShadowSliceResolution / exp2(level);
-    float2 inset = 0.5 / max(atlasResAtMip, 1.0);
-    float2 uv = clamp(atlasUV, scaleOffset.zw + inset, scaleOffset.zw + scaleOffset.xy - inset);
+    // 采样限制在本 map 的 atlas 区域内，避免软核越界读到其它 light 的槽位。
+    float2 minUV = scaleOffset.zw + 0.5 * texel;
+    float2 maxUV = scaleOffset.zw + scaleOffset.xy - 0.5 * texel;
 
-    float level0 = floor(level);
-    float frac = level - level0;
-    float2 m0 = SAMPLE_TEXTURE2D_ARRAY_LOD(
-        _ShadowMapArray, sampler_ShadowMapArray, uv, sliceIndex, level0).xy;
-    if (frac <= 0.0)
+    [loop]
+    for (int i = 0; i < sampleCount; i++)
     {
-        return m0;
+        float2 offset = RotatePoissonSample(HN_PoissonDisk16[i], rotation)
+            * (searchRadiusTexels * texel);
+        float2 uv = clamp(atlasUV + offset, minUV, maxUV);
+
+        float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
+            _ShadowMapArray, sampler_PointClamp, uv, sliceIndex, 0.0).x;
+
+        if (receiverDepth > storedDepth)
+        {
+            blockerSum += storedDepth;
+            blockerCount++;
+        }
     }
 
-    float2 m1 = SAMPLE_TEXTURE2D_ARRAY_LOD(
-        _ShadowMapArray, sampler_ShadowMapArray, uv, sliceIndex, min(level0 + 1.0, maxMip)).xy;
-    return lerp(m0, m1, frac);
+    if (blockerCount == 0)
+    {
+        return false;
+    }
+
+    avgBlockerDepth = blockerSum / (float)blockerCount;
+    return true;
 }
 
-/// PCSS+VSSM 软阴影可见性（半影随接收者-遮挡物距离变化）。
+/// 传统 PCSS 软阴影可见性（半影随接收者-遮挡物距离变化）。
 /// <para>
-/// 全程走 mip 采样：<see cref="SampleShadowMoments"/> 用 bilinear 混合周围像素，
-/// 再按 frac 在相邻两级 mip 间插值。
-/// Step1 分层 blocker 搜索：在 mip 链上由细到粗找到**最小的、遮挡占比达阈值的核**，
-/// 该核代表「离接收者最近的遮挡面」，其遮挡分量平均深度即 blocker 深度
-/// （<see cref="DecodeBlockerMoments"/>，只取被遮挡部分的均值）；
-/// Step2 由「接收者-遮挡物分离」求动态滤波半径（contact hardening，上限 2^PenumbraRadius texel）；
-/// Step3 在该半径对应 mip 上取矩，用半影核内的遮挡占比求可见性。
-/// 接触处遮挡物就在接收者近旁 → 分离小 → 半径→1 texel（锐利）；远离遮挡物 → 半径增大（模糊）。
+/// Step1 blocker 搜索：在最大半影核（光源尺寸 = 2^PenumbraRadius texel）内
+/// 用旋转泊松盘采样，取遮挡样本平均深度作为 blocker 深度；
+/// Step2 由「接收者-遮挡物分离」求动态滤波半径（contact hardening）；
+/// Step3 在该半径的旋转泊松盘内做 PCF，得到可见性。
+/// 接触处遮挡物就在接收者近旁 → 分离小 → 半径小（锐利）；远离遮挡物 → 半径增大（模糊）。
 /// </para>
-/// <remarks>
-/// 不用单级「最大半影核均值」估计 blocker：核越大，其混合均值越被投射者深处与
-/// 空纹素拉偏，blocker 深度会退化为「投射者几何高度」而与接收者-遮挡物距离无关
-/// （半影近似常数、无 contact hardening）；且遮挡占比小时反解发散。
-/// </remarks>
-float SampleVssmMoments(
+/// <param name="receiverDepth">已减深度偏置的接收者归一化线性深度。</param>
+/// <param name="penumbraRadius">光源尺寸，以 texel 半径的 log2 表示（0–9）。</param>
+/// <param name="screenUV">归一化屏幕 UV，用于每像素旋转随机（静态，避免无 TAA 时闪烁）。</param>
+float SamplePcss(
     float2 atlasUV,
     float4 scaleOffset,
     int sliceIndex,
     int resolution,
     int lightType,
     float receiverDepth,
-    float penumbraRadius)
+    float penumbraRadius,
+    float2 screenUV,
+    float blockerSampleCount,
+    float filterSampleCount)
 {
-    float maxMip = min(log2((float)resolution), _ShadowMaxMipLevel);
-    float maxBlurMip = clamp(penumbraRadius, 0.0, maxMip);
-    float maxRadiusTexels = exp2(maxBlurMip);
+    float texel = 1.0 / max((float)resolution, 1.0);
+    float maxRadiusTexels = min(exp2(penumbraRadius), _ShadowMaxFilterRadius);
 
-    // ── PCSS Step 1：blocker search（分层，只取被遮挡部分的平均深度）──
-    // 粗级先判「有无遮挡」：最大半影核内都没有遮挡样本 ⇒ 接收者完全受光，直接返回。
-    float2 coarseMoments = SampleShadowMoments(atlasUV, scaleOffset, sliceIndex, maxBlurMip, maxMip);
-    float coarseOcc, coarseBlocker;
-    DecodeBlockerMoments(coarseMoments, receiverDepth, coarseOcc, coarseBlocker);
+    // 每像素旋转角：使用 CoreRP InterleavedGradientNoise（静态，无需 TAA）。
+    float rotation = InterleavedGradientNoise(screenUV * _ScreenParams.xy, 0) * TWO_PI;
 
-    if (coarseOcc <= _ShadowBlockerMinOcc)
+    // ── Step1：blocker 搜索（搜索核 = 光源尺寸 = 最大半影半径）──
+    float avgBlockerDepth;
+    if (!SearchBlocker(
+            atlasUV, scaleOffset, sliceIndex, maxRadiusTexels, texel,
+            rotation, (int)blockerSampleCount, receiverDepth, avgBlockerDepth))
     {
         return 1.0;
     }
 
-    // 遮挡占比随核尺寸单调不减（mip 链是盒滤波金字塔，足迹单调增），
-    // 故可二分找到「最小的、遮挡占比达 _ShadowBlockerOccThreshold 的核尺寸」。
-    // 取最小核 ⇒ 取离接收者最近的遮挡面 ⇒ 半影随接收者-遮挡物距离变化。
-    int lo = 0;
-    int hi = (int)maxBlurMip;
-    float avgBlocker = coarseBlocker;
-
-    [loop]
-    while (lo <= hi)
-    {
-        int mid = (lo + hi) >> 1;
-        float2 moments = SampleShadowMoments(atlasUV, scaleOffset, sliceIndex, (float)mid, maxMip);
-        float occ, zOcc;
-        DecodeBlockerMoments(moments, receiverDepth, occ, zOcc);
-
-        if (occ >= _ShadowBlockerOccThreshold)
-        {
-            avgBlocker = zOcc;
-            hi = mid - 1;
-        }
-        else
-        {
-            lo = mid + 1;
-        }
-    }
-
-    // ── PCSS Step 2：半影尺寸 → 滤波半径（contact hardening） ──
-    // 方向光：penumbra = tanθ × 世界分离 / texel世界尺寸；取 tanθ = 2^r/resolution 后得 sep × 2^r。
-    // 点/聚光：PCSS 原始距离比。
-    float separation = max(receiverDepth - avgBlocker, 0.0);
+    // ── Step2：半影估计 → 滤波半径（contact hardening）──
+    // 方向光：sep × 2^r / resolution；点 / 聚光：PCSS 原始距离比。
+    float separation = max(receiverDepth - avgBlockerDepth, 0.0);
     float filterRadiusTexels = (lightType == 1)
         ? separation * maxRadiusTexels
-        : separation / max(avgBlocker, 1e-4) * maxRadiusTexels;
+        : separation / max(avgBlockerDepth, 1e-4) * maxRadiusTexels;
 
-    filterRadiusTexels = clamp(filterRadiusTexels, 1.0, maxRadiusTexels);
+    filterRadiusTexels = clamp(
+        filterRadiusTexels * _ShadowSoftness,
+        _ShadowMinFilterRadius,
+        maxRadiusTexels);
 
-    // ── PCSS Step 3：半影核内的「遮挡占比」即可见性 ──
-    // 滤波核取到半影尺寸后，核内深度只有「遮挡物」与「非遮挡面」两类，
-    // 遮挡占比即该像素被挡住的份额 ⇒ 可见性 = 1 − occ。
-    // 注意：光栅化用的是同一套核采样路径（bilinear + 相邻两级 mip 插值）。
-    float filterMip = clamp(log2(filterRadiusTexels), 0.0, maxMip);
+    // ── Step3：半影核内 PCF（旋转泊松盘，逐 texel 深度比较）──
+    float2 minUV = scaleOffset.zw + 0.5 * texel;
+    float2 maxUV = scaleOffset.zw + scaleOffset.xy - 0.5 * texel;
 
-    float2 filtered = SampleShadowMoments(atlasUV, scaleOffset, sliceIndex, filterMip, maxMip);
-    float filterOcc, filterBlocker;   // filterBlocker 仅供反解输出，此处只用占比
-    DecodeBlockerMoments(filtered, receiverDepth, filterOcc, filterBlocker);
+    float visible = 0.0;
+    [loop]
+    for (int i = 0; i < (int)filterSampleCount; i++)
+    {
+        float2 offset = RotatePoissonSample(HN_PoissonDisk16[i], rotation)
+            * (filterRadiusTexels * texel);
+        float2 uv = clamp(atlasUV + offset, minUV, maxUV);
 
-    // 漏光偏置：压低受光（与旧的 Chebyshev 路径语义一致）。
-    float result = saturate(((1.0 - filterOcc) - _ShadowLightLeakBias)
-        / max(1.0 - _ShadowLightLeakBias, 1e-4));
+        float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
+            _ShadowMapArray, sampler_PointClamp, uv, sliceIndex, 0.0).x;
+
+        visible += receiverDepth <= storedDepth ? 1.0 : 0.0;
+    }
+
 #ifdef HN_DEBUG_PER_PIXEL
-    // 每像素调试：记录本像素实际使用的 soft shadow 滤波 mip。
-    _HNRPShadowDebugMip = filterMip;
+    // 每像素调试：记录本像素实际使用的 PCSS 滤波半径（texel）。
+    _HNRPShadowDebugPcss = filterRadiusTexels;
 #endif
-    return result;
+
+    return visible / max(filterSampleCount, 1.0);
 }
 
-/// 硬阴影手工比较（矩图无硬件比较采样器）：3x3 点采样。
-float SampleMomentsHard(float2 atlasUV, float4 scaleOffset, int sliceIndex, float biasedDepth)
+/// 硬阴影手工比较（R16 深度图无硬件比较采样器）：3x3 双线性采样。
+float SampleShadowHard(float2 atlasUV, float4 scaleOffset, int sliceIndex, float biasedDepth)
 {
     float texel = 1.0 / _ShadowSliceResolution;
     float2 minUV = scaleOffset.zw + 0.5 * texel;
@@ -343,7 +333,7 @@ float SampleMomentsHard(float2 atlasUV, float4 scaleOffset, int sliceIndex, floa
         {
             float2 uv = clamp(atlasUV + float2(x, y) * texel, minUV, maxUV);
             float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
-                _ShadowMapArray, sampler_ShadowMapArray, uv, sliceIndex, 0.0).x;
+                _ShadowMapArray, sampler_LinearClamp, uv, sliceIndex, 0.0).x;
             sum += biasedDepth <= storedDepth ? 1.0 : 0.0;
         }
     }
@@ -351,7 +341,7 @@ float SampleMomentsHard(float2 atlasUV, float4 scaleOffset, int sliceIndex, floa
     return sum / 9.0;
 }
 
-float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionWS)
+float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionWS, float2 screenUV)
 {
     ShadowMapData mapData = _ShadowMapDatas[mapIndex];
 
@@ -365,7 +355,7 @@ float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionW
         return 1.0;
     }
     shadowCoord.xyz /= shadowCoord.w;
-    
+
     if (shadowCoord.z <= 0.0 || shadowCoord.z >= 1.0)
     {
         return 1.0;
@@ -373,22 +363,24 @@ float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionW
 
     float2 uv = shadowCoord.xy * scaleOffset.xy + scaleOffset.zw;
 
-    // 统一矩图采样：Soft 走 VSSM，Hard 走点采样 PCF。深度偏置在此统一施加。
+    // 统一深度图采样：Soft 走 PCSS，Hard 走点采样 PCF。深度偏置在此统一施加。
     int lightType = GetShadowLightType(lightData);
     float receiverDepth = GetReceiverLinearDepth(lightData, lightType, positionWS, shadowCoord.z);
-    float biasedDepth = max(receiverDepth - _ShadowMomentDepthBias, 0.0);
+    float biasedDepth = max(receiverDepth - _ShadowDepthBias, 0.0);
     float attenuation = mapData.shadowParams.y > 0.5
-        ? SampleVssmMoments(
+        ? SamplePcss(
             uv, scaleOffset, sliceIndex, lightData.resolution, lightType,
-            biasedDepth, mapData.shadowParams.w)
-        : SampleMomentsHard(uv, scaleOffset, sliceIndex, biasedDepth);
+            biasedDepth, mapData.shadowParams.w, screenUV,
+            _ShadowBlockerSampleCount, _ShadowFilterSampleCount)
+        : SampleShadowHard(uv, scaleOffset, sliceIndex, biasedDepth);
 
     return lerp(1.0, attenuation, saturate(mapData.shadowParams.x));
 }
 #endif
 
 /// 计算某光源对世界坐标点的阴影衰减（1 = 无阴影）。
-float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirectionWS)
+/// <param name="screenUV">归一化屏幕 UV，供软阴影每像素旋转抖动使用。</param>
+float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirectionWS, float2 screenUV)
 {
 #if defined(SHADOW_MAP)
     ShadowLightData lightData = _ShadowLightDatas[lightIndex];
@@ -421,7 +413,7 @@ float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirec
         mapIndex = GetShadowMapIndex(lightData, 0);
     }
 
-    return SampleShadowMap(lightData, mapIndex, positionWS);
+    return SampleShadowMap(lightData, mapIndex, positionWS, screenUV);
 #else
     return 1.0;
 #endif

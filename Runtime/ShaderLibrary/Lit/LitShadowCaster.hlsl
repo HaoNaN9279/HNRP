@@ -75,7 +75,7 @@ half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
     clip(alpha - _Cutoff);
 #endif
 
-    // 矩图：写归一化线性深度与深度平方（0=近光，1=远光），
+    // 单通道深度图：只写归一化线性深度（0=近光，1=远光），
     // 与采样端 GetReceiverLinearDepth 严格同式；由 BlendOp Min 保留最近投射者。
     // 注意：变量不能命名为 linear —— 它是 HLSL 保留字（插值修饰符）。
     float linearDepth;
@@ -94,7 +94,7 @@ half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
     }
 
     linearDepth = saturate(linearDepth);
-    return half4(linearDepth, linearDepth * linearDepth, 0.0, 1.0);
+    return half4(linearDepth, 0.0, 0.0, 1.0);
 }
 
 #endif

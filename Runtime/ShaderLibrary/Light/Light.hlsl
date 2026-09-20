@@ -45,21 +45,21 @@ int GetMainLightIndex()
 #endif
 }
 
-Light GetMainLight(float3 positionWS)
+Light GetMainLight(float3 positionWS, float2 screenUV)
 {
     int mainLightIndex = GetMainLightIndex();
     Light light;
     ZERO_INITIALIZE(Light, light);
     light.color = _LightDatasBuffer[mainLightIndex].color;
     light.directionWS = _LightDatasBuffer[mainLightIndex].directionWS;
-    light.shadowAttenuation = GetShadowAttenuation((uint)mainLightIndex, positionWS, light.directionWS);
+    light.shadowAttenuation = GetShadowAttenuation((uint)mainLightIndex, positionWS, light.directionWS, screenUV);
     light.distanceAttenuation = 1.0;
     light.renderingLayerMask = asuint(_LightDatasBuffer[mainLightIndex].renderingLayerMask);
 
     return light;
 }
 
-Light GetAdditionalLight(uint lightIndex, float3 positionWS)
+Light GetAdditionalLight(uint lightIndex, float3 positionWS, float2 screenUV)
 {
     Light light;
     light.color = _LightDatasBuffer[lightIndex].color;
@@ -85,7 +85,7 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
         }
     }
     light.renderingLayerMask = asuint(_LightDatasBuffer[lightIndex].renderingLayerMask);
-    light.shadowAttenuation = GetShadowAttenuation(lightIndex, positionWS, light.directionWS);
+    light.shadowAttenuation = GetShadowAttenuation(lightIndex, positionWS, light.directionWS, screenUV);
 
     return light;
 }

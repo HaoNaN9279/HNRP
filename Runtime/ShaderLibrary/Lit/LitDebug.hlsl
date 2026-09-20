@@ -34,7 +34,7 @@
 #define HN_LIT_DEBUG_FINAL_COLOR           15
 #define HN_LIT_DEBUG_CLUSTER_LIGHT_COUNT   16
 #define HN_LIT_DEBUG_CLUSTER_PROBE_COUNT   17
-#define HN_LIT_DEBUG_SHADOW_MIP            18
+#define HN_LIT_DEBUG_SHADOW_FILTER_RADIUS  18
 
 // 统计群集掩码中实际置位的条目数。
 // word 0 是压缩范围头（min|max），掩码从 word 1 起。
@@ -157,10 +157,10 @@ float4 HN_DebugLitChannelValue(
 #endif
         }
 
-        case HN_LIT_DEBUG_SHADOW_MIP:
-            // 本像素 soft shadow（PCSS/VSSM）实际使用的滤波 mip 级数。
+        case HN_LIT_DEBUG_SHADOW_FILTER_RADIUS:
+            // 本像素 soft shadow（PCSS）实际使用的滤波半径（texel）。
             // 0 = 未使用软阴影（无软阴影光源 / 该像素无阴影）。
-            return float4(_HNRPShadowDebugMip, 0.0, 0.0, 1.0);
+            return float4(_HNRPShadowDebugPcss, 0.0, 0.0, 1.0);
 
         default:
             return float4(output.lightingColor, 1.0);

@@ -36,36 +36,34 @@ namespace HN.HNRP
 
             if (shadowAtlas == null
                 || allocatedResolution != sliceResolution
-                || allocatedSliceCount != sliceCount
-                || allocatedSoftMode != frameSoftShadowMode)
+                || allocatedSliceCount != sliceCount)
             {
                 ReleaseAtlas();
 
                 int resolution = Mathf.Max(512, Mathf.ClosestPowerOfTwo(sliceResolution));
                 int slices = Mathf.Clamp(sliceCount, 1, 4);
 
-                // 单一 RG16F 矩图 atlas：R=归一化线性深度，G=深度²。
-                // 无深度附件：投射者用 BlendOp Min 直接写入最近深度的矩（z 与 z² 同单调，逐通道 min 正确）。
-                // 仅软阴影需要 mip 链（硬阴影只手采样 mip0），故 mip 只在软模式分配以省显存。
-                // 手动 mip（autoGenerateMips=false），由 ShadowMipmapCS 逐区域更新。
+                // 单一 R16 深度图 atlas：只存归一化线性深度（无深度平方、无 mip）。
+                // 无深度附件：投射者用 BlendOp Min 直接写入最近深度（深度单调，逐通道 min 正确）。
+                // PCSS 为逐 texel 深度比较，不需要 mip 链，故软 / 硬模式共用同一格式，
+                // 软硬切换不再触发 atlas 重建。
                 shadowAtlas = RTHandles.Alloc(
                     resolution,
                     resolution,
                     slices: slices,
                     depthBufferBits: DepthBits.None,
-                    colorFormat: GraphicsFormat.R16G16_SFloat,
+                    colorFormat: GraphicsFormat.R16_UNorm,
                     filterMode: FilterMode.Bilinear,
                     wrapMode: TextureWrapMode.Clamp,
                     dimension: TextureDimension.Tex2DArray,
-                    useMipMap: frameSoftShadowMode,
+                    useMipMap: false,
                     autoGenerateMips: false,
                     isShadowMap: false,
-                    enableRandomWrite: true,
+                    enableRandomWrite: false,
                     name: "HN Shadow Atlas");
 
                 allocatedResolution = resolution;
                 allocatedSliceCount = slices;
-                allocatedSoftMode = frameSoftShadowMode;
 
                 textureAllocator = new TextureAllocator(resolution, 512, 4096, slices);
                 System.Array.Clear(residentMaps, 0, residentMaps.Length);
@@ -73,9 +71,8 @@ namespace HN.HNRP
 
                 // atlas 已重建，旧 slice / 偏移的搬移命令全部失效，避免残留命令访问无效区域。
                 copyCommands.Clear();
-                mipUpdateCommands.Clear();
 
-                // 整图初始化为远矩 (1,1)（无深度附件）。
+                // 整图初始化为远深度 1（无深度附件）。
                 // 命令延迟到 render func 内经 RenderGraph 的命令缓冲提交，避免在录制期
                 // 私自申请 CommandBuffer 并即时提交到 ScriptableRenderContext。
                 needsAtlasClear = true;
@@ -108,16 +105,6 @@ namespace HN.HNRP
                     ref shadowCameraDatasBuffer,
                     MaxDirectionalShadowLights,
                     System.Runtime.InteropServices.Marshal.SizeOf<ShadowCameraData>());
-            }
-
-            if (mipRegionsArray == null)
-            {
-                // 每帧待更新区域数上限 = 驻留 map 上限；缓冲容量按此一次性分配。
-                mipRegionsArray = new ShadowMipRegion[ResidentMapCapacity];
-                HNRenderPipelineUtils.ValidateComputeBuffer(
-                    ref mipRegionsBuffer,
-                    ResidentMapCapacity,
-                    System.Runtime.InteropServices.Marshal.SizeOf<ShadowMipRegion>());
             }
         }
     }

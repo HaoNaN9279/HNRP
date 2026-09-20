@@ -26,7 +26,7 @@ MonoBehaviour:
   - rid: 6885483949488603236
   - rid: 6885483949488603237
   - rid: 6885484152777080832
-  parameterRevision: 1694
+  parameterRevision: 1818
   references:
     version: 2
     RefIds:
@@ -146,6 +146,12 @@ MonoBehaviour:
         sliceCount: 1
         shadowNearPlaneOffset: 0.1
         shadowStrength: 1
-        shadowSoft: 0
         depthBias: 1
         slopBias: 2.5
+        softShadowEnabled: 1
+        shadowDepthBias: 0.002
+        softness: 1
+        minFilterRadius: 1
+        maxFilterRadius: 512
+        blockerSampleCount: 8
+        filterSampleCount: 16

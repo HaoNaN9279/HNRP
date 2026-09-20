@@ -44,16 +44,16 @@ void InitializeLightingInputData(float3 positionWS, float2 mainUV, float2 static
 
     lightingInputData.positionWS = positionWS;
 
-    Light mainLight = GetMainLight(positionWS);
+    float2 normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
+    lightingInputData.normalizedScreenSpaceUV = normalizedScreenSpaceUV;
+
+    Light mainLight = GetMainLight(positionWS, normalizedScreenSpaceUV);
     lightingInputData.mainLight = mainLight;
 
     lightingInputData.mainUV = mainUV;
 
     float3 bakedGI = SAMPLE_GI(staticLightmapUV, vertexSH, normalWS);
     lightingInputData.bakedGI = bakedGI;
-
-    float2 normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(positionCS);
-    lightingInputData.normalizedScreenSpaceUV = normalizedScreenSpaceUV;
 }
 
 float3 DirectLightingDiffuseRadiance(Light light, float NdotL)

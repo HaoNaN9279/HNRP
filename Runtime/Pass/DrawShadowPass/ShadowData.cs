@@ -58,7 +58,7 @@ namespace HN.HNRP
     /// </summary>
     public struct ShadowMapData
     {
-        /// <summary>x=strength, y=soft(0/1), z=cascadeIndex/faceIndex, w=penumbraRadius。</summary>
+        /// <summary>x=strength, y=soft(0/1), z=cascadeIndex/faceIndex, w=penumbraRadius（光源尺寸，texel 半径的 log2）。</summary>
         public Vector4 shadowParams;
 
         /// <summary>世界 → 阴影裁剪矩阵（含 [0,1] remap，不含 atlas offset）。</summary>
@@ -70,7 +70,7 @@ namespace HN.HNRP
     /// </summary>
     /// <remarks>
     /// GPU 常量缓冲要求绑定的字节数为 16 的倍数（<c>ComputeBufferType.Constant</c> 的
-    /// stride 同样受此约束），故标量后补齐 3 个 float，合计 16 字节。
+    /// stride 同样受此约束），故 8 个 float 共 32 字节，满足对齐。
     /// 未来新增标量全局参数时占用 padding；新增行时需保持总量为 16 的倍数。
     /// </remarks>
     public struct ShadowGlobalParams
@@ -78,26 +78,26 @@ namespace HN.HNRP
         /// <summary>atlas 单 slice 分辨率。</summary>
         public float _ShadowSliceResolution;
 
-        /// <summary>VSSM 最小方差（相对量，着色器按接收者深度平方缩放，抑制自阴影 / 漏光）。</summary>
-        public float _ShadowMinVariance;
+        /// <summary>接收者深度偏置（归一化线性深度单位），抑制自阴影 / 漏光。</summary>
+        public float _ShadowDepthBias;
 
-        /// <summary>VSSM 漏光偏置（0–1，越大越暗越不漏光）。</summary>
-        public float _ShadowLightLeakBias;
+        /// <summary>半影尺寸全局乘子（默认 1）。</summary>
+        public float _ShadowSoftness;
 
-        /// <summary>矩图可用的最大 mip 层级（= 9）。</summary>
-        public float _ShadowMaxMipLevel;
+        /// <summary>最小滤波半径（texel），保证接触处不过锐。</summary>
+        public float _ShadowMinFilterRadius;
 
-        /// <summary>矩图手工比较的接收者深度偏置（线性归一化单位）。</summary>
-        public float _ShadowMomentDepthBias;
+        /// <summary>全局最大滤波半径（texel），约束软核上限防止跨 light 越界。</summary>
+        public float _ShadowMaxFilterRadius;
 
-        /// <summary>遮挡分量占比下限：防止遮挡分量反解在 occ→0 时发散，同时充当「无遮挡」判据。</summary>
-        public float _ShadowBlockerMinOcc;
+        /// <summary>blocker 搜索采样数（旋转泊松盘前 N 个）。</summary>
+        public float _ShadowBlockerSampleCount;
 
-        /// <summary>分层 blocker 搜索的遮挡占比阈值：核内遮挡占比达到该值即认为该核尺寸已捕获遮挡物。</summary>
-        public float _ShadowBlockerOccThreshold;
+        /// <summary>PCF 滤波采样数（旋转泊松盘前 N 个）。</summary>
+        public float _ShadowFilterSampleCount;
 
-        /// <summary>最小方差随深度平方缩放时的深度下限（避免近光处缩放趋零）。</summary>
-        public float _ShadowMinVarianceDepthFloor;
+        /// <summary>对齐占位（无数据语义）。</summary>
+        public float _ShadowPcssPad;
     }
 
     /// <summary>

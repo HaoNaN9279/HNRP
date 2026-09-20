@@ -77,8 +77,8 @@ namespace HN.HNRP
                 DebugColorMapSettings.Create(0f, 16f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
             new DebugChannelDescriptor(17, "ClusterProbeCount", DebugValueKind.PerPixel,
                 DebugColorMapSettings.Create(0f, 8f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
-            new DebugChannelDescriptor(18, "ShadowMip", DebugValueKind.PerPixel,
-                DebugColorMapSettings.Create(0f, 9f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
+            new DebugChannelDescriptor(18, "ShadowFilterRadius", DebugValueKind.PerPixel,
+                DebugColorMapSettings.Create(0f, 512f, DebugColorChannel.Red, DebugColorMapPreset.Turbo)),
         };
 
         /// <summary>

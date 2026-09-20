@@ -28,10 +28,6 @@ namespace HN.HNRP
         /// <summary>ComputeShader for cluster-based reflection probe culling.</summary>
         public ComputeShader clusterCullingReflectionProbeCS;
 
-        /// <summary>ComputeShader for generating shadow moment-atlas mipmaps (PCSS/VSSM).</summary>
-        [Reload("Runtime/ShaderLibrary/ComputeShaders/ShadowMipmapCS.compute")]
-        public ComputeShader shadowMipmapCS;
-
         /// <summary>按名称获取外部导入纹理（供资源节点导入）。</summary>
         public Texture GetExternalTexture(string name)
         {

@@ -98,16 +98,10 @@ namespace HN.HNRP
                         lightData.blockDatas1 |= field << ((sub - 4) * 8);
                     }
 
-                    // Hard/Soft 切换会改变 map 内容语义（矩图需要 mip 链），强制重绘一次，
-                    // 保证切到 Soft 的 map 在本帧生成完整 mip。
-                    if (resident.soft != selected.soft)
-                    {
-                        resident.soft = selected.soft;
-                        resident.hasSignature = false;
-                    }
-
                     // 先判定是否重绘，再只计算一次矩阵：结果同时供阴影表与绘制命令使用。
                     // 非重绘且已有有效缓存时跳过 ComputeMatrices（签名已覆盖所有影响矩阵的输入）。
+                    // Hard/Soft 只影响 shadowParams.y（着色器分支），atlas 内容语义（单通道深度）
+                    // 相同，故切换无需强制重绘。
                     bool shouldRedraw = ShouldRedrawMap(selected, resident, sub);
                     float softFlag = selected.soft ? 1f : 0f;
                     bool needMatrices = shouldRedraw
@@ -138,7 +132,6 @@ namespace HN.HNRP
                                     lightType = selected.lightType,
                                     splitData = splitData,
                                     hasCasters = true,
-                                    soft = selected.soft,
                                     lightPosRange = lightData.lightPosRange,
                                     isDirectional = selected.lightType == LightType.Directional,
                                 };
@@ -185,13 +178,13 @@ namespace HN.HNRP
             }
 
             shadowGlobalParams._ShadowSliceResolution = allocatedResolution;
-            shadowGlobalParams._ShadowMinVariance = minVariance;
-            shadowGlobalParams._ShadowLightLeakBias = lightLeakBias;
-            shadowGlobalParams._ShadowMaxMipLevel = MaxShadowMipLevel;
-            shadowGlobalParams._ShadowMomentDepthBias = momentDepthBias;
-            shadowGlobalParams._ShadowBlockerMinOcc = blockerMinOcc;
-            shadowGlobalParams._ShadowBlockerOccThreshold = blockerOccThreshold;
-            shadowGlobalParams._ShadowMinVarianceDepthFloor = minVarianceDepthFloor;
+            shadowGlobalParams._ShadowDepthBias = shadowDepthBias;
+            shadowGlobalParams._ShadowSoftness = softness;
+            shadowGlobalParams._ShadowMinFilterRadius = minFilterRadius;
+            shadowGlobalParams._ShadowMaxFilterRadius = maxFilterRadius;
+            shadowGlobalParams._ShadowBlockerSampleCount = blockerSampleCount;
+            shadowGlobalParams._ShadowFilterSampleCount = filterSampleCount;
+            shadowGlobalParams._ShadowPcssPad = 0f;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();

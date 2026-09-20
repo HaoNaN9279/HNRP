@@ -135,68 +135,11 @@ namespace HN.HNRP
                 lightRange = visibleLight.range,
                 lightSpotAngle = visibleLight.spotAngle,
                 lightInstanceId = light.GetInstanceID(),
-                soft = additionalLightData.IsSoftShadow,
+                soft = additionalLightData.IsSoftShadow && softShadowEnabled,
                 penumbraRadius = additionalLightData.PenumbraRadius,
             });
 
             return true;
-        }
-
-        /// <summary>
-        /// 预扫本帧是否存在软阴影 light，决定 atlas 是否采用矩图格式。
-        /// 须在 <see cref="EnsureResources"/> 之前调用（atlas 格式依赖该结果）。
-        /// </summary>
-        private void DetectSoftShadowMode()
-        {
-            frameSoftShadowMode = false;
-
-            if (!softShadowEnabled)
-            {
-                return;
-            }
-
-            // 矩图依赖 compute shader 生成 mip；缺失时退回硬阴影，避免采样未初始化的 mip。
-            if (cameraContext.RuntimeResources == null
-                || cameraContext.RuntimeResources.shadowMipmapCS == null)
-            {
-                return;
-            }
-
-            NativeArray<VisibleLight> visibleLights = cameraContext.VisibleLights;
-            if (!visibleLights.IsCreated || visibleLights.Length == 0)
-            {
-                return;
-            }
-
-            int maxLightCount = Mathf.Min(
-                visibleLights.Length,
-                HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
-                + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN);
-
-            for (int i = 0; i < maxLightCount; i++)
-            {
-                VisibleLight visibleLight = visibleLights[i];
-                Light light = visibleLight.light;
-                if (light == null)
-                {
-                    continue;
-                }
-
-                LightType type = visibleLight.lightType;
-                if (type != LightType.Directional && type != LightType.Point && type != LightType.Spot)
-                {
-                    continue;
-                }
-
-                if (!light.TryGetComponent(out HNAdditionalLightData additionalLightData)
-                    || !additionalLightData.IsSoftShadow)
-                {
-                    continue;
-                }
-
-                frameSoftShadowMode = true;
-                return;
-            }
         }
 
         // ── 驻留集 diff ──
@@ -206,8 +149,6 @@ namespace HN.HNRP
         /// </summary>
         private void UpdateResidentMaps()
         {
-            mipUpdateCommands.Clear();
-
             // 标记本帧仍需要的 map；缺失或分辨率变化的重新分配。
             for (int i = 0; i < selectedLights.Count; i++)
             {
@@ -299,16 +240,6 @@ namespace HN.HNRP
                         toSlice = pair.Value.SliceIndex,
                         toScaleOffset = pair.Value.ScaleOffset,
                     });
-
-                    // 跨 slice 搬移只拷贝 level 0，矩图 mip 链需在拷贝后重建。
-                    if (frameSoftShadowMode && moved.soft)
-                    {
-                        mipUpdateCommands.Add(new ShadowMipUpdateCommand
-                        {
-                            allocation = pair.Value,
-                            resolution = moved.resolution,
-                        });
-                    }
                 }
             }
 
@@ -329,7 +260,6 @@ namespace HN.HNRP
                     hasSignature = false,
                     lastUpdateFrame = -1,
                     neededThisFrame = true,
-                    soft = selected.soft,
                 };
             }
             else

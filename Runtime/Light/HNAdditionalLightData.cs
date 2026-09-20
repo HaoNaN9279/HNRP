@@ -168,8 +168,8 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// 软阴影的光源尺寸半径，单位为「阴影 map mip 层级」（0–9，可小数）。
-        /// 值 = log2(光源在 map level 0 下的 texel 半径)；仅 Soft 模式生效。
+        /// 软阴影的光源尺寸半径，以 texel 半径的 log2 表示（0–9，可小数）。
+        /// 值 = log2(PCSS 的最大滤波 / blocker 搜索半径 texel)；仅 Soft 模式生效。
         /// </summary>
         public float PenumbraRadius
         {
@@ -180,10 +180,10 @@ namespace HN.HNRP
         /// <summary>本光源是否启用软阴影（EnableShadow 且模式为 Soft）。</summary>
         public bool IsSoftShadow => enableShadow && shadowType == LightShadowType.Soft;
 
-        /// <summary>Penumbra Radius 最小值（对应 mip 0）。</summary>
+        /// <summary>Penumbra Radius 最小值（对应 1 texel）。</summary>
         public const float MinPenumbraRadius = 0f;
 
-        /// <summary>Penumbra Radius 最大值：最小 brick 512 = 2^9，最高一级 mip 为 1 像素。</summary>
+        /// <summary>Penumbra Radius 最大值：最小 brick 512 = 2^9 texel。</summary>
         public const float MaxPenumbraRadius = 9f;
 
         /// <summary>

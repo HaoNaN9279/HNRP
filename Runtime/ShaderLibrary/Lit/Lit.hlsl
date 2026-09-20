@@ -39,8 +39,7 @@ float4 FragMain(PackedVaryings packedVaryings)
     UNITY_SETUP_INSTANCE_ID(packedVaryings);
 
 #ifdef HN_DEBUG_PER_PIXEL
-    // 初始化软阴影 mip 调试值；无软阴影的像素保持 0。
-    _HNRPShadowDebugMip = 0.0;
+    _HNRPShadowDebugPcss = 0.0;
 #endif
 
     LitVaryings litVaryings;

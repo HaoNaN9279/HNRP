@@ -57,7 +57,7 @@ void BuildLightingData(LitSurfaceData litSurfaceData, BRDFData brdfData, Lightin
     float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
     float3 positionWS = lightingInputData.positionWS;
     LIGHT_LOOP_BEGIN(lightCount)
-        Light light = GetAdditionalLight(lightIndex, positionWS);
+        Light light = GetAdditionalLight(lightIndex, positionWS, normalizedScreenSpaceUV);
         if(IsMatchingLightLayer(light.renderingLayerMask, meshRenderingLayers))
         {
             float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
