@@ -184,7 +184,10 @@ namespace HN.HNRP
             shadowGlobalParams._ShadowMaxFilterRadius = maxFilterRadius;
             shadowGlobalParams._ShadowBlockerSampleCount = blockerSampleCount;
             shadowGlobalParams._ShadowFilterSampleCount = filterSampleCount;
-            shadowGlobalParams._ShadowPcssPad = 0f;
+            // 存量序列化数据新字段读到 0，按默认值兜底，保证级间衔接默认开启。
+            shadowGlobalParams._ShadowCascadeBlend = cascadeBlendPercentage > 0f
+                ? cascadeBlendPercentage
+                : DefaultCascadeBlendPercentage;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();

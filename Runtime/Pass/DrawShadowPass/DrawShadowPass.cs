@@ -120,6 +120,19 @@ namespace HN.HNRP
         [SerializeField, Range(1, 16)]
         private int filterSampleCount = 16;
 
+        /// <summary>
+        /// 方向光 cascade 级间衔接的过渡区宽度，取该级分割距离的百分比（0.001–0.5）。
+        /// 过渡区内用噪声在相邻两级间二选一采样，每像素仍只采样一级。
+        /// </summary>
+        [SerializeField, Range(0.001f, 0.5f)]
+        private float cascadeBlendPercentage = DefaultCascadeBlendPercentage;
+
+        /// <summary>
+        /// cascade 级间衔接过渡区占分割距离的百分比默认值。
+        /// 存量序列化数据可能读到 0（未设置），运行时按此值兜底。
+        /// </summary>
+        public const float DefaultCascadeBlendPercentage = 0.1f;
+
         /// <summary>获取或设置 atlas 单 slice 分辨率。</summary>
         public int SliceResolution
         {

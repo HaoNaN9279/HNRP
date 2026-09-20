@@ -48,7 +48,7 @@ GLOBAL_CBUFFER_START(_ShadowMapParamsBuffer, b1)
     float    _ShadowMaxFilterRadius;      // 全局最大滤波半径（texel）
     float    _ShadowBlockerSampleCount;   // blocker 搜索采样数
     float    _ShadowFilterSampleCount;    // PCF 滤波采样数
-    float    _ShadowPcssPad;              // 对齐占位（无数据语义）
+    float    _ShadowCascadeBlend;         // 方向光 cascade 级间衔接过渡区宽度（占分割距离百分比）
 CBUFFER_END
 
 #define _SHADOW_SLICE_RESOLUTION (_ShadowSliceResolution)
@@ -106,11 +106,30 @@ void DecodeShadowPosition(uint field, int resolution, out float4 scaleOffset, ou
     scaleOffset = float4(scale, scale, xId / perAxis, yId / perAxis);
 }
 
+/// 取某方向光第 k 级的远边界（沿相机视轴深度）。
+/// 先整段选出 0..3 或 4..7 对应的 float4，再用 k & 3 索引：
+/// 三元表达式两侧都会被求值，直接写 cascadeSplits1[k - 4] 会产生负下标。
+float GetCascadeSplit(ShadowCameraData cameraData, int k)
+{
+    float4 splits = k < 4
+        ? cameraData.cascadeSplits0
+        : cameraData.cascadeSplits1;
+    return splits[k & 3];
+}
+
 /// 方向光 cascade 选级：按片段沿相机视轴的深度与各级 splits 判定。
 /// 透视与正交相机共用同一判据——C# 侧 CalculateFrustumCorners 对两种投影
 /// 都在「距相机 distance 的平面」上取角点，故 split 深度即 -viewPos.z。
+/// 级间衔接：在本级远端最后 blendPercentage（占分割距离比例）的过渡区内，
+/// 用 smoothstep 求权重，再以每像素噪声在「本级 / 下一级」间二选一，
+/// 每像素仍只采样一级 cascade，采样总数不变。
 /// 返回 -1 表示超出最远级（或级数非法），调用方应视为无阴影。
-int GetDirectionalCascadeIndex(int cascadeCount, int cameraDataIndex, float3 positionWS)
+int GetDirectionalCascadeIndex(
+    int cascadeCount,
+    int cameraDataIndex,
+    float3 positionWS,
+    float blendPercentage,
+    float noise)
 {
     if (cascadeCount <= 0)
     {
@@ -122,23 +141,42 @@ int GetDirectionalCascadeIndex(int cascadeCount, int cameraDataIndex, float3 pos
 
     ShadowCameraData cameraData = _ShadowCameraDatas[cameraDataIndex];
 
+    int baseCascade = -1;
     [loop]
     for (int k = 0; k < cascadeCount; k++)
     {
-        // 先整段选出 0..3 或 4..7 对应的 float4，再用 k & 3 索引：
-        // 三元表达式两侧都会被求值，直接写 cascadeSplits1[k - 4] 会产生负下标。
-        float4 splits = k < 4
-            ? cameraData.cascadeSplits0
-            : cameraData.cascadeSplits1;
-        float split = splits[k & 3];
-
-        if (viewDepth < split)
+        if (viewDepth < GetCascadeSplit(cameraData, k))
         {
-            return k;
+            baseCascade = k;
+            break;
         }
     }
 
-    return -1;
+    if (baseCascade < 0)
+    {
+        return -1;
+    }
+
+    // 级间衔接：本级远端最后一段与下一级混合；最后一级没有下一级可混。
+    if (blendPercentage > 0.0 && baseCascade < cascadeCount - 1)
+    {
+        float far = GetCascadeSplit(cameraData, baseCascade);
+        if (far > 0.0)
+        {
+            float blendStart = far * (1.0 - saturate(blendPercentage));
+            if (viewDepth > blendStart)
+            {
+                // 越接近交界权重越高（0 → 1），由噪声决定本像素实际采样哪一级。
+                float weight = smoothstep(blendStart, far, viewDepth);
+                if (noise < weight)
+                {
+                    return baseCascade + 1;
+                }
+            }
+        }
+    }
+
+    return baseCascade;
 }
 
 /// 归一化线性深度（0=近光，1=远光），与投射者写入端（LitShadowCaster）严格同式。
@@ -399,8 +437,14 @@ float GetShadowAttenuation(uint lightIndex, float3 positionWS, float3 lightDirec
     }
     else if (lightType == 1 /* Directional */)
     {
+        // 静态每像素噪声：用于级间衔接在相邻两级间二选一（无 TAA 时不闪烁）。
+        float cascadeNoise = InterleavedGradientNoise(screenUV * _ScreenParams.xy, 0);
         int cascadeIndex = GetDirectionalCascadeIndex(
-            GetShadowCascadeCount(lightData), lightData.cameraDataIndex, positionWS);
+            GetShadowCascadeCount(lightData),
+            lightData.cameraDataIndex,
+            positionWS,
+            _ShadowCascadeBlend,
+            cascadeNoise);
         if (cascadeIndex < 0)
         {
             return 1.0;

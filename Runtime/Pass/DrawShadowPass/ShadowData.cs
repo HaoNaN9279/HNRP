@@ -71,7 +71,7 @@ namespace HN.HNRP
     /// <remarks>
     /// GPU 常量缓冲要求绑定的字节数为 16 的倍数（<c>ComputeBufferType.Constant</c> 的
     /// stride 同样受此约束），故 8 个 float 共 32 字节，满足对齐。
-    /// 未来新增标量全局参数时占用 padding；新增行时需保持总量为 16 的倍数。
+    /// 当前 8 个字段已用满；新增标量全局参数需扩为下一个 16 字节倍数的行长。
     /// </remarks>
     public struct ShadowGlobalParams
     {
@@ -96,8 +96,10 @@ namespace HN.HNRP
         /// <summary>PCF 滤波采样数（旋转泊松盘前 N 个）。</summary>
         public float _ShadowFilterSampleCount;
 
-        /// <summary>对齐占位（无数据语义）。</summary>
-        public float _ShadowPcssPad;
+        /// <summary>
+        /// 方向光 cascade 级间衔接的过渡区宽度：占该级分割距离的百分比（0 表示关闭混合）。
+        /// </summary>
+        public float _ShadowCascadeBlend;
     }
 
     /// <summary>
