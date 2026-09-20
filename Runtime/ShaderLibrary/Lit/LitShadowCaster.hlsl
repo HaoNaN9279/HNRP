@@ -52,8 +52,15 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
     float4 positionCS = mul(_ShadowViewProj, float4(positionWS, 1.0));
 
-    // 不做近平面临界钳制：光源视图体之外的几何应被硬件裁剪掉。
-    // 若把它钳到近平面（深度 0），这些片元会以"最近深度"写入阴影图，导致该区域整片被判为遮挡。
+    // Shadow pancaking（与 URP ShadowCasterPass 一致）：把落在光源近平面之前的投射者
+    // 压到近平面，而不是交给硬件裁掉。视锥外、但投影落在视锥内的较大物体（如大建筑）
+    // 会沿光方向越过近平面，若不钳制会被近平面部分裁剪，导致 atlas 中该物体残缺、阴影缺失。
+    // 正交投影下近平面之前的投射者本就位于「光源 → 接收者」射线之间，压到最近深度语义正确。
+    #if UNITY_REVERSED_Z
+        positionCS.z = min(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+    #else
+        positionCS.z = max(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
+    #endif
 
     output.positionCS = positionCS;
 #if defined(_BASEMAP)
