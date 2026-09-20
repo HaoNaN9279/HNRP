@@ -81,9 +81,9 @@ namespace HN.HNRP
                     new DrawShadowPass("drawShadow"),
                     new ClusterCullingReflectionProbePass("clusterProbe"),
                     new ClusterCullingLightPass("clusterLight"),
-                    new DrawObjectPass("forwardOpaque"),
+                    new ForwardPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
-                    new DrawObjectPass("transparency")
+                    new ForwardPass("transparency")
                     {
                         RendererListParams = new RendererListParams
                         {
@@ -133,9 +133,9 @@ namespace HN.HNRP
                     new BuildLightDataPass("buildLight"),
                     new DrawShadowPass("drawShadow"),
                     new ClusterCullingLightPass("clusterLight"),
-                    new DrawObjectPass("forwardOpaque"),
+                    new ForwardPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
-                    new DrawObjectPass("transparency")
+                    new ForwardPass("transparency")
                     {
                         RendererListParams = new RendererListParams
                         {
@@ -175,7 +175,7 @@ namespace HN.HNRP
             return new RenderGraphBlueprint(
                 new List<Pass>
                 {
-                    new DrawObjectPass("opaque"),
+                    new ForwardPass("opaque"),
                     new RenderOutputPass("finalBlit"),
                 },
                 new List<SlotConnection>

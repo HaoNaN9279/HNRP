@@ -86,7 +86,7 @@ Shader "HNRP/Lit"
 
             #pragma enable_d3d11_debug_symbols
 
-            #include "../Lit/Lit.hlsl"
+            #include "../Lit/LitForward.hlsl"
             ENDHLSL
         }
 

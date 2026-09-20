@@ -100,7 +100,7 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// 读取上游颜色与深度目标（共享纹理模型 —— 由 <c>DrawObjectPass</c> 分配），
+        /// 读取上游颜色与深度目标（共享纹理模型 —— 由 <c>ForwardPass</c> 分配），
         /// 并设置一个用 <c>ctx.renderContext.CreateSkyboxRendererList</c> 绘制天空盒的
         /// 渲染函数 —— 与旧 <see cref="BuiltinSkyPass.Record"/> 逻辑相同。
         /// </remarks>

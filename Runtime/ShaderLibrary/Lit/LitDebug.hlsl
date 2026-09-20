@@ -9,7 +9,7 @@
 
 // HNRP 渲染调试 —— Lit 前向 pass 暴露的每像素通道。
 //
-// 通道 ID 必须与 C# 侧 DrawObjectPass.DebugChannels 的声明顺序一致。
+// 通道 ID 必须与 C# 侧 ForwardPass.DebugChannels 的声明顺序一致。
 // 新增通道时同步修改两处即可，无需改动管线或显示 pass。
 //
 // 说明：每像素值的求值必然发生在「有像素的地方」，即本着色器；因此所有每像素通道

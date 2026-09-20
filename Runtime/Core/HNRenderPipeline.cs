@@ -307,7 +307,7 @@ namespace HN.HNRP
             renderGraph.EndFrame();
 
 #if UNITY_EDITOR
-            // HNRP 物体渲染（DrawObjectPass）用 Y 翻转投影矩阵（renderIntoTexture=true），
+            // HNRP 物体渲染（ForwardPass）用 Y 翻转投影矩阵（renderIntoTexture=true），
             // 把全局 unity_MatrixVP 设成翻转矩阵。Unity Editor 内部绘制 SceneView 的
             // grid（xz 网格平面）依赖非翻转的全局 unity_MatrixVP，需在此恢复，否则 grid 颠倒。
             foreach (CameraContext cameraContext in cameraContexts)

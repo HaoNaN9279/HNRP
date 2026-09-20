@@ -15,7 +15,7 @@ namespace HN.HNRP
     /// <c>PushGlobal</c>）与全局 keyword 读取各子系统（光照数据、簇剔除、反射探针、
     /// 阴影）产出的资源。本契约把这些资源的<b>绑定知识归还给生产者</b>：
     /// 生产者自行决定绑定哪些属性、使用哪个 keyword、何时算「可用」；
-    /// 消费者（如 <see cref="DrawObjectPass"/>）只负责在绘制前对每个已连接输入
+    /// 消费者（如 <see cref="ForwardPass"/>）只负责在绘制前对每个已连接输入
     /// slot 的属主调用一次 <see cref="BindGlobalShaderResources"/>，无需硬编码任何
     /// 具体生产者类型与属性 ID。
     /// </para>

@@ -8,7 +8,7 @@ namespace HN.HNRP
     /// 旧 <see cref="EditorWireOverlayPass"/>（<c>PassBase</c>）的 <see cref="Pass"/> 版替代。
     /// </summary>
     /// <remarks>
-    /// <para>输入（从上游连接，如 <c>DrawObjectPass</c>）：</para>
+    /// <para>输入（从上游连接，如 <c>ForwardPass</c>）：</para>
     /// <list type="bullet">
     ///   <item><b>ColorTarget</b> —— 绘制线框叠加层所用的颜色缓冲。</item>
     /// </list>
@@ -105,7 +105,7 @@ namespace HN.HNRP
         /// <inheritdoc />
         /// <remarks>
         /// <para>
-        /// 读取上游颜色目标（共享纹理模型 —— 由 <c>DrawObjectPass</c> 分配），
+        /// 读取上游颜色目标（共享纹理模型 —— 由 <c>ForwardPass</c> 分配），
         /// 并用 <c>ctx.renderContext.DrawWireOverlay(camera)</c> 绘制 Editor 线框叠加层
         /// —— 与旧 <see cref="EditorWireOverlayPass.Record"/> 逻辑相同。
         /// </para>

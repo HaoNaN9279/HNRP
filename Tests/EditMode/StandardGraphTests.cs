@@ -128,7 +128,7 @@ namespace HN.HNRP.Tests
             // ── forwardOpaque：链头 —— color/depth/渲染器列表本地分配
             //    （未连接）；光照/探针数据来自槽连接 ──
 
-            var forwardOpaque = (DrawObjectPass)FindPass("forwardOpaque");
+            var forwardOpaque = (ForwardPass)FindPass("forwardOpaque");
             Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.False,
                 "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.False,
@@ -157,7 +157,7 @@ namespace HN.HNRP.Tests
             // ── transparency：color/depth 自 sky 链式传入，渲染器列表
             //    本地分配（未连接），光照/探针数据来自槽连接 ──
 
-            var transparency = (DrawObjectPass)FindPass("transparency");
+            var transparency = (ForwardPass)FindPass("transparency");
             Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
                 "transparency.ColorTarget should be connected through sky.ColorTargetOutput.");
             Assert.That(transparency.DepthTargetSlot!.IsConnected, Is.True,

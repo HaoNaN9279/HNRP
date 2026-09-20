@@ -152,7 +152,7 @@ namespace HN.HNRP
         /// <summary>光照数据缓冲输入 slot（连接 <see cref="BuildLightDataPass"/>，只读）。</summary>
         public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
 
-        /// <summary>阴影图集输出 slot（连接下游 <see cref="DrawObjectPass"/> 的 ShadowMap）。</summary>
+        /// <summary>阴影图集输出 slot（连接下游 <see cref="ForwardPass"/> 的 ShadowMap）。</summary>
         public TextureSlot ShadowMapOutputSlot { get; private set; }
 
         // ── 每帧状态 ──

@@ -16,53 +16,8 @@ MonoBehaviour:
   settings:
     SHEvalMode: 2
     AllowHDR: 1
-  passParameterCache:
-  - rid: 6885484152777080841
-  - rid: 6885484152777080842
+  passParameterCache: []
   parameterRevision: 1
   references:
     version: 2
-    RefIds:
-    - rid: 6885484152777080841
-      type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        passName: opaque
-        isEnabled: 1
-        colorTargetParams:
-          ColorFormat: 8
-          DepthBits: 0
-          Slices: 1
-          TextureScale: {x: 1, y: 1}
-          Width: 0
-          Height: 0
-          FilterMode: 1
-          WrapMode: 0
-          TextureDimension: 2
-          UseMipMap: 0
-          AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        depthTargetParams:
-          ColorFormat: 8
-          DepthBits: 32
-          Slices: 1
-          TextureScale: {x: 1, y: 1}
-          Width: 0
-          Height: 0
-          FilterMode: 1
-          WrapMode: 0
-          TextureDimension: 2
-          UseMipMap: 0
-          AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        rendererListParams:
-          ListKind: 0
-          RenderingLayerMask: 1
-        receiveShadow: 1
-    - rid: 6885484152777080842
-      type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        passName: finalBlit
-        isEnabled: 1
-        flip: 0
+    RefIds: []

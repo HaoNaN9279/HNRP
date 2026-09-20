@@ -115,8 +115,8 @@ namespace HN.HNRP.Tests
 
             // 渲染器列表参数在 pass 构造时配置：
             // forwardOpaque 使用 opaque，transparency 使用 transparent。
-            var forwardOpaque = (DrawObjectPass)bp.Passes.First(p => p.PassName == "forwardOpaque");
-            var transparency = (DrawObjectPass)bp.Passes.First(p => p.PassName == "transparency");
+            var forwardOpaque = (ForwardPass)bp.Passes.First(p => p.PassName == "forwardOpaque");
+            var transparency = (ForwardPass)bp.Passes.First(p => p.PassName == "transparency");
 
             Assert.That(forwardOpaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
                 "forwardOpaque should allocate an opaque renderer list.");
@@ -153,7 +153,7 @@ namespace HN.HNRP.Tests
                     $"Preview template should declare a '{passName}' pass.");
             }
 
-            var opaque = (DrawObjectPass)bp.Passes.First(p => p.PassName == "opaque");
+            var opaque = (ForwardPass)bp.Passes.First(p => p.PassName == "opaque");
             Assert.That(opaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
                 "Preview opaque pass should allocate an opaque renderer list.");
         }
