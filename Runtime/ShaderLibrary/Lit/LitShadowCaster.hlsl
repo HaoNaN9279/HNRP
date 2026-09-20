@@ -2,7 +2,6 @@
 #define HNRP_LIT_SHADOW_CASTER_INCLUDED
 
 #include "../Common/Common.hlsl"
-#include "../Core/Input.hlsl"
 #include "LitInput.hlsl"
 
 // ShadowCaster pass 的最小顶点 / 片元实现：仅把几何体变换到光源裁剪空间。

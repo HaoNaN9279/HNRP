@@ -4,8 +4,8 @@
 #include "../Debug/DebugColorMap.hlsl"
 
 // 群集掩码缓冲与簇索引推导（与光照 / GI 循环使用同一套函数，保证簇归属一致）。
-#include "../ClusterCulling/ClusterCullingLight.hlsl"
-#include "../ClusterCulling/ClusterCullingReflectionProbe.hlsl"
+#include "../Light/ClusterCullingLight.hlsl"
+#include "../Light/ClusterCullingReflectionProbe.hlsl"
 
 // HNRP 渲染调试 —— Lit 前向 pass 暴露的每像素通道。
 //

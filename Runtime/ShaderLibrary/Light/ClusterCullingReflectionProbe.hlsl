@@ -3,7 +3,7 @@
 
 #if CLUSTER_CULLING_REFLECTION_PROBE
 
-#include "../Core/Input.hlsl"
+#include "LightInput.hlsl"
 
 struct ClusterCullingReflectionProbeIterator
 {

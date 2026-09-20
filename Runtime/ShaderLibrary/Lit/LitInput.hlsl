@@ -25,7 +25,9 @@
 #endif
 
 #include "../Common/Common.hlsl"
-#include "../Core/Input.hlsl"
+#include "../Core/UnityInput.hlsl"
+#include "../Light/LightInput.hlsl"
+#include "../Shadow/ShadowInput.hlsl"
 
 #if defined(_BASEMAP)
 TEXTURE2D(_BaseMap);

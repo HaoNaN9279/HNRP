@@ -2,7 +2,7 @@
 #define HNRP_SHADOW_INCLUDED
 
 #include "../Common/Common.hlsl"
-#include "../Core/Input.hlsl"
+#include "ShadowInput.hlsl"
 
 #ifdef HN_DEBUG_PER_PIXEL
 /// 每像素调试：本像素最近一次 soft shadow PCSS 采样实际使用的滤波半径（texel）。

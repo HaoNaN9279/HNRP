@@ -3,7 +3,7 @@
 
 #if CLUSTER_CULLING_LIGHT
 
-#include "../Core/Input.hlsl"
+#include "LightInput.hlsl"
 
 struct ClusterCullingLightIterator
 {

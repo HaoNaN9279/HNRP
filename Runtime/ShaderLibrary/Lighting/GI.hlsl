@@ -1,7 +1,7 @@
 #ifndef HNRP_GI_INCLUDED
 #define HNRP_GI_INCLUDED
 
-#include "../ClusterCulling/ClusterCullingReflectionProbe.hlsl"
+#include "../Light/ClusterCullingReflectionProbe.hlsl"
 
 #if !defined(_MIXED_LIGHTING_SUBTRACTIVE) && defined(LIGHTMAP_SHADOW_MIXING) && !defined(SHADOWS_SHADOWMASK)
     #define _MIXED_LIGHTING_SUBTRACTIVE
