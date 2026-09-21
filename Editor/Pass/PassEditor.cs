@@ -119,9 +119,20 @@ namespace HN.HNRP.Editor
             return !Equals(templateValue, cacheValue);
         }
 
-        /// <summary>请求打开该 pass 的文档。当前文档缺失，仅输出占位提示。</summary>
+        /// <summary>
+        /// 请求打开该 pass 的文档：优先用该 pass 绑定的镜像编辑器提供的 URL，
+        /// 未提供时输出占位提示。
+        /// </summary>
         public void ShowDocumentation()
         {
+            PassEditor editor = PassEditorRegistry.GetEditor(TemplatePass.GetType());
+            string url = editor.GetDocumentationUrl(TemplatePass);
+            if (!string.IsNullOrEmpty(url))
+            {
+                Application.OpenURL(url);
+                return;
+            }
+
             Debug.Log(
                 $"[HNRP] {TemplatePass.GetType().Name}('{TemplatePass.PassName}') " +
                 $"文档暂缺：待补充。");
@@ -136,26 +147,80 @@ namespace HN.HNRP.Editor
 
     /// <summary>
     /// 在 <see cref="RenderGraphAsset"/> 检视面板中显示 / 编辑某个 <see cref="Pass"/>
-    /// 参数的抽象 Editor 基类。RenderGraphAsset 面板按 pass 类型经
-    /// <see cref="PassEditorRegistry"/> 取回编辑器并调用
-    /// <see cref="DrawPassParameters"/>。
+    /// 参数的抽象 Editor 基类，即「各 Pass 自定义面板内容」的统一接口。
+    /// RenderGraphAsset 面板按 pass 类型经 <see cref="PassEditorRegistry"/> 取回编辑器
+    /// 并调用 <see cref="DrawPassParameters"/>。
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <see cref="Pass"/> 是纯 C# 类（非 <see cref="UnityEngine.Object"/>），因此不能
-    /// 用 Unity 的 <c>[CustomEditor]</c>。默认实现按「Volume 组件面板」样式把参数
-    /// 暴露为可编辑控件（未修改显示模板预设值，修改后 label 加粗）；子类可覆写
-    /// <see cref="DrawPassParameters"/> 实现自定义布局。Editor 无状态、可缓存单例。
+    /// 用 Unity 的 <c>[CustomEditor]</c>。子类以
+    /// <c>[PassEditor(typeof(XxxPass))]</c> 绑定目标 pass 类型。
+    /// </para>
+    /// <para>
+    /// 子类有两种自定义粒度：
+    /// </para>
+    /// <list type="number">
+    ///   <item><b>声明式</b>：覆写 <see cref="ConfigureFieldLayout"/> 声明分组 /
+    ///   隐藏 / 条件显示 / 条件灰显，参数绘制仍走通用抽屉（推荐，首选）；</item>
+    ///   <item><b>完全自定义</b>：覆写 <see cref="DrawPassParameters"/> 自行布局，
+    ///   仍应经 <see cref="RenderGraphPassGUIContext"/> 读写参数。</item>
+    /// </list>
+    /// <para>Editor 无状态、可缓存单例，故布局只按类型构建一次并缓存。</para>
     /// </remarks>
     public abstract class PassEditor
     {
         /// <summary>
-        /// 绘制当前 pass 的参数主体。基类实现按「组（嵌套可序列化 struct）→ 参数行」
-        /// 布局，每行经 SerializedProperty 绘制可编辑控件。
+        /// 按类型缓存的面板字段布局（首次绘制时经
+        /// <see cref="ConfigureFieldLayout"/> 构建）。
+        /// </summary>
+        private PassFieldLayout layout;
+
+        /// <summary>
+        /// 绘制当前 pass 的参数主体。基类实现按
+        /// <see cref="ConfigureFieldLayout"/> 声明的布局绘制（未声明时按
+        /// 「组（嵌套可序列化 struct）→ 参数行」反射布局），每行经
+        /// SerializedProperty 绘制可编辑控件。
         /// </summary>
         /// <param name="context">当前 pass 的绘制上下文。</param>
         public virtual void DrawPassParameters(RenderGraphPassGUIContext context)
         {
-            PassParametersGUI.DrawParameters(context);
+            PassParametersGUI.DrawParameters(context, GetFieldLayout());
+        }
+
+        /// <summary>
+        /// 声明本 pass 面板的字段布局（分组 / 隐藏 / 条件显示）。默认不声明任何布局，
+        /// 全部参数按反射顺序平铺。
+        /// </summary>
+        /// <param name="layout">待填充的布局声明对象。</param>
+        public virtual void ConfigureFieldLayout(PassFieldLayout layout)
+        {
+        }
+
+        /// <summary>
+        /// 取本 pass 参考文档的 URL，用于面板 Header 的 <c>?</c> 按钮。
+        /// 默认返回 <c>null</c>（按钮输出占位日志）。
+        /// </summary>
+        /// <param name="pass">当前 pass（模板实例），供按实例名返回不同 URL。</param>
+        /// <returns>文档 URL；无文档时为 <c>null</c>。</returns>
+        public virtual string GetDocumentationUrl(Pass pass)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// 取缓存的面板字段布局，首次调用时按类型构建。
+        /// </summary>
+        /// <returns>本编辑器对应的布局声明（可能为空布局）。</returns>
+        protected PassFieldLayout GetFieldLayout()
+        {
+            if (layout == null)
+            {
+                layout = new PassFieldLayout();
+                ConfigureFieldLayout(layout);
+            }
+
+            return layout;
         }
     }
 
@@ -174,6 +239,11 @@ namespace HN.HNRP.Editor
     /// SerializedProperty 绘制可编辑控件。此工具保持 Pass 类自身简洁 —— Pass 不引入
     /// 任何编辑器函数。
     /// </summary>
+    /// <remarks>
+    /// 传入 <see cref="PassFieldLayout"/> 时按其「分组 / 隐藏 / 条件显示」声明绘制；
+    /// 某个 Pass 特异的隐藏规则由该 Pass 的 <see cref="PassEditor"/> 声明，本工具不再
+    /// 内建任何具体 Pass 的字段黑名单。
+    /// </remarks>
     public static class PassParametersGUI
     {
         /// <summary>
@@ -187,6 +257,12 @@ namespace HN.HNRP.Editor
             /// <summary>叶子显示名（不含父组前缀）。</summary>
             public string Label;
 
+            /// <summary>
+            /// 所属顶层 <c>[SerializeField]</c> 字段名（<see cref="PassFieldLayout"/>
+            /// 的声明标识）。
+            /// </summary>
+            public string RootFieldName;
+
             /// <summary>叶子字段类型。</summary>
             public Type ValueType => Path[Path.Length - 1].FieldType;
         }
@@ -196,18 +272,15 @@ namespace HN.HNRP.Editor
         /// </summary>
         private sealed class FieldGroup
         {
+            /// <summary>组标题（父字段显示名）。</summary>
             public string Label;
+
+            /// <summary>组所属顶层 <c>[SerializeField]</c> 字段名。</summary>
+            public string RootFieldName;
+
+            /// <summary>组内叶子。</summary>
             public List<FieldLeaf> Leaves = new();
         }
-
-        /// <summary>
-        /// 无需暴露为可编辑参数的字段名（黑名单）。例如 RenderOutputPass 的 flip
-        /// 由相机上下文每帧驱动，不应被用户覆盖。
-        /// </summary>
-        private static readonly HashSet<string> HiddenLeafNames = new()
-        {
-            "flip",
-        };
 
         /// <summary>类型 → 参数条目（叶子或组）缓存（编辑器脚本重编译后自动失效）。</summary>
         private static readonly Dictionary<Type, IReadOnlyList<object>> itemsByType = new();
@@ -219,10 +292,13 @@ namespace HN.HNRP.Editor
         private const float LabelColumnWidth = 150f;
 
         /// <summary>
-        /// 绘制一个 pass 的全部可编辑参数（分组 + 参数行，SerializedProperty 驱动）。
+        /// 按可选布局绘制一个 pass 的全部可编辑参数（分组 + 参数行，SerializedProperty 驱动）。
         /// </summary>
         /// <param name="context">pass 绘制上下文。</param>
-        public static void DrawParameters(RenderGraphPassGUIContext context)
+        /// <param name="layout">
+        /// 面板字段布局声明；为 <c>null</c> 或未声明任何分组时，全部参数按反射顺序平铺。
+        /// </param>
+        public static void DrawParameters(RenderGraphPassGUIContext context, PassFieldLayout layout = null)
         {
             if (!context.HasCache)
             {
@@ -233,34 +309,131 @@ namespace HN.HNRP.Editor
             }
 
             IReadOnlyList<object> items = GetParameterItems(context.TemplatePass.GetType());
-            bool any = false;
 
+            // 未被任何声明消费的条目：按反射顺序补在最后绘制。
+            var remaining = new List<object>(items.Count);
             foreach (object item in items)
             {
-                switch (item)
+                if (layout == null || !layout.IsHidden(GetRootFieldName(item)))
                 {
-                    case FieldGroup group when group.Leaves.Count > 0:
-                        DrawGroupHeader(group.Label);
-                        EditorGUI.indentLevel++;
-                        foreach (FieldLeaf leaf in group.Leaves)
-                        {
-                            DrawLeaf(context, leaf);
-                            any = true;
-                        }
-
-                        EditorGUI.indentLevel--;
-                        break;
-
-                    case FieldLeaf leaf:
-                        DrawLeaf(context, leaf);
-                        any = true;
-                        break;
+                    remaining.Add(item);
                 }
+            }
+
+            bool any = false;
+
+            if (layout != null && layout.Sections.Count > 0)
+            {
+                DrawSections(context, layout, remaining, ref any);
+            }
+
+            for (int i = 0; i < remaining.Count; i++)
+            {
+                DrawItem(context, remaining[i], ref any);
             }
 
             if (!any)
             {
                 EditorGUILayout.HelpBox("该 Pass 无可编辑参数。", MessageType.Info);
+            }
+        }
+
+        /// <summary>
+        /// 按声明的分组顺序绘制各 section：先把成员从 <paramref name="remaining"/> 中摘出
+        /// （隐藏的 section 也不再落到未分组区），再按显示 / 灰显条件绘制。
+        /// </summary>
+        private static void DrawSections(
+            RenderGraphPassGUIContext context,
+            PassFieldLayout layout,
+            List<object> remaining,
+            ref bool any)
+        {
+            foreach (PassFieldSection section in layout.Sections)
+            {
+                var members = TakeSectionMembers(remaining, section.RootFieldNames);
+                if (members.Count == 0)
+                {
+                    continue;
+                }
+
+                if (section.ShowWhenPredicate != null && !section.ShowWhenPredicate(context))
+                {
+                    continue;
+                }
+
+                bool disabled = section.DisableWhenPredicate != null
+                    && section.DisableWhenPredicate(context);
+
+                DrawGroupHeader(section.Label);
+                using (new EditorGUI.DisabledScope(disabled))
+                {
+                    EditorGUI.indentLevel++;
+                    for (int i = 0; i < members.Count; i++)
+                    {
+                        DrawItem(context, members[i], ref any);
+                    }
+
+                    EditorGUI.indentLevel--;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 按分组成员字段名顺序从 <paramref name="remaining"/> 摘下对应条目
+        /// （同名条目只会被一个 section 消费）。
+        /// </summary>
+        private static List<object> TakeSectionMembers(
+            List<object> remaining,
+            IReadOnlyList<string> rootFieldNames)
+        {
+            var members = new List<object>(rootFieldNames.Count);
+            foreach (string name in rootFieldNames)
+            {
+                int index = remaining.FindIndex(item => GetRootFieldName(item) == name);
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                members.Add(remaining[index]);
+                remaining.RemoveAt(index);
+            }
+
+            return members;
+        }
+
+        /// <summary>取条目的顶层字段名（叶子或嵌套 struct 组皆有）。</summary>
+        private static string GetRootFieldName(object item)
+        {
+            return item switch
+            {
+                FieldGroup group => group.RootFieldName,
+                FieldLeaf leaf => leaf.RootFieldName,
+                _ => null,
+            };
+        }
+
+        /// <summary>绘制单个参数条目（叶子或嵌套 struct 组）。</summary>
+        private static void DrawItem(RenderGraphPassGUIContext context, object item, ref bool any)
+        {
+            switch (item)
+            {
+                case FieldGroup group when group.Leaves.Count > 0:
+                    DrawGroupHeader(group.Label);
+                    EditorGUI.indentLevel++;
+                    foreach (FieldLeaf leaf in group.Leaves)
+                    {
+                        DrawLeaf(context, leaf);
+                        any = true;
+                    }
+
+                    EditorGUI.indentLevel--;
+                    break;
+
+                case FieldLeaf leaf:
+                    DrawLeaf(context, leaf);
+                    any = true;
+                    break;
             }
         }
 
@@ -297,11 +470,6 @@ namespace HN.HNRP.Editor
                     continue;
                 }
 
-                if (HiddenLeafNames.Contains(field.Name))
-                {
-                    continue;
-                }
-
                 if (typeof(PassSlot).IsAssignableFrom(field.FieldType))
                 {
                     continue;
@@ -313,6 +481,7 @@ namespace HN.HNRP.Editor
                     var group = new FieldGroup
                     {
                         Label = FriendlyName(field.Name),
+                        RootFieldName = field.Name,
                         Leaves = new List<FieldLeaf>(),
                     };
                     CollectNestedLeaves(field.FieldType, new[] { field }, group.Leaves);
@@ -324,6 +493,7 @@ namespace HN.HNRP.Editor
                     {
                         Path = new[] { field },
                         Label = FriendlyName(field.Name),
+                        RootFieldName = field.Name,
                     });
                 }
             }
@@ -339,11 +509,6 @@ namespace HN.HNRP.Editor
             foreach (FieldInfo field in structType.GetFields(FieldFlags))
             {
                 if (!IsEditableField(field))
-                {
-                    continue;
-                }
-
-                if (HiddenLeafNames.Contains(field.Name))
                 {
                     continue;
                 }
@@ -366,6 +531,7 @@ namespace HN.HNRP.Editor
                     {
                         Path = path,
                         Label = FriendlyName(field.Name),
+                        RootFieldName = path[0].Name,
                     });
                 }
             }

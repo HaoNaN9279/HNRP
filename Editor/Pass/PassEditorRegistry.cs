@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
+using UnityEngine;
 
 namespace HN.HNRP.Editor
 {
@@ -78,8 +79,11 @@ namespace HN.HNRP.Editor
                     continue;
                 }
 
-                if (editors.ContainsKey(attr.PassType))
+                if (editors.TryGetValue(attr.PassType, out PassEditor bound))
                 {
+                    Debug.LogWarning(
+                        $"PassEditorRegistry: '{attr.PassType.Name}' 已绑定编辑器 " +
+                        $"'{bound.GetType().Name}'，忽略重复绑定 '{type.Name}'。");
                     continue;
                 }
 
