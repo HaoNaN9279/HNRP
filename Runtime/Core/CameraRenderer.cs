@@ -376,8 +376,8 @@ namespace HN.HNRP
 
             slice = Mathf.Max(0, state.Settings.PreviewSlice);
 
-            // mip 属于「不重要参数」，由 GlobalSettings 的默认值解析得到。
-            mip = Mathf.Max(0, state.PreviewMip);
+            // mip 由运行时配置给出，再按纹理实际的 mip 链长度钳制（越界会采样到未定义数据）。
+            mip = Mathf.Clamp(state.PreviewMip, 0, Mathf.Max(0, texture.mipmapCount - 1));
             return true;
         }
 

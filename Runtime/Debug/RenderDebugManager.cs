@@ -734,7 +734,7 @@ namespace HN.HNRP
                 return;
             }
 
-            // 布局类参数（文本区位置 / 字号 / 预览边长 / mip / 色带越界）统一取
+            // 布局类参数（文本区位置 / 字号 / 预览边长 / 色带越界）统一取
             // GlobalSettings 的默认值，不在浮动面板里暴露。
             RenderDebugDefaults defaults = GetDebugDefaults();
 
@@ -743,7 +743,9 @@ namespace HN.HNRP
             state.OverlayRect = defaults.OverlayRect;
             state.FontScale = Mathf.Max(1.0f, defaults.FontScale);
             state.PreviewSize = Mathf.Max(16f, defaults.PreviewSize);
-            state.PreviewMip = Mathf.Max(0, defaults.PreviewMip);
+
+            // 预览 mip 属于面板上的运行时选择，由配置直接给出（解析阶段再按纹理钳制）。
+            state.PreviewMip = Mathf.Max(0, settings.PreviewMip);
 
             state.EntryCount = Mathf.Min(RowCount, MaxRows);
             state.SingleValuesActive = settings.DrawSingleValues && state.EntryCount > 0;
@@ -950,13 +952,15 @@ namespace HN.HNRP
             RenderDebugState state = context.DebugState;
 
             // 预览源只能是「pass 自描述的内部渲染目标」（阴影图集 / 反射探针图集）。
-            // mip 级别由 GlobalSettings 的默认值决定，此处只接受解析出的 slice。
+            // 解析器返回的 slice / mip 已按纹理实际维度钳制，直接采用。
             if (previewResolver != null
-                && previewResolver.TryResolvePreview(context, out Texture texture, out int slice, out _)
+                && previewResolver.TryResolvePreview(
+                    context, out Texture texture, out int slice, out int mip)
                 && texture != null)
             {
                 state.PreviewTexture = texture;
                 state.PreviewSlice = slice;
+                state.PreviewMip = mip;
                 state.TexturePreviewActive = true;
             }
         }

@@ -12,7 +12,7 @@ namespace HN.HNRP
     /// <see cref="HNRenderPipelineGlobalSettings.DebugDefaults"/> 上。
     /// </summary>
     /// <remarks>
-    /// 这里只放「进过一次就很少再改」的参数：文本区位置 / 字号、预览边长 / mip、
+    /// 这里只放「进过一次就很少再改」的参数：文本区位置 / 字号、预览边长、
     /// 色带越界处理。它们刻意不出现在 SceneView 浮动面板里，避免面板被低频参数淹没。
     /// 每帧由 <see cref="RenderDebugManager.ResolveState"/> 合并进帧级状态。
     /// </remarks>
@@ -32,16 +32,12 @@ namespace HN.HNRP
         [Tooltip("纹理预览区边长（像素）")]
         public float PreviewSize;
 
-        /// <summary>纹理预览的 mip 级别。</summary>
-        [Tooltip("纹理预览的 mip 级别")]
-        public int PreviewMip;
-
         /// <summary>色带越界处理：<c>false</c> = Clamp，<c>true</c> = Wrap。</summary>
         [Tooltip("色带越界处理：false = Clamp，true = Wrap")]
         public bool ColorMapWrap;
 
         /// <summary>
-        /// 文档化默认值：左上角文本区、字号 0.5、预览 256 像素、mip 0、Clamp。
+        /// 文档化默认值：左上角文本区、字号 1.0、预览 256 像素、Clamp。
         /// </summary>
         public static RenderDebugDefaults CreateDefault()
         {
@@ -50,7 +46,6 @@ namespace HN.HNRP
                 OverlayRect = new Rect(0.01f, 0.01f, 0.4f, 0.9f),
                 FontScale = 1.0f,
                 PreviewSize = 256f,
-                PreviewMip = 0,
                 ColorMapWrap = false,
             };
         }

@@ -26,8 +26,13 @@ namespace HN.HNRP.Editor
     /// <para>
     /// 面板按<b>数值 / 每像素 / 预览</b>三段组织，每段有自己的启用开关，
     /// 未启用时该段参数为只读（<see cref="EditorGUI.DisabledScope"/>）。
-    /// 低频参数（文本区位置、字号、预览边长 / mip、色带越界）不在此暴露，
+    /// 低频的布局参数（文本区位置、字号、预览边长、色带越界）不在此暴露，
     /// 统一放在 <see cref="HNRenderPipelineGlobalSettings.DebugDefaults"/>。
+    /// </para>
+    /// <para>
+    /// 面板参数与三段折叠状态都经
+    /// <see cref="RenderDebugSettingsPersistence"/> 持久化到 EditorPrefs，
+    /// 脚本重载 / 编辑器重启后自动恢复，不写入 Project 资源。
     /// </para>
     /// </remarks>
     [Overlay(
@@ -71,9 +76,6 @@ namespace HN.HNRP.Editor
 
         /// <summary>「预览」段下标。</summary>
         private const int SectionPreview = 2;
-
-        /// <summary>各段的折叠状态（数值 / 每像素 / 预览）。</summary>
-        private static readonly bool[] sectionExpanded = { false, true, false };
 
         /// <inheritdoc />
         public override void OnCreated()
@@ -143,6 +145,9 @@ namespace HN.HNRP.Editor
 
             RenderDebugSettings settings = RenderDebugManager.Settings;
 
+            // 面板改动的持久化由变化检测驱动（仅在真的改动时写 EditorPrefs，避免每帧落盘）。
+            EditorGUI.BeginChangeCheck();
+
             EditorGUILayout.BeginHorizontal();
             bool enabled = EditorGUILayout.ToggleLeft("Debug", settings.Enabled, GUILayout.Width(64f));
 
@@ -171,6 +176,11 @@ namespace HN.HNRP.Editor
             }
 
             RenderDebugManager.Settings = settings;
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                RenderDebugSettingsPersistence.SaveSettings();
+            }
         }
 
         /// <summary>
@@ -311,8 +321,9 @@ namespace HN.HNRP.Editor
                 var keys = new List<string>();
                 var labels = new List<string>();
                 var sliceCounts = new List<int>();
+                var mipCounts = new List<int>();
 
-                CollectPreviewSources(keys, labels, sliceCounts);
+                CollectPreviewSources(keys, labels, sliceCounts, mipCounts);
 
                 if (keys.Count == 0)
                 {
@@ -326,6 +337,9 @@ namespace HN.HNRP.Editor
 
                 settings.PreviewSlice = EditorGUILayout.IntSlider(
                     "slice", settings.PreviewSlice, 0, Mathf.Max(0, sliceCounts[index] - 1));
+
+                settings.PreviewMip = EditorGUILayout.IntSlider(
+                    "mip", settings.PreviewMip, 0, Mathf.Max(0, mipCounts[index] - 1));
             }
         }
 
@@ -351,13 +365,21 @@ namespace HN.HNRP.Editor
 
             enabled = (settings.DisplayMode & section) != 0;
 
+            bool[] sectionExpanded = RenderDebugSettingsPersistence.SectionExpanded;
+
             EditorGUILayout.BeginHorizontal();
+            bool wasExpanded = sectionExpanded[index];
             sectionExpanded[index] = EditorGUILayout.Foldout(
                 sectionExpanded[index], title, true, EditorStyles.foldoutHeader);
             GUILayout.FlexibleSpace();
 
             bool next = EditorGUILayout.ToggleLeft(GUIContent.none, enabled, GUILayout.Width(22f));
             EditorGUILayout.EndHorizontal();
+
+            if (sectionExpanded[index] != wasExpanded)
+            {
+                RenderDebugSettingsPersistence.SaveSections();
+            }
 
             if (next != enabled)
             {
@@ -379,7 +401,10 @@ namespace HN.HNRP.Editor
         /// 预览解析器同时支持实例名与注册显示名。
         /// </remarks>
         private static void CollectPreviewSources(
-            List<string> keys, List<string> labels, List<int> sliceCounts)
+            List<string> keys,
+            List<string> labels,
+            List<int> sliceCounts,
+            List<int> mipCounts)
         {
             SceneView sceneView = SceneView.lastActiveSceneView;
             Camera camera = sceneView != null ? sceneView.camera : null;
@@ -392,12 +417,13 @@ namespace HN.HNRP.Editor
                 foreach (Pass pass in cameraData.GetRuntimePasses())
                 {
                     if (pass is IPassDebugPreviewProvider provider
-                        && provider.TryGetDebugPreview(out Texture texture, out int slices, out _)
+                        && provider.TryGetDebugPreview(out Texture texture, out int slices, out int mips)
                         && texture != null)
                     {
                         keys.Add(pass.PassName);
                         labels.Add($"{pass.PassName} ({texture.dimension})");
                         sliceCounts.Add(Mathf.Max(1, slices));
+                        mipCounts.Add(Mathf.Max(1, mips));
                     }
                 }
             }
@@ -415,6 +441,7 @@ namespace HN.HNRP.Editor
                     keys.Add(passName);
                     labels.Add(passName);
                     sliceCounts.Add(1);
+                    mipCounts.Add(1);
                 }
             }
         }

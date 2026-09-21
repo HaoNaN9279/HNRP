@@ -54,7 +54,7 @@ namespace HN.HNRP
         /// <summary>预览区边长（像素）——来自 GlobalSettings 默认值。</summary>
         public float PreviewSize;
 
-        /// <summary>预览 mip 级别——来自 GlobalSettings 默认值。</summary>
+        /// <summary>预览 mip 级别——来自运行时配置（<see cref="RenderDebugSettings.PreviewMip"/>）。</summary>
         public int PreviewMip;
 
         /// <summary>

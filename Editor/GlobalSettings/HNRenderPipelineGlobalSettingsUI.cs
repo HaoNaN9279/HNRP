@@ -113,7 +113,7 @@ namespace HN.HNRP.Editor
                     EditorGUILayout.Space(2f);
                     EditorGUILayout.PropertyField(defaults, Styles.debugDefaultsLabel, includeChildren: true);
                     EditorGUILayout.HelpBox(
-                        "文本区位置 / 字号 / 预览边长 / 预览 mip / 色带越界处理。\n" +
+                        "文本区位置 / 字号 / 预览边长 / 色带越界处理。\n" +
                         "这些是设一次就很少再改的低频参数，SceneView 上的调试面板不再暴露它们。",
                         MessageType.None);
                 }

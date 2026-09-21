@@ -47,13 +47,15 @@ namespace HN.HNRP
         /// </summary>
         /// <param name="texture">探针图集；尚未分配时为 <c>null</c>。</param>
         /// <param name="sliceCount">图集的 slice 数量（texture array 层数）。</param>
-        /// <param name="mipCount">可预览的 mip 级数（图集无 mip，恒为 1）。</param>
+        /// <param name="mipCount">图集的 mip 级数（分配时带完整 mip 链）。</param>
         /// <returns>当前存在可预览图集时返回 <c>true</c>。</returns>
         public bool TryGetDebugPreview(out Texture texture, out int sliceCount, out int mipCount)
         {
             texture = reflectionProbeAtlas;
             sliceCount = atlasSliceCount;
-            mipCount = 1;
+
+            // 图集以 useMipMap: true 分配（逐探针按 mip 写入），暴露真实 mip 级数供预览选择。
+            mipCount = texture != null ? Mathf.Max(1, texture.mipmapCount) : 1;
             return texture != null;
         }
 

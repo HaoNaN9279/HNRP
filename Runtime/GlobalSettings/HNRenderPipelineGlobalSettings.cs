@@ -158,7 +158,7 @@ namespace HN.HNRP
         /// 渲染调试的默认布局与兜底参数。
         /// </summary>
         /// <remarks>
-        /// 这些是「设一次就很少再改」的低频参数（文本区位置 / 字号 / 预览边长 / mip /
+        /// 这些是「设一次就很少再改」的低频参数（文本区位置 / 字号 / 预览边长 /
         /// 色带越界），刻意不放进 SceneView 浮动面板，避免面板被淹没。
         /// 每帧由 <see cref="RenderDebugManager.ResolveState"/> 合并进帧级状态。
         /// </remarks>

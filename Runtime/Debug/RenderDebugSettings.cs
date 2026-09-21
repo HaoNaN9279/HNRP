@@ -14,8 +14,8 @@ namespace HN.HNRP
     /// <para>
     /// 刻意不做成相机级配置：调试显示是「看渲染结果」的手段，一次开关就应对全部相机
     /// 生效，逐个相机配置既繁琐又容易漏。因此本结构只保留<b>运行时选择</b>
-    /// （总开关、SceneView 开关、三段显示开关、每像素通道、色带、预览源），
-    /// 而布局类的「不重要参数」（文本区位置、字号、预览边长 / mip、色带越界处理）
+    /// （总开关、SceneView 开关、三段显示开关、每像素通道、色带、预览源 / slice / mip），
+    /// 而布局类的「不重要参数」（文本区位置、字号、预览边长、色带越界处理）
     /// 统一放在 <see cref="HNRenderPipelineGlobalSettings.DebugDefaults"/> 里，
     /// 由 <see cref="RenderDebugManager.ResolveState"/> 解析时合并。
     /// </para>
@@ -63,8 +63,12 @@ namespace HN.HNRP
         [Tooltip("预览 texture array 的 slice")]
         public int PreviewSlice;
 
+        /// <summary>预览纹理的 mip 级别。</summary>
+        [Tooltip("预览纹理的 mip 级别")]
+        public int PreviewMip;
+
         /// <summary>
-        /// 文档化默认配置：关闭、SceneView 生效、三段全开、未选择通道。
+        /// 文档化默认配置：关闭、SceneView 生效、三段全开、未选择通道、mip 0。
         /// </summary>
         public static RenderDebugSettings Default
         {
@@ -80,6 +84,7 @@ namespace HN.HNRP
                     ColorMap = DebugColorMapSettings.Default,
                     PreviewPassName = null,
                     PreviewSlice = 0,
+                    PreviewMip = 0,
                 };
             }
         }
