@@ -9,14 +9,20 @@ namespace HN.HNRP
     {
         public static readonly string ForwardStr = "Forward";
         public static readonly string ShadowCasterStr = "ShadowCaster";
+        public static readonly string DepthOnlyStr = "DepthOnly";
+        public static readonly string DepthNormalStr = "DepthNormal";
 
 
         public static readonly ShaderTagId ForwardName = new ShaderTagId(ForwardStr);
         public static readonly ShaderTagId ShadowCasterName = new ShaderTagId(ShadowCasterStr);
+        public static readonly ShaderTagId DepthOnlyName = new ShaderTagId(DepthOnlyStr);
+        public static readonly ShaderTagId DepthNormalName = new ShaderTagId(DepthNormalStr);
 
 
         public static readonly ShaderTagId[] AllForwardNames = new[] { ForwardName };
         public static readonly ShaderTagId[] AllShadowCasterNames = new[] { ShadowCasterName };
+        public static readonly ShaderTagId[] AllDepthOnlyNames = new[] { DepthOnlyName };
+        public static readonly ShaderTagId[] AllDepthNormalNames = new[] { DepthNormalName };
     }
 
 

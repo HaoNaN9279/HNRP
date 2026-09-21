@@ -21,7 +21,7 @@ namespace HN.HNRP
     /// </remarks>
     public static class RenderGraphTemplates
     {
-        /// <summary>标准渲染图模板（8 pass / 18 slot，PerPixel+HDR）。</summary>
+        /// <summary>标准渲染图模板（10 pass / 22 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Standard = new RenderGraphTemplate(
             RenderGraphKind.Standard,
             "StandardGraph",
@@ -81,6 +81,7 @@ namespace HN.HNRP
                     new DrawShadowPass("drawShadow"),
                     new ClusterCullingReflectionProbePass("clusterProbe"),
                     new ClusterCullingLightPass("clusterLight"),
+                    new DepthNormalPass("depthNormal"),
                     new ForwardPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
                     new ForwardPass("transparency")
@@ -117,6 +118,7 @@ namespace HN.HNRP
                     SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "forwardOpaque", "ReflectionProbeAtlas"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
+                    SlotConnection.Create("depthNormal", "DepthTargetOutput", "forwardOpaque", "DepthTarget"),
                 },
                 new RenderGraphSettings
                 {

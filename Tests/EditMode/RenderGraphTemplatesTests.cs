@@ -87,31 +87,34 @@ namespace HN.HNRP.Tests
         #region Blueprint —— 定义内容
 
         /// <summary>
-        /// Standard 模板声明完整 9-pass 管线（buildLight / drawShadow /
-        /// clusterProbe / clusterLight / forwardOpaque / sky / transparency /
-        /// wireOverlay / finalBlit）、链式槽连接与 PerPixel HDR 设置。
-        /// 透明 pass 分配透明渲染器列表。
+        /// Standard 模板声明完整 10-pass 管线（buildLight / drawShadow /
+        /// clusterProbe / clusterLight / depthNormal / forwardOpaque / sky /
+        /// transparency / wireOverlay / finalBlit）、链式槽连接与 PerPixel HDR 设置。
+        /// 透明 pass 分配透明渲染器列表；depthNormal 的深度输出接入 forwardOpaque。
         /// </summary>
         [Test]
         public void StandardTemplate_HasExpectedDefinition()
         {
             RenderGraphBlueprint bp = RenderGraphTemplates.Standard.CreateBlueprint();
 
-            Assert.That(bp.Passes.Count, Is.EqualTo(9),
-                "Standard template should declare exactly 9 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(21),
-                "Standard template should declare exactly 21 slot connections.");
+            Assert.That(bp.Passes.Count, Is.EqualTo(10),
+                "Standard template should declare exactly 10 passes.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(22),
+                "Standard template should declare exactly 22 slot connections.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
             Assert.That(bp.Settings.AllowHDR, Is.True,
                 "Standard template should allow HDR render targets.");
 
-            foreach (string passName in new[] { "buildLight", "drawShadow", "forwardOpaque", "finalBlit" })
+            foreach (string passName in new[] { "buildLight", "drawShadow", "depthNormal", "forwardOpaque", "finalBlit" })
             {
                 Assert.That(bp.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Standard template should declare a '{passName}' pass.");
             }
+
+            Assert.That(bp.Passes.OfType<DepthNormalPass>().Any(), Is.True,
+                "Standard template should declare a DepthNormalPass.");
 
             // 渲染器列表参数在 pass 构造时配置：
             // forwardOpaque 使用 opaque，transparency 使用 transparent。
@@ -131,6 +134,15 @@ namespace HN.HNRP.Tests
                     && c.TargetSlot == "ColorTarget"),
                 Is.True,
                 "Standard template should connect forwardOpaque.ColorTargetOutput to sky.ColorTarget.");
+
+            Assert.That(
+                bp.Connections.Any(c =>
+                    c.SourcePass == "depthNormal"
+                    && c.SourceSlot == "DepthTargetOutput"
+                    && c.TargetPass == "forwardOpaque"
+                    && c.TargetSlot == "DepthTarget"),
+                Is.True,
+                "Standard template should connect depthNormal.DepthTargetOutput to forwardOpaque.DepthTarget.");
         }
 
         /// <summary>

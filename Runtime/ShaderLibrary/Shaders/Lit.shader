@@ -123,6 +123,67 @@ Shader "HNRP/Lit"
             #include "../Lit/LitShadowCaster.hlsl"
             ENDHLSL
         }
+
+        Pass
+        {
+            Tags
+            {
+                "LightMode" = "DepthOnly"
+            }
+
+            // 只写深度：无颜色输出（ColorMask 0），深度由 ZWrite 写入深度目标。
+            ZWrite On
+            ColorMask 0
+            Cull[_CullMode]
+            ZTest[_ZTestMode]
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex DepthOnlyVert
+            #pragma fragment DepthOnlyFrag
+
+            // Material Keywords
+            #pragma shader_feature_local _BASEMAP
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+
+            // GPU Instancing
+            #pragma multi_compile_instancing
+
+            #include "../Lit/LitDepthOnly.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Tags
+            {
+                "LightMode" = "DepthNormal"
+            }
+
+            // 深度写深度目标，法线写颜色目标（RGB），两者分离。
+            ZWrite On
+            ColorMask RGB
+            Cull[_CullMode]
+            ZTest[_ZTestMode]
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex DepthNormalVert
+            #pragma fragment DepthNormalFrag
+
+            // Material Keywords
+            // keyword 集合与 Forward 的 UnityPerMaterial CBUFFER 对齐，保证 SRP Batcher 兼容。
+            #pragma shader_feature_local _NORMALMAP
+            #pragma shader_feature_local _BASEMAP
+            #pragma shader_feature_local _MASKMAP
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+
+            // GPU Instancing
+            #pragma multi_compile_instancing
+
+            #include "../Lit/LitDepthNormal.hlsl"
+            ENDHLSL
+        }
     }
 
     CustomEditor "HN.HNRP.Editor.LitGUI"

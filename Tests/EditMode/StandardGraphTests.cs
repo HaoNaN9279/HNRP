@@ -25,7 +25,7 @@ namespace HN.HNRP.Tests
         private static readonly string[] ExpectedPassNames =
         {
             "buildLight", "drawShadow", "clusterProbe", "clusterLight",
-            "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
+            "depthNormal", "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
         };
 
         /// <summary>
@@ -125,14 +125,14 @@ namespace HN.HNRP.Tests
                 return pass!;
             }
 
-            // ── forwardOpaque：链头 —— color/depth/渲染器列表本地分配
-            //    （未连接）；光照/探针数据来自槽连接 ──
+            // ── forwardOpaque：color / 渲染器列表本地分配（未连接）；
+            //    depth 目标来自 depthNormal 预渲染深度；光照/探针数据来自槽连接 ──
 
             var forwardOpaque = (ForwardPass)FindPass("forwardOpaque");
             Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.False,
                 "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
-            Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.False,
-                "forwardOpaque.DepthTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.True,
+                "forwardOpaque.DepthTarget should be connected through depthNormal.DepthTargetOutput.");
             Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
@@ -145,6 +145,15 @@ namespace HN.HNRP.Tests
                 "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
             Assert.That(forwardOpaque.CascadeShadowMapSlot!.IsConnected, Is.True,
                 "forwardOpaque.ShadowMap should be connected through a slot connection from drawShadow.");
+
+            // ── depthNormal：链头 —— 深度 / 法线目标本地分配（未连接），
+            //    深度输出接入 forwardOpaque ──
+
+            var depthNormal = (DepthNormalPass)FindPass("depthNormal");
+            Assert.That(depthNormal.DepthTargetSlot!.IsConnected, Is.False,
+                "depthNormal.DepthTarget should be unconnected — the pass allocates it locally.");
+            Assert.That(depthNormal.NormalTargetSlot!.IsConnected, Is.False,
+                "depthNormal.NormalTarget should be unconnected — the pass allocates it locally.");
 
             // ── sky：color/depth 目标已连接（自 forwardOpaque 链式传入）──
 
@@ -225,9 +234,14 @@ namespace HN.HNRP.Tests
                 "wireOverlay should be present.");
             Assert.That(IndexOf("finalBlit"), Is.GreaterThanOrEqualTo(0),
                 "finalBlit should be present.");
+            Assert.That(IndexOf("depthNormal"), Is.GreaterThanOrEqualTo(0),
+                "depthNormal should be present.");
 
             Assert.That(IndexOf("buildLight"), Is.LessThan(IndexOf("clusterLight")),
                 "buildLight (feeds LightDatas via slot connection) must be ordered before clusterLight.");
+
+            Assert.That(IndexOf("depthNormal"), Is.LessThan(IndexOf("forwardOpaque")),
+                "depthNormal (feeds the shared depth target) must be ordered before forwardOpaque.");
 
             Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("sky")),
                 "forwardOpaque (upstream color/depth pass) must be ordered before sky.");

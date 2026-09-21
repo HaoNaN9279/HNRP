@@ -12,6 +12,8 @@ namespace HN.HNRP
             Register("Builtin Sky", typeof(HN.HNRP.BuiltinSkyPass));
             Register("Cluster Culling Light", typeof(HN.HNRP.ClusterCullingLightPass));
             Register("Cluster Culling Probe", typeof(HN.HNRP.ClusterCullingReflectionProbePass));
+            Register("Depth Normal", typeof(HN.HNRP.DepthNormalPass));
+            Register("Depth Only", typeof(HN.HNRP.DepthOnlyPass));
             Register("Draw Object", typeof(HN.HNRP.ForwardPass));
             Register("Draw Shadow", typeof(HN.HNRP.DrawShadowPass));
             Register("Editor Wire Overlay", typeof(HN.HNRP.EditorWireOverlayPass));
