@@ -34,12 +34,12 @@ struct ShadowMapData
 GLOBAL_CBUFFER_START(_ShadowMapParamsBuffer, b1)
     float    _ShadowSliceResolution;      // atlas 单 slice 分辨率
     float    _ShadowDepthBias;            // 接收者深度偏置（归一化线性深度单位）
-    float    _ShadowSoftness;             // 半影尺寸全局乘子
-    float    _ShadowMinFilterRadius;      // 最小滤波半径（texel）
-    float    _ShadowMaxFilterRadius;      // 全局最大滤波半径（texel）
     float    _ShadowBlockerSampleCount;   // blocker 搜索采样数
     float    _ShadowFilterSampleCount;    // PCF 滤波采样数
     float    _ShadowCascadeBlend;         // 方向光 cascade 级间衔接过渡区宽度（占分割距离百分比）
+    float    _ShadowParamUnused0;
+    float    _ShadowParamUnused1;
+    float    _ShadowParamUnused2;
 CBUFFER_END
 
 #define _SHADOW_SLICE_RESOLUTION (_ShadowSliceResolution)

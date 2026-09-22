@@ -179,15 +179,15 @@ namespace HN.HNRP
 
             shadowGlobalParams._ShadowSliceResolution = allocatedResolution;
             shadowGlobalParams._ShadowDepthBias = shadowDepthBias;
-            shadowGlobalParams._ShadowSoftness = softness;
-            shadowGlobalParams._ShadowMinFilterRadius = minFilterRadius;
-            shadowGlobalParams._ShadowMaxFilterRadius = maxFilterRadius;
             shadowGlobalParams._ShadowBlockerSampleCount = blockerSampleCount;
             shadowGlobalParams._ShadowFilterSampleCount = filterSampleCount;
             // 存量序列化数据新字段读到 0，按默认值兜底，保证级间衔接默认开启。
             shadowGlobalParams._ShadowCascadeBlend = cascadeBlendPercentage > 0f
                 ? cascadeBlendPercentage
                 : DefaultCascadeBlendPercentage;
+            shadowGlobalParams._ShadowParamUnused0 = 0;
+            shadowGlobalParams._ShadowParamUnused1 = 0;
+            shadowGlobalParams._ShadowParamUnused2 = 0;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();

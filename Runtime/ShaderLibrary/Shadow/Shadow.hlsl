@@ -250,7 +250,7 @@ float SamplePcss(
     float filterSampleCount)
 {
     float texel = 1.0 / max((float)resolution, 1.0);
-    float maxRadiusTexels = min(exp2(penumbraRadius), _ShadowMaxFilterRadius);
+    float maxRadiusTexels = penumbraRadius * penumbraRadius;
 
     // 每像素旋转角：使用 CoreRP InterleavedGradientNoise（静态，无需 TAA）。
     float rotation = InterleavedGradientNoise(screenUV * _ScreenParams.xy, 0) * TWO_PI;
@@ -270,11 +270,6 @@ float SamplePcss(
     float filterRadiusTexels = (lightType == 1)
         ? separation * maxRadiusTexels
         : separation / max(avgBlockerDepth, 1e-4) * maxRadiusTexels;
-
-    filterRadiusTexels = clamp(
-        filterRadiusTexels * _ShadowSoftness,
-        _ShadowMinFilterRadius,
-        maxRadiusTexels);
 
     // ── Step3：半影核内 PCF（旋转泊松盘，逐 texel 深度比较）──
     float2 minUV = scaleOffset.zw + 0.5 * texel;

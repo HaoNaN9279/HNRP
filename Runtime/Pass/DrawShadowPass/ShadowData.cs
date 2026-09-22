@@ -81,15 +81,6 @@ namespace HN.HNRP
         /// <summary>接收者深度偏置（归一化线性深度单位），抑制自阴影 / 漏光。</summary>
         public float _ShadowDepthBias;
 
-        /// <summary>半影尺寸全局乘子（默认 1）。</summary>
-        public float _ShadowSoftness;
-
-        /// <summary>最小滤波半径（texel），保证接触处不过锐。</summary>
-        public float _ShadowMinFilterRadius;
-
-        /// <summary>全局最大滤波半径（texel），约束软核上限防止跨 light 越界。</summary>
-        public float _ShadowMaxFilterRadius;
-
         /// <summary>blocker 搜索采样数（旋转泊松盘前 N 个）。</summary>
         public float _ShadowBlockerSampleCount;
 
@@ -100,6 +91,10 @@ namespace HN.HNRP
         /// 方向光 cascade 级间衔接的过渡区宽度：占该级分割距离的百分比（0 表示关闭混合）。
         /// </summary>
         public float _ShadowCascadeBlend;
+
+        public float _ShadowParamUnused0;
+        public float _ShadowParamUnused1;
+        public float _ShadowParamUnused2;
     }
 
     /// <summary>
