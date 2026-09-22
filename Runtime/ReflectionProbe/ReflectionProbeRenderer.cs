@@ -13,10 +13,10 @@ namespace HN.HNRP
 {
     /// <summary>
     /// 实时反射探针「本帧是否已重渲染」的查询源。由 Phase B 的生产者实现，
-    /// 供反射探针图集按需更新：baked / custom 探针跨帧复用，实时探针仅在
-    /// 其 cubemap 被重渲染后才重写图集。
+    /// 经 F 通道（<see cref="PassFrameFacts"/>）发布，供反射探针图集按需更新：
+    /// baked / custom 探针跨帧复用，实时探针仅在其 cubemap 被重渲染后才重写图集。
     /// </summary>
-    public interface IReflectionProbeUpdateSource
+    public interface IReflectionProbeUpdateSource : IFrameFact
     {
         /// <summary>
         /// 返回给定探针本帧是否有 cubemap 面被重渲染。
@@ -332,7 +332,13 @@ namespace HN.HNRP
 
             int probeId = probe.GetInstanceID();
             var customTargetHandle = pool.GetOrCreateFaceHandle(probeId, face, target);
-            var cameraContext = new CameraContext(camera, context)
+
+            // 先取本面相机跨帧存活的渲染器：它持有帧级事实板（F 通道），
+            // 上下文构造时绑定并清空该板；随后 Build / Render 复用同一实例。
+            CameraRenderer renderer =
+                camera.GetHNRPAdditionalCameraData().GetOrCreateRenderer();
+
+            var cameraContext = new CameraContext(camera, context, renderer.Facts)
             {
                 RuntimeResources = asset.runtimeResources,
                 TargetFace = (CubemapFace)face,
@@ -372,8 +378,6 @@ namespace HN.HNRP
                     globalConstantBuffer,
                     GlobalPropertyIDs.ShaderVariablesGlobal);
 
-                CameraRenderer renderer =
-                    camera.GetHNRPAdditionalCameraData().GetOrCreateRenderer();
                 renderer.Build(ReflectionProbeRenderUtils.SelectReflectionRenderGraph(asset, probe));
                 renderer.Render(renderGraph, cameraContext);
             }

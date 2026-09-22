@@ -360,15 +360,27 @@ namespace HN.HNRP
                 : renderGraph.CreateTexture(
                     depthTargetParams.CreateDesc("Depth Buffer", camera));
 
-            RendererListHandle rendererList = CreateRendererList(renderGraph);
+            // ── 深度预渲染复用判定（R 通道）──
+            // 只有「已连接、上游显式声明为不透明深度预渲染、且覆盖本 pass 渲染层」的
+            // 不透明绘制，才能用 ZTest Equal 复用 PreZ。连接 / 句柄存在性本身不代表
+            // 深度内容有效，故必须查询资源语义契约，而不是从 slot 状态推断。
+            IDepthPrepassTraits depthPrepassTraits = DepthTargetSlot.Traits as IDepthPrepassTraits;
+            bool usePrepassDepth = useInputDepth
+                && rendererListParams.ListKind == RenderListKind.Opaque
+                && depthPrepassTraits != null
+                && depthPrepassTraits.IsUsablePrepassDepth(rendererListParams.RenderingLayerMask);
+
+            RendererListHandle rendererList = CreateRendererList(
+                renderGraph,
+                usePrepassDepth ? DepthEqualStateBlock : (RenderStateBlock?)null);
 
             if (!colorTarget.IsValid() || !depthTarget.IsValid() || !rendererList.IsValid())
             {
                 return;
             }
 
-            // 把解析出的颜色 / 深度句柄透传到输出 slot，
-            // 使下游 pass 能从本 pass 输出继续链式连接。
+            // 把解析出的颜色 / 深度句柄透传到输出 slot，使下游 pass 能从本 pass 输出
+            // 继续链式连接；深度输出同步透传资源语义（R 通道）。
             if (ColorTargetOutputSlot != null)
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
@@ -376,7 +388,11 @@ namespace HN.HNRP
 
             if (DepthTargetOutputSlot != null)
             {
-                DepthTargetOutputSlot.SetHandle(depthTarget);
+                // 复用预渲染深度时，深度内容未被本 pass 改写，继续向下游透传该语义；
+                // 自建 / 非预渲染深度则不声明语义。
+                DepthTargetOutputSlot.SetHandle(
+                    depthTarget,
+                    usePrepassDepth ? depthPrepassTraits : null);
             }
 
             using var builder = renderGraph.AddRenderPass<DrawObjectPassData>(
@@ -385,7 +401,12 @@ namespace HN.HNRP
             builder.AllowRendererListCulling(false);
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
-            passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
+
+            // 复用预渲染深度时只读深度（ZTest Equal、ZWrite Off，深度不被改写）；
+            // 否则本 pass 是深度生产者，读写深度。
+            passData.depthTarget = builder.UseDepthBuffer(
+                depthTarget,
+                usePrepassDepth ? DepthAccess.Read : DepthAccess.ReadWrite);
 
             // ── 可选输入：声明读取以建立 RenderGraph 依赖 ──
             // 句柄的实际全局绑定由各生产者 pass 经 IGlobalShaderResource 完成，
@@ -441,9 +462,11 @@ namespace HN.HNRP
                     // 全局 shader 资源绑定：由各生产者 pass 经
                     // IGlobalShaderResource 自行绑定（buffer / texture / 常量 / keyword），
                     // 消费者只负责在绘制前统一触发，无需知道具体生产者类型。
-                    // 相机图标预览相机（"Preview Camera"）不参与这些全局绑定。
-                    if (!(camera.cameraType == CameraType.Preview
-                        && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME))
+                    // 相机图标预览相机（"Preview Camera"）不参与这些全局绑定 ——
+                    // 该判定是帧级事实（F 通道），由管线发布，pass 不再读相机对象猜测语义。
+                    bool isPreviewSharedCamera = cameraContext != null
+                        && cameraContext.Facts.IsPreviewCamera;
+                    if (!isPreviewSharedCamera)
                     {
                         BindConnectedProducerGlobals(ctx.cmd);
                     }
@@ -481,23 +504,11 @@ namespace HN.HNRP
         /// <param name="cmd">接收绑定命令的命令缓冲。</param>
         private void BindConnectedProducerGlobals(CommandBuffer cmd)
         {
-            boundProviders.Clear();
+            ConnectedProducerQuery.CollectOwners(this, boundProviders);
 
-            IReadOnlyList<PassSlot> slots = Slots;
-            for (int i = 0; i < slots.Count; i++)
+            for (int i = 0; i < boundProviders.Count; i++)
             {
-                PassSlot slot = slots[i];
-                if (slot.Direction != SlotDirection.Input || !slot.IsConnected)
-                {
-                    continue;
-                }
-
-                if (slot.ConnectedOutput?.OwnerPass is IGlobalShaderResource provider
-                    && !boundProviders.Contains(provider))
-                {
-                    boundProviders.Add(provider);
-                    provider.BindGlobalShaderResources(cmd);
-                }
+                boundProviders[i].BindGlobalShaderResources(cmd);
             }
         }
 
@@ -526,12 +537,30 @@ namespace HN.HNRP
         }
 
         /// <summary>
+        /// 复用深度预渲染（PreZ）时使用的深度状态覆盖：<c>ZTest Equal</c>、<c>ZWrite Off</c>。
+        /// </summary>
+        /// <remarks>
+        /// 深度已在预渲染中写满不透明物体，本 pass 只对「恰好等于预渲染深度」的片段着色，
+        /// 且不改写深度。经 <see cref="RendererListDesc.stateBlock"/> 挂到渲染器列表上，
+        /// 覆盖材质自身的 <c>ZTest[_ZTestMode]</c> / <c>ZWrite[_ZWrite]</c>。
+        /// </remarks>
+        private static readonly RenderStateBlock DepthEqualStateBlock =
+            new RenderStateBlock(RenderStateMask.Depth)
+            {
+                depthState = new DepthState(false, CompareFunction.Equal),
+            };
+
+        /// <summary>
         /// 从 <see cref="RendererListParams"/> 本地创建渲染器列表。
         /// 裁剪结果不可用时返回默认（无效）句柄。
         /// </summary>
         /// <param name="renderGraph">要在其中创建列表的渲染图。</param>
+        /// <param name="stateBlock">
+        /// 可选的渲染状态覆盖；为 <c>null</c> 时用材质自身 ShaderLab 状态。
+        /// </param>
         /// <returns>创建的渲染器列表句柄，或默认句柄。</returns>
-        private RendererListHandle CreateRendererList(RenderGraph renderGraph)
+        private RendererListHandle CreateRendererList(
+            RenderGraph renderGraph, RenderStateBlock? stateBlock)
         {
             if (!cameraContext.HasCullingResults)
             {
@@ -541,7 +570,8 @@ namespace HN.HNRP
             RendererListDesc desc = rendererListParams.CreateDesc(
                 ShaderPassNames.AllForwardNames,
                 cameraContext.CullingResults,
-                cameraContext.Camera);
+                cameraContext.Camera,
+                stateBlock);
             return renderGraph.CreateRendererList(desc);
         }
 

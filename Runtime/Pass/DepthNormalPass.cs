@@ -118,6 +118,15 @@ namespace HN.HNRP
 
         private CameraContext cameraContext;
 
+        // ── 资源语义（R 通道）──
+        // 发布给下游的不可变语义对象：覆盖掩码变化时重建（罕见），稳态复用零分配。
+
+        /// <summary>本 pass 发布的深度预渲染语义（不可变）。</summary>
+        private DepthPrepassTraits depthPrepassTraits;
+
+        /// <summary><see cref="depthPrepassTraits"/> 对应的渲染层掩码。</summary>
+        private uint depthPrepassTraitsMask;
+
         // ── 构造函数 ──
 
         /// <summary>
@@ -211,9 +220,11 @@ namespace HN.HNRP
             }
 
             // 把解析出的深度 / 法线句柄透传到输出 slot，供下游链式连接。
+            // 深度输出发布「不透明深度预渲染」语义（R 通道），供下游复用 PreZ。
+            // 法线输出当前无语义消费者，只透传句柄。
             if (DepthTargetOutputSlot != null)
             {
-                DepthTargetOutputSlot.SetHandle(depthTarget);
+                DepthTargetOutputSlot.SetHandle(depthTarget, GetDepthPrepassTraits());
             }
 
             if (NormalTargetOutputSlot != null)
@@ -312,6 +323,22 @@ namespace HN.HNRP
                 cameraContext.CullingResults,
                 cameraContext.Camera);
             return renderGraph.CreateRendererList(desc);
+        }
+
+        /// <summary>
+        /// 取本 pass 的深度预渲染语义对象（不可变）。渲染层掩码变化（含编辑器参数
+        /// 覆盖注入 / 运行时动态设置）时重建，稳态复用同一实例。
+        /// </summary>
+        private IResourceTraits GetDepthPrepassTraits()
+        {
+            uint mask = rendererListParams.RenderingLayerMask;
+            if (depthPrepassTraits == null || depthPrepassTraitsMask != mask)
+            {
+                depthPrepassTraitsMask = mask;
+                depthPrepassTraits = new DepthPrepassTraits(mask);
+            }
+
+            return depthPrepassTraits;
         }
 
         // ── Pass data ──

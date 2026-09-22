@@ -50,21 +50,26 @@ namespace HN.HNRP
         /// <param name="passNames">渲染该列表的 shader pass 名。</param>
         /// <param name="cullingResults">当前帧相机裁剪结果。</param>
         /// <param name="camera">当前相机。</param>
+        /// <param name="stateBlock">
+        /// 可选的渲染状态覆盖（深度 / 模板 / 光栅 / 混合掩码）。为 <c>null</c> 时
+        /// 使用材质自身的 ShaderLab 状态。PreZ 复用（<c>ZTest Equal</c>）经此传入。
+        /// </param>
         /// <returns>可直接传给 <c>renderGraph.CreateRendererList</c> 的描述符。</returns>
         public RendererListDesc CreateDesc(
             ShaderTagId[] passNames,
             UnityEngine.Rendering.CullingResults cullingResults,
-            Camera camera)
+            Camera camera,
+            RenderStateBlock? stateBlock = null)
         {
             return ListKind == RenderListKind.Opaque
                 ? GetOpaqueRendererListDesc(
-                    passNames, cullingResults, camera, RenderingLayerMask)
+                    passNames, cullingResults, camera, RenderingLayerMask, stateBlock)
                 : GetTransparentRendererListDesc(
-                    passNames, cullingResults, camera, RenderingLayerMask);
+                    passNames, cullingResults, camera, RenderingLayerMask, stateBlock);
         }
 
 
-        public static RendererListDesc GetOpaqueRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
+        public static RendererListDesc GetOpaqueRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask, RenderStateBlock? stateBlock = null)
         {
             var desc = new RendererListDesc(passNames, cullingResults, camera)
             {
@@ -72,7 +77,7 @@ namespace HN.HNRP
                 rendererConfiguration = GetPerObjectLightFlags(),
                 renderQueueRange = HNRenderQueue.AllOpaque,
                 sortingCriteria = SortingCriteria.CommonOpaque,
-                stateBlock = null,
+                stateBlock = stateBlock,
                 overrideMaterial = null,
                 excludeObjectMotionVectors = false,
             };
@@ -80,7 +85,7 @@ namespace HN.HNRP
             return desc;
         }
 
-        public static RendererListDesc GetTransparentRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
+        public static RendererListDesc GetTransparentRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask, RenderStateBlock? stateBlock = null)
         {
             var desc = new RendererListDesc(passNames, cullingResults, camera)
             {
@@ -88,7 +93,7 @@ namespace HN.HNRP
                 rendererConfiguration = GetPerObjectLightFlags(),
                 renderQueueRange = HNRenderQueue.Transparent,
                 sortingCriteria = SortingCriteria.CommonTransparent,
-                stateBlock = null,
+                stateBlock = stateBlock,
                 overrideMaterial = null,
                 excludeObjectMotionVectors = false,
             };

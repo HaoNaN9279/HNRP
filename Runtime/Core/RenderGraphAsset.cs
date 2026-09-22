@@ -33,12 +33,18 @@ namespace HN.HNRP
     /// 可序列化结构体：每个资产级渲染图设置。
     /// 对应影响 pass 执行方式的顶层设置。
     /// </summary>
+    /// <remarks>
+    /// 本结构体是「图级设置」通道（G 通道，见架构文档 ADR-040）：构建期确定、
+    /// 随 <see cref="Pass.PreRecord(RenderGraphAsset, CameraContext)"/> 的
+    /// <c>template</c> 参数对全部 pass 可见，不参与每帧的 R/F 通道。
+    /// </remarks>
     [Serializable]
     public struct RenderGraphSettings
     {
         /// <summary>
         /// 光照 pass 使用的球谐求值模式。
         /// </summary>
+        // TODO: 当前无消费者（仅模板代码写入）。接入球谐求值分支或移除该设置。
         public SHEvalMode SHEvalMode;
 
         /// <summary>

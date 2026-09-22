@@ -269,7 +269,10 @@ namespace HN.HNRP
                 InvalidateAllProbeContent();
             }
 
-            realtimeProbeUpdates = cameraContext.ReflectionProbeUpdates;
+            // F 通道：查询本帧是否有实时探针更新信号；未发布时为 null，
+            // 消费者保守地对实时探针每帧重写（等价未接入信号前的行为）。
+            cameraContext.Facts.TryGetFact(out IReflectionProbeUpdateSource updates);
+            realtimeProbeUpdates = updates;
 
             // ── 收集可见探针（烘焙 + 实时）并按 importance 降序排序 ──
             // 可见的烘焙探针贡献其烘焙 cubemap；实时探针（在主相机之前的

@@ -176,13 +176,24 @@ namespace HN.HNRP
                     continue;
 
                 // ── 创建 CameraContext ──
-                var cameraContext = new CameraContext(camera, context)
+                // 先取本相机跨帧存活的渲染器：它持有帧级事实板（F 通道，注册区数组
+                // 一次分配长期复用，严格零 GC）。上下文构造时绑定并清空该板。
+                CameraRenderer contextRenderer =
+                    camera.GetHNRPAdditionalCameraData().GetOrCreateRenderer();
+
+                var cameraContext = new CameraContext(camera, context, contextRenderer.Facts)
                 {
                     Flip = SystemInfo.graphicsUVStartsAtTop
                         && camera.cameraType != CameraType.SceneView
                         && camera.cameraType != CameraType.Preview,
                     RuntimeResources = InstanceAsset.runtimeResources,
                 };
+
+                // 帧级事实（F 通道）：本相机是否为共享 GameView 渲染图的预览相机
+                //（"Preview Camera"）。消费方（如 ForwardPass）读该事实而非自行推断。
+                cameraContext.Facts.IsPreviewCamera =
+                    camera.cameraType == CameraType.Preview
+                    && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME;
 
                 // ── 裁剪 ──
                 bool gotParams = camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParams);
@@ -236,9 +247,14 @@ namespace HN.HNRP
 
             // 把实时探针的更新结果交给各相机的 pass：反射探针图集中 baked 探针的
             // 内容可跨帧复用，只有被重渲染过的实时探针才需要重写。
-            foreach (CameraContext probeContext in cameraContexts)
+            // 经帧级事实（F 通道）发布，消费者不依赖 Pipeline 具体类型。
+            // 无可见实时探针时不发布（按需付费：未使用该事实的图零存储）。
+            if (reflectionProbeRenderer.PendingProbeCount > 0)
             {
-                probeContext.ReflectionProbeUpdates = reflectionProbeRenderer;
+                foreach (CameraContext probeContext in cameraContexts)
+                {
+                    probeContext.Facts.Publish(reflectionProbeRenderer);
+                }
             }
 
             // 把所有相机 pass 记录进图；RenderGraphExecution.Dispose()

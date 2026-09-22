@@ -44,6 +44,22 @@ namespace HN.HNRP
         public RenderGraphAsset CurrentTemplate { get; private set; }
 
         /// <summary>
+        /// 本渲染器的帧级事实板（F 通道，见架构文档 ADR-040）。
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>所有权：</b>随本渲染器（每相机）跨帧存活，使注册区数组一次分配、长期复用，
+        /// 达到严格零 GC；<see cref="CameraContext"/> 每帧只是绑定到该板。
+        /// </para>
+        /// <para>
+        /// <b>清空时机：</b>在绑定到 <see cref="CameraContext"/> 时（即每个渲染单元开始时）
+        /// 由 <see cref="CameraContext"/> 构造函数调用 <see cref="PassFrameFacts.Reset"/>，
+        /// 保证不会残留上一帧的已发布事实。
+        /// </para>
+        /// </remarks>
+        public PassFrameFacts Facts { get; } = new PassFrameFacts();
+
+        /// <summary>
         /// 当前 pass 列表对应的模板参数修订号。与
         /// <see cref="RenderGraphAsset.ParameterRevision"/> 不一致时需重建 pass。
         /// </summary>

@@ -72,6 +72,17 @@ namespace HN.HNRP
         protected PassSlot connectedOutput;
 
         /// <summary>
+        /// 本输出 slot 发布的资源语义（R 通道）。仅在输出方向有效；
+        /// 输入方向读取时转发已连接输出的语义。
+        /// </summary>
+        /// <remarks>
+        /// 类型为根契约 <see cref="IResourceTraits"/>，核心不感知具体语义 ——
+        /// 具体契约（如 <see cref="IDepthPrepassTraits"/>）由特征定义，
+        /// 生产者发布其不可变实现，消费者用 <c>is</c> 查询。
+        /// </remarks>
+        private IResourceTraits traits;
+
+        /// <summary>
         /// 拥有本 slot 的 <see cref="Pass"/>。由 <see cref="Pass.RegisterSlot"/> 设置；
         /// 构建期用于从连接推导 pass 级依赖。
         /// </summary>
@@ -82,6 +93,48 @@ namespace HN.HNRP
         /// 对输出 slot：恒为 <c>null</c>。
         /// </summary>
         public PassSlot ConnectedOutput => connectedOutput;
+
+        /// <summary>
+        /// 获取本 slot 关联资源的语义契约（R 通道）。
+        /// </summary>
+        /// <remarks>
+        /// 对输出 slot：返回本 slot 发布时声明的语义（未发布时为 <c>null</c>）。
+        /// 对输入 slot：返回已连接输出发布的语义；未连接时为 <c>null</c>。
+        /// 消费者用 <c>is</c> 查询自己认识的契约
+        /// （如 <c>slot.Traits is IDepthPrepassTraits t</c>），
+        /// 而不是从连接 / 句柄存在性推断资源内容。
+        /// </remarks>
+        public IResourceTraits Traits
+        {
+            get
+            {
+                if (Direction == SlotDirection.Output)
+                {
+                    return traits;
+                }
+
+                return connectedOutput?.traits;
+            }
+        }
+
+        /// <summary>
+        /// 发布本输出 slot 的资源语义契约（R 通道）。
+        /// 由 <see cref="PassSlot{T}.SetHandle(T, IResourceTraits)"/> 调用。
+        /// </summary>
+        /// <param name="value">要发布的语义契约；无语义时为 <c>null</c>。</param>
+        protected void PublishTraits(IResourceTraits value)
+        {
+            traits = value;
+        }
+
+        /// <summary>
+        /// 清除本输出 slot 发布的资源语义契约。
+        /// 在每帧 <c>Record</c> 前随句柄一并重置，防止读到上一帧语义。
+        /// </summary>
+        protected void ClearTraits()
+        {
+            traits = null;
+        }
 
         /// <summary>
         /// 初始化 <see cref="PassSlot"/> 的新实例。
@@ -255,20 +308,42 @@ namespace HN.HNRP
         /// 已连接输入 slot 经 <see cref="ReadHandle"/> 读取。值直接保存（零分配）。
         /// </summary>
         /// <param name="value">真实渲染图资源句柄。</param>
+        /// <remarks>
+        /// 不发布资源语义（等价于无语义）。需要向下游声明资源语义（如资源可作 PreZ
+        /// 复用）时改用 <see cref="SetHandle(T, IResourceTraits)"/>。
+        /// </remarks>
         public void SetHandle(T value)
         {
             this.value = value;
             hasValue = true;
+            PublishTraits(null);
+        }
+
+        /// <summary>
+        /// 为本 slot 设置资源句柄，并同时发布其资源语义契约（R 通道）。
+        /// </summary>
+        /// <param name="value">真实渲染图资源句柄。</param>
+        /// <param name="resourceTraits">
+        /// 该资源的语义契约（特征定义的 <see cref="IResourceTraits"/> 实现，
+        /// 约定不可变）；无语义时为 <c>null</c>。
+        /// </param>
+        public void SetHandle(T value, IResourceTraits resourceTraits)
+        {
+            this.value = value;
+            hasValue = true;
+            PublishTraits(resourceTraits);
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// 把存储值重置为 <c>default</c> 并清除 has-value 标志。
+        /// 把存储值重置为 <c>default</c>、清除 has-value 标志，并清除已发布的
+        /// 资源语义（防止下游读到上一帧语义）。
         /// </remarks>
         public override void ResetHandle()
         {
             value = default;
             hasValue = false;
+            ClearTraits();
         }
 
         /// <summary>

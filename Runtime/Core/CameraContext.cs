@@ -97,12 +97,21 @@ namespace HN.HNRP
         public NativeArray<VisibleReflectionProbe> VisibleReflectionProbes { get; set; }
 
         /// <summary>
-        /// 本帧实时反射探针的更新信号源（由管线在 Phase B 实时探针渲染后填充）。
-        /// 供反射探针图集按需更新：baked / custom 探针跨帧复用，实时探针仅在
-        /// 其 cubemap 被重渲染后重写。为 <c>null</c> 时表示无更新信息，
-        /// 消费者应保守地按「总是更新」处理。
+        /// 本帧的帧级事实（F 通道）：由宿主管线或某个 pass 发布、供其后拓扑顺序的
+        /// pass 消费的「本帧整体状态」。随本上下文每帧新建、<see cref="Dispose"/>
+        /// 时复位，不得跨帧保留。详见架构文档 ADR-040。
         /// </summary>
-        public IReflectionProbeUpdateSource ReflectionProbeUpdates { get; set; }
+        /// <remarks>
+        /// 原先散落的帧级字段（如实时反射探针更新信号）逐步收敛到这里，
+        /// 使「跨 pass 信息」有单一规范通道，而不是继续在上下文上零散加属性。
+        /// <para>
+        /// <b>所有权：</b>本对象不拥有事实板 —— 板由宿主 <see cref="CameraRenderer"/>
+        /// （每相机、跨帧存活）持有并在构造本上下文时绑定，注册区数组一次分配长期复用，
+        /// 保证严格零 GC。构造时调用 <see cref="PassFrameFacts.Reset"/> 清空，
+        /// 避免残留上一帧事实。
+        /// </para>
+        /// </remarks>
+        public PassFrameFacts Facts { get; }
 
         /// <summary>
         /// 管线共享的运行时资源（shader、纹理、compute buffer）。
@@ -142,14 +151,33 @@ namespace HN.HNRP
 
         /// <summary>
         /// 初始化 <see cref="CameraContext"/> 的新实例。
-        /// 从池中分配名为 <c>"CameraContext"</c> 的命令缓冲。
+        /// 从池中分配名为 <c>"CameraContext"</c> 的命令缓冲，并绑定宿主的帧级事实板
+        /// （绑定即清空，保证每个渲染单元从干净的事实状态开始）。
         /// </summary>
         /// <param name="camera">本帧要渲染的相机。</param>
         /// <param name="context">当前帧的 ScriptableRenderContext。</param>
-        public CameraContext(Camera camera, ScriptableRenderContext context)
+        /// <param name="facts">
+        /// 宿主 <see cref="CameraRenderer"/> 持有的跨帧事实板（F 通道）。
+        /// 不能为 <c>null</c>。
+        /// </param>
+        /// <exception cref="System.ArgumentNullException">
+        /// 当 <paramref name="facts"/> 为 <c>null</c> 时抛出。
+        /// </exception>
+        public CameraContext(
+            Camera camera, ScriptableRenderContext context, PassFrameFacts facts)
         {
+            if (facts == null)
+            {
+                throw new System.ArgumentNullException(nameof(facts));
+            }
+
             Camera = camera;
             Context = context;
+            Facts = facts;
+
+            // 绑定即清空：本渲染单元开始时事实板为「未发布」状态。
+            Facts.Reset();
+
             Cmd = CommandBufferPool.Get("CameraContext");
         }
 

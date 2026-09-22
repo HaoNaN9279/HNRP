@@ -139,14 +139,15 @@ namespace HN.HNRP
 
             // 把输入颜色 / 深度句柄透传到输出 slot，
             // 使下游 pass 能从本 pass 输出继续链式连接。
+            // 同时透传资源语义契约（R 通道）—— 只透传句柄会让下游丢失语义。
             if (ColorTargetOutputSlot != null)
             {
-                ColorTargetOutputSlot.SetHandle(colorTarget);
+                ColorTargetOutputSlot.SetHandle(colorTarget, ColorTargetSlot.Traits);
             }
 
             if (DepthTargetOutputSlot != null)
             {
-                DepthTargetOutputSlot.SetHandle(depthTarget);
+                DepthTargetOutputSlot.SetHandle(depthTarget, DepthTargetSlot.Traits);
             }
 
             using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
