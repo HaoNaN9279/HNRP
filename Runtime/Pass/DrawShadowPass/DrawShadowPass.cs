@@ -118,7 +118,7 @@ namespace HN.HNRP
 
         /// <summary>PCF 滤波采样数（旋转泊松盘前 N 个，1–16）。</summary>
         [SerializeField, Range(1, 16)]
-        private int filterSampleCount = 16;
+        private int filterSampleCount = 8;
 
         /// <summary>
         /// 方向光 cascade 级间衔接的过渡区宽度，取该级分割距离的百分比（0.001–0.5）。
