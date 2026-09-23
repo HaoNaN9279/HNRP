@@ -99,8 +99,8 @@ namespace HN.HNRP.Tests
 
             Assert.That(bp.Passes.Count, Is.EqualTo(10),
                 "Standard template should declare exactly 10 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(22),
-                "Standard template should declare exactly 22 slot connections.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(20),
+                "Standard template should declare exactly 20 slot connections.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
@@ -171,7 +171,7 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Reflection 模板声明 8-pass 反射管线与 14 条槽连接。
+        /// Reflection 模板声明 8-pass 反射管线与 13 条槽连接。
         /// 它不包含 cluster probe pass：Reflection 图渲染探针面，
         /// 但不得自行渲染反射探针。
         /// </summary>
@@ -182,8 +182,8 @@ namespace HN.HNRP.Tests
 
             Assert.That(bp.Passes.Count, Is.EqualTo(8),
                 "Reflection template should declare exactly 8 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(14),
-                "Reflection template should declare exactly 14 slot connections.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(13),
+                "Reflection template should declare exactly 13 slot connections.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Reflection template should use PerPixel SH evaluation.");

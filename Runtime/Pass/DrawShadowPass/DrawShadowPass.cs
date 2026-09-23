@@ -137,9 +137,6 @@ namespace HN.HNRP
 
         // ── Slot ──
 
-        /// <summary>光照数据缓冲输入 slot（连接 <see cref="BuildLightDataPass"/>，只读）。</summary>
-        public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
-
         /// <summary>阴影图集输出 slot（连接下游 <see cref="ForwardPass"/> 的 ShadowMap）。</summary>
         public TextureSlot ShadowMapOutputSlot { get; private set; }
 
@@ -257,8 +254,6 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            LightDatasBufferSlot = new ComputeBufferSlot("lightDatasBuffer", SlotDirection.Input);
-            RegisterSlot(LightDatasBufferSlot);
             ShadowMapOutputSlot = new TextureSlot("ShadowMap", SlotDirection.Output);
             RegisterSlot(ShadowMapOutputSlot);
         }
@@ -292,11 +287,6 @@ namespace HN.HNRP
             builder.AllowPassCulling(false);
 
             passData.shadowMap = builder.WriteTexture(atlasHandle);
-
-            if (LightDatasBufferSlot.IsConnected)
-            {
-                passData.lightDatasBuffer = builder.ReadComputeBuffer(LightDatasBufferSlot.ReadHandle());
-            }
 
             if (ShadowMapOutputSlot != null)
             {

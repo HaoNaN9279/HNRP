@@ -148,7 +148,6 @@ namespace HN.HNRP
         private sealed class DrawShadowPassData
         {
             public TextureHandle shadowMap;
-            public ComputeBufferHandle lightDatasBuffer;
         }
     }
 }

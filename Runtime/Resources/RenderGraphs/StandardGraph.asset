@@ -27,7 +27,7 @@ MonoBehaviour:
   - rid: 6885484223596593183
   - rid: 6885484223596593184
   - rid: 6885484223596593185
-  parameterRevision: 8
+  parameterRevision: 653
   references:
     version: 2
     RefIds:
@@ -49,12 +49,9 @@ MonoBehaviour:
         slopBias: 2.5
         softShadowEnabled: 1
         shadowDepthBias: 0.002
-        softness: 1
-        minFilterRadius: 1
-        maxFilterRadius: 512
         blockerSampleCount: 8
-        filterSampleCount: 16
-        cascadeBlendPercentage: 0.1
+        filterSampleCount: 8
+        cascadeBlendPercentage: 0.098
     - rid: 6885484223596593178
       type: {class: ClusterCullingReflectionProbePass, ns: HN.HNRP, asm: HN.HNRP}
       data:
