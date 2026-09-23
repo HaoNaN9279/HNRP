@@ -159,6 +159,14 @@ namespace HN.HNRP
         public TextureSlot DepthTargetOutputSlot { get; private set; }
 
         /// <summary>
+        /// 屏幕空间阴影 mask 输入 slot（来自 <see cref="ScreenSpaceShadowMaskPass"/>）。
+        /// 连接且句柄有效时，本 pass 在绘制前绑定 mask 全局纹理并开启
+        /// <c>SCREEN_SPACE_SHADOW_MAP</c> keyword；否则关闭该 keyword、回退逐光源 atlas 阴影。
+        /// <see cref="Pass.SetupSlots"/> 调用后可用。
+        /// </summary>
+        public TextureSlot ScreenSpaceShadowMaskSlot { get; private set; }
+
+        /// <summary>
         /// <see cref="ColorTargetSlot"/> 输入未连接 / 无效时本地分配
         /// 颜色目标所用的参数。默认：全分辨率 LDR。
         /// </summary>
@@ -262,6 +270,9 @@ namespace HN.HNRP
             RegisterSlot(ColorTargetOutputSlot);
             DepthTargetOutputSlot = new TextureSlot("DepthTargetOutput", SlotDirection.Output);
             RegisterSlot(DepthTargetOutputSlot);
+
+            ScreenSpaceShadowMaskSlot = new TextureSlot("ScreenSpaceShadowMask", SlotDirection.Input);
+            RegisterSlot(ScreenSpaceShadowMaskSlot);
         }
 
         /// <inheritdoc />
@@ -311,6 +322,19 @@ namespace HN.HNRP
                 : renderGraph.CreateTexture(
                     depthTargetParams.CreateDesc("Depth Buffer", camera));
 
+            // ── 屏幕空间阴影 mask ──
+            // 仅当上游 mask pass 已连接且本帧产出句柄、且本 pass 接收阴影时，才走
+            // 屏幕空间阴影分支；否则关闭 keyword，回退逐光源 atlas 阴影（透明度 pass
+            // 未连接该 slot，因此不会继承不透明 pass 的屏幕空间阴影）。
+            bool useScreenSpaceShadow = ScreenSpaceShadowMaskSlot != null
+                && ScreenSpaceShadowMaskSlot.IsConnected
+                && ScreenSpaceShadowMaskSlot.HasHandle
+                && receiveShadow;
+            TextureHandle screenSpaceShadowMask = useScreenSpaceShadow
+                ? ScreenSpaceShadowMaskSlot.ReadHandle()
+                : default;
+            useScreenSpaceShadow = useScreenSpaceShadow && screenSpaceShadowMask.IsValid();
+
             // ── 深度预渲染复用判定（R 通道）──
             // 只有「已连接、上游显式声明为不透明深度预渲染、且覆盖本 pass 渲染层」的
             // 不透明绘制，才能用 ZTest Equal 复用 PreZ。连接 / 句柄存在性本身不代表
@@ -359,6 +383,13 @@ namespace HN.HNRP
                 depthTarget,
                 usePrepassDepth ? DepthAccess.Read : DepthAccess.ReadWrite);
 
+            // 屏幕空间阴影 mask：建立写入 → 读取依赖，并在 render func 内绑定为全局。
+            passData.useScreenSpaceShadow = useScreenSpaceShadow;
+            if (useScreenSpaceShadow)
+            {
+                passData.screenSpaceShadowMask = builder.ReadTexture(screenSpaceShadowMask);
+            }
+
             // ── 全局 shader 资源 ──
             // 光照数据 / 阴影图 / 探针图集 / 簇剔除掩码等均由各生产者 pass 经
             // IGlobalShaderResource 自行绑定为全局资源；本 pass 通过显式依赖边
@@ -392,6 +423,23 @@ namespace HN.HNRP
                     if (!isPreviewSharedCamera)
                     {
                         BindConnectedProducerGlobals(ctx.cmd);
+                    }
+
+                    // ── 屏幕空间阴影 ──
+                    // mask 由 ScreenSpaceShadowMaskPass 产出并经 slot 传入：连接时把 mask
+                    // 绑定为全局纹理并开启 SCREEN_SPACE_SHADOW_MAP，Lit 片元据此用合并
+                    // 屏幕空间阴影替代逐光源 atlas 阴影；未连接（如透明度 pass）时关闭
+                    // keyword，回退 atlas 阴影，避免继承不透明 pass 的全局状态。
+                    if (data.useScreenSpaceShadow)
+                    {
+                        ctx.cmd.SetGlobalTexture(
+                            ScreenSpaceShadowMaskPass.PropertyIDs.screenSpaceShadowMask,
+                            (RenderTargetIdentifier)(RTHandle)data.screenSpaceShadowMask);
+                        ctx.cmd.EnableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
+                    }
+                    else
+                    {
+                        ctx.cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
                     }
 
                     // 渲染调试：按本帧选择开启每像素颜色映射。
@@ -515,6 +563,16 @@ namespace HN.HNRP
             /// 深度目标纹理句柄。
             /// </summary>
             public TextureHandle depthTarget;
+
+            /// <summary>
+            /// 屏幕空间阴影 mask 纹理句柄（仅在 <see cref="useScreenSpaceShadow"/> 为 <c>true</c> 时有效）。
+            /// </summary>
+            public TextureHandle screenSpaceShadowMask;
+
+            /// <summary>
+            /// 本次绘制是否使用屏幕空间阴影 mask。
+            /// </summary>
+            public bool useScreenSpaceShadow;
 
             /// <summary>
             /// 渲染器列表句柄。

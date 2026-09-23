@@ -25,7 +25,7 @@ namespace HN.HNRP.Tests
         private static readonly string[] ExpectedPassNames =
         {
             "buildLight", "drawShadow", "clusterProbe", "clusterLight",
-            "depthNormal", "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
+            "depthNormal", "screenSpaceShadow", "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
         };
 
         /// <summary>
@@ -138,6 +138,8 @@ namespace HN.HNRP.Tests
                 "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.True,
                 "forwardOpaque.DepthTarget should be connected through depthNormal.DepthTargetOutput.");
+            Assert.That(forwardOpaque.ScreenSpaceShadowMaskSlot!.IsConnected, Is.True,
+                "forwardOpaque.ScreenSpaceShadowMask should be connected through screenSpaceShadow.ShadowMaskOutput.");
             Assert.That(HasDependency(forwardOpaque, "buildLight"), Is.True,
                 "forwardOpaque should depend on buildLight (LightDatas).");
             Assert.That(HasDependency(forwardOpaque, "drawShadow"), Is.True,
@@ -155,6 +157,15 @@ namespace HN.HNRP.Tests
                 "depthNormal.DepthTarget should be unconnected — the pass allocates it locally.");
             Assert.That(depthNormal.NormalTargetSlot!.IsConnected, Is.False,
                 "depthNormal.NormalTarget should be unconnected — the pass allocates it locally.");
+
+            // ── screenSpaceShadow：深度自 depthNormal 接入，mask 输出接入 forwardOpaque；
+            //    阴影图集 / 表经显式依赖边发现生产者（无 atlas slot）──
+
+            var screenSpaceShadow = (ScreenSpaceShadowMaskPass)FindPass("screenSpaceShadow");
+            Assert.That(screenSpaceShadow.DepthTargetSlot!.IsConnected, Is.True,
+                "screenSpaceShadow.DepthTarget should be connected through depthNormal.DepthTargetOutput.");
+            Assert.That(HasDependency(screenSpaceShadow, "drawShadow"), Is.True,
+                "screenSpaceShadow should depend on drawShadow (ShadowMap).");
 
             // ── sky：color/depth 目标已连接（自 forwardOpaque 链式传入）──
 
@@ -239,6 +250,13 @@ namespace HN.HNRP.Tests
 
             Assert.That(IndexOf("depthNormal"), Is.LessThan(IndexOf("forwardOpaque")),
                 "depthNormal (feeds the shared depth target) must be ordered before forwardOpaque.");
+
+            Assert.That(IndexOf("depthNormal"), Is.LessThan(IndexOf("screenSpaceShadow")),
+                "depthNormal (feeds the depth target) must be ordered before screenSpaceShadow.");
+            Assert.That(IndexOf("drawShadow"), Is.LessThan(IndexOf("screenSpaceShadow")),
+                "drawShadow (feeds the shadow atlas) must be ordered before screenSpaceShadow.");
+            Assert.That(IndexOf("screenSpaceShadow"), Is.LessThan(IndexOf("forwardOpaque")),
+                "screenSpaceShadow (feeds the shadow mask) must be ordered before forwardOpaque.");
 
             Assert.That(IndexOf("forwardOpaque"), Is.LessThan(IndexOf("sky")),
                 "forwardOpaque (upstream color/depth pass) must be ordered before sky.");

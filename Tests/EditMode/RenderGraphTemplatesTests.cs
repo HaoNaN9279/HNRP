@@ -87,29 +87,31 @@ namespace HN.HNRP.Tests
         #region Blueprint —— 定义内容
 
         /// <summary>
-        /// Standard 模板声明完整 10-pass 管线（buildLight / drawShadow /
-        /// clusterProbe / clusterLight / depthNormal / forwardOpaque / sky /
-        /// transparency / wireOverlay / finalBlit）、链式槽连接与 PerPixel HDR 设置。
-        /// 透明 pass 分配透明渲染器列表；depthNormal 的深度输出接入 forwardOpaque。
+        /// Standard 模板声明完整 11-pass 管线（buildLight / drawShadow /
+        /// clusterProbe / clusterLight / depthNormal / screenSpaceShadow /
+        /// forwardOpaque / sky / transparency / wireOverlay / finalBlit）、链式槽连接
+        /// 与 PerPixel HDR 设置。透明 pass 分配透明渲染器列表；depthNormal 的深度输出
+        /// 接入 forwardOpaque 与 screenSpaceShadow；screenSpaceShadow 的 mask 输出接入
+        /// forwardOpaque，并依赖 drawShadow。
         /// </summary>
         [Test]
         public void StandardTemplate_HasExpectedDefinition()
         {
             RenderGraphBlueprint bp = RenderGraphTemplates.Standard.CreateBlueprint();
 
-            Assert.That(bp.Passes.Count, Is.EqualTo(10),
-                "Standard template should declare exactly 10 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(7),
-                "Standard template should declare exactly 7 content slot connections (color/depth chain).");
-            Assert.That(bp.Dependencies.Count, Is.EqualTo(9),
-                "Standard template should declare exactly 9 explicit dependencies.");
+            Assert.That(bp.Passes.Count, Is.EqualTo(11),
+                "Standard template should declare exactly 11 passes.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(9),
+                "Standard template should declare exactly 9 content slot connections (color/depth/mask chain).");
+            Assert.That(bp.Dependencies.Count, Is.EqualTo(10),
+                "Standard template should declare exactly 10 explicit dependencies.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
             Assert.That(bp.Settings.AllowHDR, Is.True,
                 "Standard template should allow HDR render targets.");
 
-            foreach (string passName in new[] { "buildLight", "drawShadow", "depthNormal", "forwardOpaque", "finalBlit" })
+            foreach (string passName in new[] { "buildLight", "drawShadow", "depthNormal", "screenSpaceShadow", "forwardOpaque", "finalBlit" })
             {
                 Assert.That(bp.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Standard template should declare a '{passName}' pass.");
@@ -117,6 +119,8 @@ namespace HN.HNRP.Tests
 
             Assert.That(bp.Passes.OfType<DepthNormalPass>().Any(), Is.True,
                 "Standard template should declare a DepthNormalPass.");
+            Assert.That(bp.Passes.OfType<ScreenSpaceShadowMaskPass>().Any(), Is.True,
+                "Standard template should declare a ScreenSpaceShadowMaskPass.");
 
             // 渲染器列表参数在 pass 构造时配置：
             // forwardOpaque 使用 opaque，transparency 使用 transparent。
@@ -145,6 +149,30 @@ namespace HN.HNRP.Tests
                     && c.TargetSlot == "DepthTarget"),
                 Is.True,
                 "Standard template should connect depthNormal.DepthTargetOutput to forwardOpaque.DepthTarget.");
+
+            Assert.That(
+                bp.Connections.Any(c =>
+                    c.SourcePass == "depthNormal"
+                    && c.SourceSlot == "DepthTargetOutput"
+                    && c.TargetPass == "screenSpaceShadow"
+                    && c.TargetSlot == "DepthTarget"),
+                Is.True,
+                "Standard template should connect depthNormal.DepthTargetOutput to screenSpaceShadow.DepthTarget.");
+
+            Assert.That(
+                bp.Connections.Any(c =>
+                    c.SourcePass == "screenSpaceShadow"
+                    && c.SourceSlot == "ShadowMaskOutput"
+                    && c.TargetPass == "forwardOpaque"
+                    && c.TargetSlot == "ScreenSpaceShadowMask"),
+                Is.True,
+                "Standard template should connect screenSpaceShadow.ShadowMaskOutput to forwardOpaque.ScreenSpaceShadowMask.");
+
+            Assert.That(
+                bp.Dependencies.Any(d =>
+                    d.SourcePass == "drawShadow" && d.TargetPass == "screenSpaceShadow"),
+                Is.True,
+                "Standard template should make screenSpaceShadow depend on drawShadow.");
         }
 
         /// <summary>

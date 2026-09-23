@@ -26,7 +26,7 @@ namespace HN.HNRP
     /// </para>
     /// </remarks>
     [Pass(PassNameConst)]
-    public sealed partial class DrawShadowPass : Pass, IGlobalShaderResource, IPassDebugPreviewProvider
+    public sealed partial class DrawShadowPass : Pass, IShadowMapProvider, IPassDebugPreviewProvider
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。
@@ -374,16 +374,12 @@ namespace HN.HNRP
         /// <remarks>
         /// 阴影图集产出有效时，开启 <c>SHADOW_MAP</c> keyword，并绑定两张结构化表、
         /// 图集纹理与阴影参数常量缓冲；否则关闭该 keyword。
-        /// <c>SCREEN_SPACE_SHADOW_MAP</c> 目前没有生产者，一并关闭以避免残留。
         /// </remarks>
         public void BindGlobalShaderResources(CommandBuffer cmd)
         {
             bool available = IsEnabled
                 && shadowMapProduced
                 && shadowAtlas != null;
-
-            // 屏幕空间阴影暂无生产者，恒关闭，避免全局 keyword 残留。
-            cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
 
             if (!available)
             {
@@ -416,6 +412,22 @@ namespace HN.HNRP
                 shadowGlobalParams,
                 PropertyIDs.shadowMapParamsBuffer);
         }
+
+        /// <inheritdoc />
+        public bool ShadowMapProduced => IsEnabled && shadowMapProduced && shadowAtlas != null;
+
+        /// <inheritdoc />
+        public RTHandle ShadowAtlas => shadowAtlas;
+
+        /// <inheritdoc />
+        public ComputeBuffer ShadowLightDatasBuffer => shadowLightDatasBuffer;
+
+        /// <inheritdoc />
+        public ComputeBuffer ShadowMapDatasBuffer => shadowMapDatasBuffer;
+
+        /// <inheritdoc />
+        public ComputeBuffer ShadowCameraDatasBuffer => shadowCameraDatasBuffer;
+
 
         /// <summary>
         /// 请求某盏灯在下一次 <see cref="DrawShadowPass"/> 执行时重绘其阴影（

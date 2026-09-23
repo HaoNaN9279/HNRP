@@ -217,7 +217,7 @@ namespace HN.HNRP
 
             if (context.RuntimeResources != null)
             {
-                computeShader = context.RuntimeResources.clusterCullingReflectionProbeCS;
+                computeShader = context.RuntimeResources.shaderResources.clusterCullingReflectionProbeCS;
             }
         }
 

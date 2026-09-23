@@ -22,12 +22,6 @@ namespace HN.HNRP
         public Texture emptyTexture;
         public ComputeBuffer emptyBuffer;
 
-        /// <summary>ComputeShader for cluster-based light culling.</summary>
-        public ComputeShader clusterCullingLightCS;
-
-        /// <summary>ComputeShader for cluster-based reflection probe culling.</summary>
-        public ComputeShader clusterCullingReflectionProbeCS;
-
         /// <summary>按名称获取外部导入纹理（供资源节点导入）。</summary>
         public Texture GetExternalTexture(string name)
         {
@@ -54,6 +48,18 @@ namespace HN.HNRP
             /// <summary>渲染调试叠层 shader（文本 / 纹理预览）。</summary>
             [Reload("Runtime/ShaderLibrary/Shaders/DebugDisplay.shader")]
             public Shader DebugDisplay;
+
+            /// <summary>ComputeShader for cluster-based light culling.</summary>
+            [Reload("Runtime/ShaderLibrary/ComputeShaders/ClusterCullingLightCS.compute")]
+            public ComputeShader clusterCullingLightCS;
+
+            /// <summary>ComputeShader for cluster-based reflection probe culling.</summary>
+            [Reload("Runtime/ShaderLibrary/ComputeShaders/ClusterCullingReflectionProbeCS.compute")]
+            public ComputeShader clusterCullingReflectionProbeCS;
+
+            /// <summary>ComputeShader for the screen-space shadow mask (all shadow-casting lights).</summary>
+            [Reload("Runtime/ShaderLibrary/ComputeShaders/ScreenSpaceShadowMaskCS.compute")]
+            public ComputeShader screenSpaceShadowMaskCS;
         }
     }
 }

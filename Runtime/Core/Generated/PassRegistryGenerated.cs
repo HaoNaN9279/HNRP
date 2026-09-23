@@ -18,6 +18,7 @@ namespace HN.HNRP
             Register("Draw Shadow", typeof(HN.HNRP.DrawShadowPass));
             Register("Editor Wire Overlay", typeof(HN.HNRP.EditorWireOverlayPass));
             Register("Render Output", typeof(HN.HNRP.RenderOutputPass));
+            Register("Screen Space Shadow Mask", typeof(HN.HNRP.ScreenSpaceShadowMaskPass));
         }
     }
 }

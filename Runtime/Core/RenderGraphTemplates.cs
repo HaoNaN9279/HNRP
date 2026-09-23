@@ -21,7 +21,7 @@ namespace HN.HNRP
     /// </remarks>
     public static class RenderGraphTemplates
     {
-        /// <summary>标准渲染图模板（10 pass / 22 slot，PerPixel+HDR）。</summary>
+        /// <summary>标准渲染图模板（11 pass / 24 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Standard = new RenderGraphTemplate(
             RenderGraphKind.Standard,
             "StandardGraph",
@@ -82,6 +82,7 @@ namespace HN.HNRP
                     new ClusterCullingReflectionProbePass("clusterProbe"),
                     new ClusterCullingLightPass("clusterLight"),
                     new DepthNormalPass("depthNormal"),
+                    new ScreenSpaceShadowMaskPass("screenSpaceShadow"),
                     new ForwardPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
                     new ForwardPass("transparency")
@@ -105,6 +106,9 @@ namespace HN.HNRP
                     SlotConnection.Create("transparency", "ColorTargetOutput", "wireOverlay", "ColorTarget"),
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                     SlotConnection.Create("depthNormal", "DepthTargetOutput", "forwardOpaque", "DepthTarget"),
+                    // 屏幕空间阴影：深度自 depthNormal 链式传入，mask 输出接入不透明前向。
+                    SlotConnection.Create("depthNormal", "DepthTargetOutput", "screenSpaceShadow", "DepthTarget"),
+                    SlotConnection.Create("screenSpaceShadow", "ShadowMaskOutput", "forwardOpaque", "ScreenSpaceShadowMask"),
                 },
                 new RenderGraphSettings
                 {
@@ -119,6 +123,7 @@ namespace HN.HNRP
                     PassDependency.Create("buildLight", "transparency", "LightDatas"),
                     PassDependency.Create("drawShadow", "forwardOpaque", "ShadowMap"),
                     PassDependency.Create("drawShadow", "transparency", "ShadowMap"),
+                    PassDependency.Create("drawShadow", "screenSpaceShadow", "ShadowMap"),
                     PassDependency.Create("clusterProbe", "forwardOpaque", "ReflectionProbe"),
                     PassDependency.Create("clusterProbe", "transparency", "ReflectionProbe"),
                     PassDependency.Create("clusterLight", "forwardOpaque", "LightMask"),

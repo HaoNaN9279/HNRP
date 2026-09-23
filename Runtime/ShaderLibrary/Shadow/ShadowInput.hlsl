@@ -54,4 +54,26 @@ StructuredBuffer<ShadowCameraData> _ShadowCameraDatas;
 TEXTURE2D_ARRAY(_ShadowMapArray);
 #endif
 
+#if defined(SCREEN_SPACE_SHADOW_MAP)
+// 屏幕空间阴影 mask：由 ScreenSpaceShadowMaskPass 用 ComputeShader 产出，
+// ForwardPass 在绘制前经全局纹理绑定。单通道，1 = 完全受光，0 = 被任一投影光源完全遮挡。
+TEXTURE2D(_ScreenSpaceShadowMask);
+
+/// 采样本像素的合并屏幕空间阴影可见性。
+/// <remarks>
+/// mask 由 <c>ScreenSpaceShadowMaskCS</c> 以「纹理原始行」写入 —— 输出纹素第 r 行存的是
+/// 第 r 行片元的阴影，与深度附件同向。而 <c>GetNormalizedScreenSpaceUV</c> 在
+/// <c>UNITY_UV_STARTS_AT_TOP</c>（D3D）下会翻转 Y，直接用它采样会取到镜像行、
+/// 导致阴影上下颠倒，故此处翻回原始行列后再采样。
+/// </remarks>
+float SampleScreenSpaceShadowMask(float2 screenUV)
+{
+    float2 maskUV = screenUV;
+#if UNITY_UV_STARTS_AT_TOP
+    maskUV.y = 1.0 - maskUV.y;
+#endif
+    return SAMPLE_TEXTURE2D(_ScreenSpaceShadowMask, sampler_LinearClamp, maskUV).r;
+}
+#endif
+
 #endif

@@ -1,0 +1,91 @@
+// ScreenSpaceShadowMaskCS.compute
+// 屏幕空间阴影 mask：把当前视锥内所有投影光源（方向光 / 点光 / 聚光）的可见性
+// 逐像素合并到一张单通道 mask 上，供 ForwardPass 在绘制不透明物体时采样。
+//
+// 数据来源：DrawShadowPass 产出的阴影图集与三张表（经全局绑定）、
+// DepthNormalPass / DepthOnlyPass 产出的深度缓冲（经 RenderGraph 显式参数绑定）。
+//
+// 注意：compute shader 无 multi_compile，直接定义 SHADOW_MAP 以复用 Shadow.hlsl
+// 的选级与采样逻辑（保证与 Forward 阴影逐像素一致）。
+
+#pragma kernel ScreenSpaceShadowMaskCS
+#pragma target 4.5
+
+#define SHADOW_MAP 1
+
+#include "../Common/Common.hlsl"
+#include "../Core/UnityInput.hlsl"
+#include "../Shadow/Shadow.hlsl"
+
+/// 深度缓冲（RG 自有资源，逐 pass 显式绑定）。
+TEXTURE2D(_SSShadowDepth);
+
+/// 输出 mask：单通道，1 = 完全受光，0 = 完全被任一投影光源遮挡。
+RWTexture2D<float> _ScreenSpaceShadowMask;
+
+/// 本帧参与求值的可见光源数量（= min(可见光数, 最大光源数)）。
+int _SSShadowLightCount;
+
+/// 求某像素在世界坐标下的合并阴影可见性。
+/// 遍历全部投影光源（resolution > 0），逐光源调用 Shadow.hlsl 的
+/// <c>GetShadowAttenuation</c>（方向光按级联、点光按面、聚光单张），
+/// 相乘合并。光源影响范围之外（坐标越界 / 超出级联）该光源返回 1，不产生影响。
+float EvaluateCombinedShadow(float3 positionWS, float2 screenUV)
+{
+    float visibility = 1.0;
+
+    [loop]
+    for (int i = 0; i < _SSShadowLightCount; i++)
+    {
+        ShadowLightData lightData = _ShadowLightDatas[i];
+        if (lightData.resolution <= 0)
+        {
+            // 该光源本帧无阴影（未投射 / 被禁用）。
+            continue;
+        }
+
+        int lightType = GetShadowLightType(lightData);
+        float3 lightDirectionWS = float3(0.0, 1.0, 0.0);
+
+        // 点光需要「表面 → 光源」方向来选 cubemap 面；方向光 / 聚光不使用。
+        if (lightType == 2)
+        {
+            lightDirectionWS = normalize(lightData.lightPosRange.xyz - positionWS);
+        }
+
+        visibility *= GetShadowAttenuation((uint)i, positionWS, lightDirectionWS, screenUV);
+    }
+
+    return visibility;
+}
+
+[numthreads(8, 8, 1)]
+void ScreenSpaceShadowMaskCS(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 pixel = dispatchThreadId.xy;
+    uint2 screenSize = (uint2)_ScreenParams.xy;
+
+    if (pixel.x >= screenSize.x || pixel.y >= screenSize.y)
+    {
+        return;
+    }
+
+    float2 screenUV = (pixel + 0.5) / _ScreenParams.xy;
+
+    float rawDepth = SAMPLE_TEXTURE2D_LOD(
+        _SSShadowDepth, sampler_PointClamp, screenUV, 0.0).r;
+
+    // 远平面 / 天空：无几何体，视为完全受光。
+#if UNITY_REVERSED_Z
+    if (rawDepth <= 0.0)
+#else
+    if (rawDepth >= 1.0)
+#endif
+    {
+        _ScreenSpaceShadowMask[pixel] = 1.0;
+        return;
+    }
+
+    float3 positionWS = ComputeWorldSpacePosition(screenUV, rawDepth, unity_MatrixInvVP);
+    _ScreenSpaceShadowMask[pixel] = EvaluateCombinedShadow(positionWS, screenUV);
+}

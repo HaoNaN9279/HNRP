@@ -85,6 +85,12 @@ namespace HN.HNRP
         public bool AutoGenerateMips;
 
         /// <summary>
+        /// 是否允许随机写入（UAV）。compute shader 以 <c>RWTexture</c> 绘制到本纹理时为 <c>true</c>。
+        /// 默认 <c>false</c>。
+        /// </summary>
+        public bool EnableRandomWrite;
+
+        /// <summary>
         /// 是否在首次使用前清空。清空由渲染图内联到首个写入该资源的 pass。
         /// </summary>
         public bool ClearBuffer;
@@ -131,12 +137,15 @@ namespace HN.HNRP
 
             return new TextureDesc(texWidth, texHeight, false, false)
             {
-                colorFormat = ColorFormat,
+                // 深度目标必须为纯深度纹理（无颜色通道），否则深度无法作为着色器资源被
+                // 采样（颜色通道为空 / 无效）。非深度纹理保持配置的颜色格式。
+                colorFormat = DepthBits != DepthBits.None ? GraphicsFormat.None : ColorFormat,
                 depthBufferBits = DepthBits,
                 slices = Slices,
                 filterMode = FilterMode,
                 wrapMode = WrapMode,
                 dimension = TextureDimension,
+                enableRandomWrite = EnableRandomWrite,
                 clearBuffer = ClearBuffer,
                 clearColor = ClearColor,
                 useMipMap = UseMipMap,

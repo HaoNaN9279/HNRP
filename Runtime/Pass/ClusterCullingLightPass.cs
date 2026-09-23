@@ -113,7 +113,7 @@ namespace HN.HNRP
             }
 
             ComputeShader clusterCullingLightCS =
-                cameraContext.RuntimeResources?.clusterCullingLightCS;
+                cameraContext.RuntimeResources.shaderResources.clusterCullingLightCS;
             if (clusterCullingLightCS == null)
             {
                 Debug.LogError(

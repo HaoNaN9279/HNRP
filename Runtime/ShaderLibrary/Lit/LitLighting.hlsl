@@ -70,6 +70,17 @@ void BuildLightingData(LitSurfaceData litSurfaceData, BRDFData brdfData, Lightin
         }
     LIGHT_LOOP_END
 
+#if defined(SCREEN_SPACE_SHADOW_MAP)
+    // 屏幕空间阴影：合并 mask 已逐像素包含全部投影光源（方向 + 附加）的可见性，
+    // 一次性施加到全部直接光照；逐光源 shadowAttenuation 已在 GetMainLight /
+    // GetAdditionalLight 中置 1，避免重复着色。间接光照不受投影光源遮蔽。
+    float screenSpaceShadow = SampleScreenSpaceShadowMask(normalizedScreenSpaceUV);
+    lightingData.mainDirectLight.diffuse *= screenSpaceShadow;
+    lightingData.mainDirectLight.specular *= screenSpaceShadow;
+    lightingData.additionalDirectLight.diffuse *= screenSpaceShadow;
+    lightingData.additionalDirectLight.specular *= screenSpaceShadow;
+#endif
+
     float3 envSpecular = EnvironmentBRDFSpecular(brdfData, brdfLightingData);
     float3 envReflection = GlossyEnvironmentReflection(brdfData.refViewDirectionWS, positionWS, brdfData.perceptualRoughness, 1.0, normalizedScreenSpaceUV);
     lightingData.indirectLight = IndirectLightingPBR(brdfData.diffuse, lightingInputData.bakedGI, envSpecular, envReflection);
