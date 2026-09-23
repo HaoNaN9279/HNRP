@@ -100,18 +100,6 @@ namespace HN.HNRP
         [SerializeField]
         private float shadowDepthBias = 0.002f;
 
-        // /// <summary>半影尺寸全局乘子（默认 1）。</summary>
-        // [SerializeField]
-        // private float softness = 1f;
-
-        // /// <summary>最小滤波半径（texel），保证接触处不过锐。</summary>
-        // [SerializeField]
-        // private float minFilterRadius = 1f;
-
-        // /// <summary>全局最大滤波半径（texel），约束软核上限防止跨 light 越界。</summary>
-        // [SerializeField]
-        // private float maxFilterRadius = 512f;
-
         /// <summary>blocker 搜索采样数（旋转泊松盘前 N 个，1–16）。</summary>
         [SerializeField, Range(1, 16)]
         private int blockerSampleCount = 8;

@@ -30,9 +30,6 @@ namespace HN.HNRP.Editor
             layout.Section(
                     "Soft Shadow (PCSS)",
                     SoftShadowEnabledField,
-                    "softness",
-                    "minFilterRadius",
-                    "maxFilterRadius",
                     "blockerSampleCount",
                     "filterSampleCount")
                 .DisableWhen(IsSoftShadowDisabled);
