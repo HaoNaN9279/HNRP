@@ -176,7 +176,10 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
                 else // /* spot light */
                 {
                     lightBoundRange = lightData.range * 0.5 / cos(lightData.attenuation.x);
-                    lightBoundCenter = lightData.positionWS + lightBoundRange * lightData.directionWS;
+                    // directionWS 语义为「指向光源」（= 光源 forward 的反方向），
+                    // 而光锥轴是光源 forward，故球心必须沿 forward 偏移（取负）。
+                    // 若直接用 +directionWS，包围球会落到光源背后，导致光锥被整段剔除。
+                    lightBoundCenter = lightData.positionWS - lightBoundRange * lightData.directionWS;
                     lightBoundMin = lightBoundCenter - float3(lightBoundRange, lightBoundRange, lightBoundRange);
                     lightBoundMax = lightBoundCenter + float3(lightBoundRange, lightBoundRange, lightBoundRange);
                 }

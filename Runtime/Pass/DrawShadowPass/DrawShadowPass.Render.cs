@@ -103,8 +103,13 @@ namespace HN.HNRP
                     shadowViewProjParams._ShadowViewProj =
                         GetShadowDrawProjection(command.proj) * command.view;
                     shadowViewProjParams._ShadowLightPosRange = command.lightPosRange;
+                    // x=1 表示透视（局部光）；y=投射者 normal bias（世界单位，仅局部光使用）。
                     shadowViewProjParams._ShadowDepthFlags =
-                        new Vector4(command.isDirectional ? 0f : 1f, 0f, 0f, 0f);
+                        new Vector4(
+                            command.isDirectional ? 0f : 1f,
+                            command.isDirectional ? 0f : shadowNormalBias,
+                            0f,
+                            0f);
 
                     // 逐 map 推送：_ShadowViewProj 随 map 变化，必须与随后的 ExecuteCommandBuffer
                     // 一起提交，确保 DrawShadows 读到本 map 的矩阵。

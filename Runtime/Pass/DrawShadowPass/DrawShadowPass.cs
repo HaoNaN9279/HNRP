@@ -98,7 +98,14 @@ namespace HN.HNRP
 
         /// <summary>接收者深度偏置（归一化线性深度单位），抑制自阴影 / 漏光。</summary>
         [SerializeField]
-        private float shadowDepthBias = 0.002f;
+        private float shadowDepthBias = 0.005f;
+
+        /// <summary>
+        /// 投射者 normal bias（世界单位）：沿投射者法线外扩，抑制透视局部光（点 / 聚光）
+        /// 在掠射 / 远距离处的自阴影。方向光为正交投影，不使用该值。
+        /// </summary>
+        [SerializeField]
+        private float shadowNormalBias = 0.05f;
 
         /// <summary>blocker 搜索采样数（旋转泊松盘前 N 个，1–16）。</summary>
         [SerializeField, Range(1, 16)]
@@ -107,6 +114,18 @@ namespace HN.HNRP
         /// <summary>PCF 滤波采样数（旋转泊松盘前 N 个，1–16）。</summary>
         [SerializeField, Range(1, 16)]
         private int filterSampleCount = 8;
+
+        /// <summary>PCSS 软度系数（乘在滤波半径上，1 为基础值）。</summary>
+        [SerializeField]
+        private float softness = 1f;
+
+        /// <summary>PCSS 最小滤波半径（texel）。</summary>
+        [SerializeField]
+        private float minFilterRadius = 1f;
+
+        /// <summary>PCSS 最大滤波半径（texel，同时约束 blocker 搜索核上限）。</summary>
+        [SerializeField]
+        private float maxFilterRadius = 16f;
 
         /// <summary>
         /// 方向光 cascade 级间衔接的过渡区宽度，取该级分割距离的百分比（0.001–0.5）。

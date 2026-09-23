@@ -92,9 +92,14 @@ namespace HN.HNRP
         /// </summary>
         public float _ShadowCascadeBlend;
 
-        public float _ShadowParamUnused0;
-        public float _ShadowParamUnused1;
-        public float _ShadowParamUnused2;
+        /// <summary>PCSS 软度系数（乘在滤波半径上，1 为基础值）。</summary>
+        public float _ShadowSoftness;
+
+        /// <summary>PCSS 最小滤波半径（texel）。</summary>
+        public float _ShadowMinFilterRadius;
+
+        /// <summary>PCSS 最大滤波半径（texel，同时约束 blocker 搜索核上限）。</summary>
+        public float _ShadowMaxFilterRadius;
     }
 
     /// <summary>
@@ -112,7 +117,10 @@ namespace HN.HNRP
         /// <summary>光源世界位置 + 半径倒数：xyz=位置，w=1/range（方向光为 0）。</summary>
         public Vector4 _ShadowLightPosRange;
 
-        /// <summary>x=1 表示透视（局部光，用距离/range 求线性深度），0 表示正交（方向光，用裁剪 z）。</summary>
+        /// <summary>
+        /// x=1 表示透视（局部光，用距离/range 求线性深度），0 表示正交（方向光，用裁剪 z）；
+        /// y=投射者 normal bias（世界单位，仅局部光使用）。
+        /// </summary>
         public Vector4 _ShadowDepthFlags;
     }
 }

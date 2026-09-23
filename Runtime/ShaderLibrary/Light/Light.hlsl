@@ -19,7 +19,7 @@ struct Light
     uint lightIndex; \
     ClusterCullingLightIterator _internal_clusterIterator = ClusterCullingLightInit(normalizedScreenSpaceUV, positionWS); \
     [loop] while (ClusterCullingLightNext(_internal_clusterIterator, lightIndex)) { \
-        if(lightIndex > MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN) break; \
+        if(lightIndex >= MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN) break; \
         if(lightIndex == _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX) continue;
         
     #define LIGHT_LOOP_END } }

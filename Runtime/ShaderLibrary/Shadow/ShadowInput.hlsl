@@ -37,9 +37,9 @@ GLOBAL_CBUFFER_START(_ShadowMapParamsBuffer, b1)
     float    _ShadowBlockerSampleCount;   // blocker 搜索采样数
     float    _ShadowFilterSampleCount;    // PCF 滤波采样数
     float    _ShadowCascadeBlend;         // 方向光 cascade 级间衔接过渡区宽度（占分割距离百分比）
-    float    _ShadowParamUnused0;
-    float    _ShadowParamUnused1;
-    float    _ShadowParamUnused2;
+    float    _ShadowSoftness;             // PCSS 软度系数（乘在滤波半径上）
+    float    _ShadowMinFilterRadius;      // PCSS 最小滤波半径（texel）
+    float    _ShadowMaxFilterRadius;      // PCSS 最大滤波半径（texel，同时约束 blocker 搜索核上限）
 CBUFFER_END
 
 #define _SHADOW_SLICE_RESOLUTION (_ShadowSliceResolution)

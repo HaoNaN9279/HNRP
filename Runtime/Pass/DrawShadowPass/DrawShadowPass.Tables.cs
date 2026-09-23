@@ -185,9 +185,9 @@ namespace HN.HNRP
             shadowGlobalParams._ShadowCascadeBlend = cascadeBlendPercentage > 0f
                 ? cascadeBlendPercentage
                 : DefaultCascadeBlendPercentage;
-            shadowGlobalParams._ShadowParamUnused0 = 0;
-            shadowGlobalParams._ShadowParamUnused1 = 0;
-            shadowGlobalParams._ShadowParamUnused2 = 0;
+            shadowGlobalParams._ShadowSoftness = softness;
+            shadowGlobalParams._ShadowMinFilterRadius = minFilterRadius;
+            shadowGlobalParams._ShadowMaxFilterRadius = maxFilterRadius;
 
             // OnDemand 请求本帧已消费，清空。
             pendingOnDemandRequests.Clear();

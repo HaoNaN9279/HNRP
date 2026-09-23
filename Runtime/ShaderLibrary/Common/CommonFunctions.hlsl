@@ -107,8 +107,22 @@ float DistanceAttenuation(float3 lightVector, float range)
 float AngleAttenuation(float3 spotDirection, float3 lightDirection, float2 spotAttenuation)
 {
     float SdotL = dot(spotDirection, lightDirection);
-    float atten = saturate((SdotL - spotAttenuation.x) / (spotAttenuation.x - spotAttenuation.y));
-    return saturate(atten);
+    // spotAttenuation = (cosOuter, cosInner)：inner 角 <= outer 角 ⇒ cosInner >= cosOuter。
+    float cosOuter = spotAttenuation.x;
+    float cosInner = spotAttenuation.y;
+    float denom = cosInner - cosOuter;
+    float atten;
+    // 当前未实现平滑半影（inner == outer），分母为 0，退化为硬阶跃，
+    // 避免 0 除产生 NaN（会在锥缘出现异常暗线）。
+    if (abs(denom) < 1e-5)
+    {
+        atten = SdotL >= cosOuter ? 1.0 : 0.0;
+    }
+    else
+    {
+        atten = saturate((SdotL - cosOuter) / denom);
+    }
+    return atten;
 }
 
 

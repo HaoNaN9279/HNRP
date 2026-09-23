@@ -197,6 +197,8 @@ bool SearchBlocker(
     int blockerCount = 0;
 
     // 采样限制在本 map 的 atlas 区域内，避免软核越界读到其它 light 的槽位。
+    // 越界样本直接跳过（视为「该方向无遮挡数据」），而非 clamp 到区域边界——
+    // clamp 会把锥边缘 / 区域边界的遮挡物误判为 blocker，产生假遮挡与噪点。
     float2 minUV = scaleOffset.zw + 0.5 * texel;
     float2 maxUV = scaleOffset.zw + scaleOffset.xy - 0.5 * texel;
 
@@ -205,7 +207,11 @@ bool SearchBlocker(
     {
         float2 offset = RotatePoissonSample(HN_PoissonDisk16[i], rotation)
             * (searchRadiusTexels * texel);
-        float2 uv = clamp(atlasUV + offset, minUV, maxUV);
+        float2 uv = atlasUV + offset;
+        if (any(uv < minUV) || any(uv > maxUV))
+        {
+            continue;
+        }
 
         float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
             _ShadowMapArray, sampler_PointClamp, uv, sliceIndex, 0.0).x;
@@ -249,8 +255,12 @@ float SamplePcss(
     float blockerSampleCount,
     float filterSampleCount)
 {
-    float texel = 1.0 / max((float)resolution, 1.0);
-    float maxRadiusTexels = penumbraRadius * penumbraRadius;
+    // atlas UV 空间下单个 texel 的步长：map 在 atlas 中占 scaleOffset.xy，含 resolution 个 texel。
+    // 不能用 1/resolution —— 那会随 slice 与 map 分辨率之比放大核半径与采样偏移，
+    // 与硬阴影（用 1/_ShadowSliceResolution，等价于本式）不一致。
+    float texel = scaleOffset.x / max((float)resolution, 1.0);
+    // 最大半影核半径（texel）= 2^penumbraRadius，并受全局上限 _ShadowMaxFilterRadius 约束。
+    float maxRadiusTexels = min(exp2(penumbraRadius), _ShadowMaxFilterRadius);
 
     // 每像素旋转角：使用 CoreRP InterleavedGradientNoise（静态，无需 TAA）。
     float rotation = InterleavedGradientNoise(screenUV * _ScreenParams.xy, 0) * TWO_PI;
@@ -270,22 +280,33 @@ float SamplePcss(
     float filterRadiusTexels = (lightType == 1)
         ? separation * maxRadiusTexels
         : separation / max(avgBlockerDepth, 1e-4) * maxRadiusTexels;
+    // 接触硬化：乘光源软度系数，并 clamp 到 [最小, 最大] 滤波半径。
+    filterRadiusTexels = clamp(
+        filterRadiusTexels * _ShadowSoftness,
+        _ShadowMinFilterRadius,
+        maxRadiusTexels);
 
     // ── Step3：半影核内 PCF（旋转泊松盘，逐 texel 深度比较）──
     float2 minUV = scaleOffset.zw + 0.5 * texel;
     float2 maxUV = scaleOffset.zw + scaleOffset.xy - 0.5 * texel;
 
     float visible = 0.0;
+    float validCount = 0.0;
     [loop]
     for (int i = 0; i < (int)filterSampleCount; i++)
     {
         float2 offset = RotatePoissonSample(HN_PoissonDisk16[i], rotation)
             * (filterRadiusTexels * texel);
-        float2 uv = clamp(atlasUV + offset, minUV, maxUV);
+        float2 uv = atlasUV + offset;
+        if (any(uv < minUV) || any(uv > maxUV))
+        {
+            continue;
+        }
 
         float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
             _ShadowMapArray, sampler_PointClamp, uv, sliceIndex, 0.0).x;
 
+        validCount += 1.0;
         visible += receiverDepth <= storedDepth ? 1.0 : 0.0;
     }
 
@@ -294,7 +315,8 @@ float SamplePcss(
     _HNRPShadowDebugPcss = filterRadiusTexels;
 #endif
 
-    return visible / max(filterSampleCount, 1.0);
+    // 有效样本数为 0（全部越界）时退回「完全受光」，避免除以 0。
+    return validCount > 0.0 ? visible / validCount : 1.0;
 }
 
 /// 硬阴影手工比较（R16 深度图无硬件比较采样器）：3x3 双线性采样。
@@ -305,20 +327,27 @@ float SampleShadowHard(float2 atlasUV, float4 scaleOffset, int sliceIndex, float
     float2 maxUV = scaleOffset.zw + scaleOffset.xy - 0.5 * texel;
 
     float sum = 0.0;
+    float validCount = 0.0;
     [unroll]
     for (int y = -1; y <= 1; y++)
     {
         [unroll]
         for (int x = -1; x <= 1; x++)
         {
-            float2 uv = clamp(atlasUV + float2(x, y) * texel, minUV, maxUV);
+            float2 uv = atlasUV + float2(x, y) * texel;
+            bool valid = all(uv >= minUV) && all(uv <= maxUV);
+            // 越界样本不计入可见性：clamp 采样只为规避未定义坐标，结果被 valid 丢弃。
             float storedDepth = SAMPLE_TEXTURE2D_ARRAY_LOD(
-                _ShadowMapArray, sampler_LinearClamp, uv, sliceIndex, 0.0).x;
-            sum += biasedDepth <= storedDepth ? 1.0 : 0.0;
+                _ShadowMapArray, sampler_LinearClamp, clamp(uv, minUV, maxUV), sliceIndex, 0.0).x;
+            if (valid)
+            {
+                validCount += 1.0;
+                sum += biasedDepth <= storedDepth ? 1.0 : 0.0;
+            }
         }
     }
 
-    return sum / 9.0;
+    return validCount > 0.0 ? sum / validCount : 1.0;
 }
 
 float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionWS, float2 screenUV)
@@ -341,10 +370,34 @@ float SampleShadowMap(ShadowLightData lightData, uint mapIndex, float3 positionW
         return 1.0;
     }
 
+    int lightType = GetShadowLightType(lightData);
+
+    // 局部光（点 / 聚光）超出 range → 不受该光源影响，直接视为完全受光。
+    // 必须在采样前判定：否则越界片元会被 clamp 到 atlas 区域边界，
+    // 读到边缘 texel 的深度而误判为遮挡（锥外两侧整片被熄的直接原因）。
+    if (lightType == 2 || lightType == 3)
+    {
+        float invRange = lightData.lightPosRange.w;
+        if (invRange > 0.0
+            && length(positionWS - lightData.lightPosRange.xyz) * invRange >= 1.0)
+        {
+            return 1.0;
+        }
+    }
+
+    // 阴影投影范围外（聚光锥外 / 点光 cube 面边界外）→ 不受影响。
+    // 按面 / 锥的投影边界判定（shadowCoord.xy ∈ [0,1]）；越界片元若继续采样会被读到
+    // 边缘 texel 的深度而误判为遮挡。方向光级联投影覆盖整个 split，无需守卫。
+    if (lightType != 1
+        && (shadowCoord.x < 0.0 || shadowCoord.x > 1.0
+            || shadowCoord.y < 0.0 || shadowCoord.y > 1.0))
+    {
+        return 1.0;
+    }
+
     float2 uv = shadowCoord.xy * scaleOffset.xy + scaleOffset.zw;
 
     // 统一深度图采样：Soft 走 PCSS，Hard 走点采样 PCF。深度偏置在此统一施加。
-    int lightType = GetShadowLightType(lightData);
     float receiverDepth = GetReceiverLinearDepth(lightData, lightType, positionWS, shadowCoord.z);
     float biasedDepth = max(receiverDepth - _ShadowDepthBias, 0.0);
     float attenuation = mapData.shadowParams.y > 0.5
