@@ -420,6 +420,11 @@ namespace HN.HNRP
                     // 该判定是帧级事实（F 通道），由管线发布，pass 不再读相机对象猜测语义。
                     bool isPreviewSharedCamera = cameraContext != null
                         && cameraContext.Facts.IsPreviewCamera;
+
+                    // 无条件把生产者 keyword 复位到默认关闭态。
+                    // 随后 BindConnectedProducerGlobals 只负责「图内可用生产者重新开启」。
+                    GlobalKeywords.DisableProducerKeywords(ctx.cmd);
+
                     if (!isPreviewSharedCamera)
                     {
                         BindConnectedProducerGlobals(ctx.cmd);
@@ -471,7 +476,9 @@ namespace HN.HNRP
         /// 依赖列表由 <see cref="RenderGraphBuilder"/> 从蓝图 <see cref="PassDependency"/>
         /// 解析；同一生产者可能被多条依赖边指向（如探针的图集 / 掩码 / 数据），
         /// 用复用的去重列表保证只绑定一次，渲染循环零分配。
-        /// 依赖存在即调用（不要求资源已产出），使生产者在未产出时能主动关闭 keyword。
+        /// 依赖存在即调用（不要求资源已产出），使生产者在未产出时能关闭 keyword（幂等）。
+        /// <b>调用前</b>调用方须先执行 <see cref="GlobalKeywords.DisableProducerKeywords"/>
+        /// 归零，本方法只负责「图内可用生产者重新开启」，不负责关闭图外生产者的残留状态。
         /// </remarks>
         /// <param name="cmd">接收绑定命令的命令缓冲。</param>
         private void BindConnectedProducerGlobals(CommandBuffer cmd)

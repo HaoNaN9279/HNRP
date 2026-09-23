@@ -52,12 +52,12 @@ Light GetMainLight(float3 positionWS, float2 screenUV)
     ZERO_INITIALIZE(Light, light);
     light.color = _LightDatasBuffer[mainLightIndex].color;
     light.directionWS = _LightDatasBuffer[mainLightIndex].directionWS;
-#if defined(SCREEN_SPACE_SHADOW_MAP)
+#if defined(SHADOW_MAP) && !defined(SCREEN_SPACE_SHADOW_MAP)
     // 屏幕空间阴影：合并 mask 已包含所有投影光源，逐光源阴影在
     // BuildLightingData 中统一施加，此处不再采样 atlas。
-    light.shadowAttenuation = 1.0;
-#else
     light.shadowAttenuation = GetShadowAttenuation((uint)mainLightIndex, positionWS, light.directionWS, screenUV);
+#else
+    light.shadowAttenuation = 1.0;
 #endif
     light.distanceAttenuation = 1.0;
     light.renderingLayerMask = asuint(_LightDatasBuffer[mainLightIndex].renderingLayerMask);
@@ -91,12 +91,12 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS, float2 screenUV)
         }
     }
     light.renderingLayerMask = asuint(_LightDatasBuffer[lightIndex].renderingLayerMask);
-#if defined(SCREEN_SPACE_SHADOW_MAP)
+#if defined(SHADOW_MAP) && !defined(SCREEN_SPACE_SHADOW_MAP)
     // 屏幕空间阴影：合并 mask 已包含所有投影光源，逐光源阴影在
     // BuildLightingData 中统一施加，此处不再采样 atlas。
-    light.shadowAttenuation = 1.0;
-#else
     light.shadowAttenuation = GetShadowAttenuation(lightIndex, positionWS, light.directionWS, screenUV);
+#else
+    light.shadowAttenuation = 1.0;
 #endif
 
     return light;

@@ -28,7 +28,7 @@ MonoBehaviour:
   - rid: 6885484223596593194
   - rid: 6885484223596593195
   - rid: 6885484223596593196
-  parameterRevision: 40
+  parameterRevision: 41
   references:
     version: 2
     RefIds:
@@ -111,7 +111,7 @@ MonoBehaviour:
       type: {class: ScreenSpaceShadowMaskPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         passName: screenSpaceShadow
-        isEnabled: 1
+        isEnabled: 0
         shadowMaskParams:
           ColorFormat: 5
           DepthBits: 0

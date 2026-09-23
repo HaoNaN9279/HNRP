@@ -165,5 +165,30 @@ namespace HN.HNRP
         /// <c>_HNRPDebugChannelId</c> 这个 uniform 选择，避免逐通道生成变体。
         /// </summary>
         public static readonly string debugPerPixel = "HN_DEBUG_PER_PIXEL";
+
+
+        /// <summary>
+        /// 关闭全部由「生产者 pass」激活的全局 keyword，把它复位到默认关闭态。
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// 这些 keyword 的全局状态是进程级持久的，其「关闭」不能寄生于「图中存在对应
+        /// 生产者并触发绑定」这条路径 —— 若某个渲染图不含该生产者（如材质预览的
+        /// PreviewGraph 不含 <see cref="DrawShadowPass"/>），就无人负责关闭，会残留
+        /// 上一个渲染单元激活的状态，导致着色器走错分支。
+        /// </para>
+        /// <para>
+        /// 因此消费者（如 <see cref="ForwardPass"/>）必须在自己绘制前<b>无条件</b>
+        /// 调用本方法归零，再由图内可用生产者按需开启。默认态是「关」，只有生产者
+        /// 存在且可用时才「开」。
+        /// </para>
+        /// </remarks>
+        /// <param name="cmd">接收 keyword 命令的命令缓冲。</param>
+        public static void DisableProducerKeywords(CommandBuffer cmd)
+        {
+            cmd.DisableShaderKeyword(shadowMap);
+            cmd.DisableShaderKeyword(clusterCullingReflectionProbe);
+            cmd.DisableShaderKeyword(clusterCullingLight);
+        }
     }
 }

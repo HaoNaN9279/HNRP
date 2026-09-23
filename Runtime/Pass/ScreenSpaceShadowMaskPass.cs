@@ -213,6 +213,13 @@ namespace HN.HNRP
 
                     CommandBuffer cmd = ctx.cmd;
 
+                    // 本 pass 是 compute 消费者：只需要阴影资源绑定，不需要任何 raster
+                    // 全局 keyword。绑定前归零，避免残留上一渲染单元的生产者 keyword；
+                    // 绑定后再次归零，撤销生产者绑定路径顺带开启的 keyword（如 SHADOW_MAP），
+                    // 保证本 pass 不向后续绘制遗留 raster 分支状态 —— keyword 的最终决策
+                    // 归各 raster 消费者（ForwardPass）在自身绘制前负责。
+                    GlobalKeywords.DisableProducerKeywords(cmd);
+
                     // 阴影图集 / 三张表 / 阴影标量常量缓冲：由生产者自描述绑定
                     // （Persistent 资源，不经 RenderGraph 句柄）。
                     data.shadowMapProvider.BindGlobalShaderResources(cmd);
