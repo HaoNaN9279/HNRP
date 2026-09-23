@@ -135,9 +135,29 @@ namespace HN.HNRP
         /// <returns>该 entity 存在并被释放时返回 <c>true</c>，否则返回 <c>false</c>。</returns>
         public bool Release(uint entityId)
         {
-            if(!blocks.TryGetValue(entityId, out uint value))
+            if(!blocks.ContainsKey(entityId))
             {
                 return false;
+            }
+
+            ClearBlockMask(entityId);
+            blocks.Remove(entityId);
+            allocatedResults.Remove(entityId);
+            return true;
+        }
+
+
+        /// <summary>
+        /// 归还指定 entity 当前 block 在 <see cref="brickMask"/> 中的占用位。
+        /// 只清占用位，不改动 <see cref="blocks"/> / <see cref="allocatedResults"/> 记录，
+        /// 供 <see cref="Release"/> 与分配重排（reorg）共用。
+        /// </summary>
+        /// <param name="entityId">要归还占用位的 entity id。</param>
+        private void ClearBlockMask(uint entityId)
+        {
+            if(!blocks.TryGetValue(entityId, out uint value))
+            {
+                return;
             }
 
             int level = (int)((value >> 8) & 0xFu);
@@ -147,10 +167,22 @@ namespace HN.HNRP
                 int brickIndex = result.SliceIndex * sliceBrickCount + (int)result.BlockId;
                 SetBrickMaskByBlock(brickIndex / blockBitCount, blockBitCount, false);
             }
+        }
 
-            blocks.Remove(entityId);
-            allocatedResults.Remove(entityId);
-            return true;
+
+        /// <summary>
+        /// 取指定 entity 当前 block 起始 brick 在整图（跨 slice）中的全局索引。
+        /// </summary>
+        /// <param name="entityId">要查询的 entity id。</param>
+        /// <returns>全局 brick 索引；该 entity 未分配时返回 <c>-1</c>。</returns>
+        private int GetGlobalBrickIndex(uint entityId)
+        {
+            if(allocatedResults.TryGetValue(entityId, out TextureAllocatorResult result))
+            {
+                return result.SliceIndex * sliceBrickCount + (int)result.BlockId;
+            }
+
+            return -1;
         }
 
 
@@ -161,6 +193,10 @@ namespace HN.HNRP
                 Debug.LogError($"Allocate failed, size {size} is out of range [{minBlockSize}, {maxBlockSize}]");
                 return;
             }
+
+            // 同一 entity 已在位时先整块归还（清占用位并移除记录），
+            // 避免重分配旧占用位残留在 mask 中。
+            Release(entityId);
 
             int level = GetLevelByBlockSize(size);
             int blockBitCount = GetBlockBitCountByLevel(level);
@@ -187,13 +223,32 @@ namespace HN.HNRP
 
                 if(IsBlockNeedReorg(blockBitCount, selectedBlockBit))
                 {
-                    List<(uint, int)> reorgEntities = GetReorgEntitiesByBlock(i * blockBitCount);
-                    blocks[entityId] = BuildBlockValue(true, i * blockBitCount, level);
-                    int sliceIndex = GetSliceIndexByBrickIndex(i * blockBitCount);
+                    int candidateStart = i * blockBitCount;
+                    int candidateEnd = candidateStart + blockBitCount;
+                    List<(uint, int)> reorgEntities = GetReorgEntitiesByBlock(candidateStart);
+
+                    // 记录各待搬移 entity 搬移前的位置（写入结果的 OldScaleOffset，
+                    // 供 DrawShadowPass 判定是否需要重绘），并先腾空落在候选 block 内的 entity：
+                    // 它们与新 block 区域重叠，若不先清位，登记新 entity 后归还旧位会误清新 block 的位。
+                    Vector4[] oldScaleOffsets = new Vector4[reorgEntities.Count];
+                    for(int j = 0; j < reorgEntities.Count; j++)
+                    {
+                        uint movedId = reorgEntities[j].Item1;
+                        oldScaleOffsets[j] = GetScaleOffset(movedId);
+
+                        int movedBrick = GetGlobalBrickIndex(movedId);
+                        if(movedBrick >= candidateStart && movedBrick < candidateEnd)
+                        {
+                            Release(movedId);
+                        }
+                    }
+
+                    blocks[entityId] = BuildBlockValue(true, candidateStart, level);
+                    int sliceIndex = GetSliceIndexByBrickIndex(candidateStart);
                     TextureAllocatorResult allocResult = new TextureAllocatorResult(){
                         ScaleOffset = GetScaleOffset(entityId),
                         SliceIndex = sliceIndex,
-                        BlockId = (uint)((i * blockBitCount) % sliceBrickCount),
+                        BlockId = (uint)(candidateStart % sliceBrickCount),
                         IsReorg = isReorg,
                         OldScaleOffset = oldScaleOffset,
                         OldSliceIndex = oldSliceIndex
@@ -202,11 +257,17 @@ namespace HN.HNRP
                     allocatedResults[entityId] = allocResult;
                     SetBrickMaskByBlock(i, blockBitCount, true);
 
+                    // 逐个重分配：仍在位的先 Release 归还其当前占用位（内层 reorg 可能已移动过
+                    // 同一 entity，故用 Release 而非 blocks.Remove，避免残留占用位）。
                     for(int j = 0; j < reorgEntities.Count; j++)
                     {
-                        Vector4 tempOldScaleOffset = GetScaleOffset(reorgEntities[j].Item1);
-                        blocks.Remove(reorgEntities[j].Item1);
-                        Allocate(ref results, reorgEntities[j].Item1, reorgEntities[j].Item2, (i + 1) * blockBitCount, true, tempOldScaleOffset, sliceIndex);
+                        uint movedId = reorgEntities[j].Item1;
+                        if(blocks.ContainsKey(movedId))
+                        {
+                            Release(movedId);
+                        }
+
+                        Allocate(ref results, movedId, reorgEntities[j].Item2, candidateEnd, true, oldScaleOffsets[j], sliceIndex);
                     }
                     break;
                 }
