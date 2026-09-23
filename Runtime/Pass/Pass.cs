@@ -58,6 +58,11 @@ namespace HN.HNRP
         private readonly List<PassSlot> slotList = new();
 
         /// <summary>
+        /// 构建期由 <see cref="PassDependency"/> 显式依赖边解析出的上游 pass 列表。
+        /// </summary>
+        private readonly List<Pass> dependencies = new();
+
+        /// <summary>
         /// 初始化 <see cref="Pass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
@@ -117,6 +122,30 @@ namespace HN.HNRP
         /// （渲染循环零 GC）。仅供读取，调用方不得修改。
         /// </remarks>
         public IReadOnlyList<PassSlot> Slots => slotList;
+
+        /// <summary>
+        /// 按显式依赖边收集到的上游 pass 列表（由 <see cref="RenderGraphBuilder"/> 在
+        /// 构建期填充，按声明顺序去重）。
+        /// </summary>
+        /// <remarks>
+        /// 消费者据此发现全局资源生产者（<see cref="IGlobalShaderResource"/>）或
+        /// 其它契约提供者，而不是从 slot 连接推断。依赖列表只表达拓扑先后，
+        /// 不携带资源句柄。仅供读取，调用方不得修改。
+        /// </remarks>
+        public IReadOnlyList<Pass> Dependencies => dependencies;
+
+        /// <summary>
+        /// 添加上游依赖 pass。由 <see cref="RenderGraphBuilder"/> 在构建期调用，
+        /// 重复添加按引用去重。
+        /// </summary>
+        /// <param name="source">上游依赖 pass；为 <c>null</c> 时忽略。</param>
+        internal void AddDependency(Pass source)
+        {
+            if (source != null && !dependencies.Contains(source))
+            {
+                dependencies.Add(source);
+            }
+        }
 
         /// <summary>
         /// 按名称取 slot；未注册该名称时返回 <c>null</c>。

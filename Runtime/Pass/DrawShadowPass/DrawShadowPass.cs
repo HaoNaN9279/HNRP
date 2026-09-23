@@ -135,11 +135,6 @@ namespace HN.HNRP
             set => sliceCount = value;
         }
 
-        // ── Slot ──
-
-        /// <summary>阴影图集输出 slot（连接下游 <see cref="ForwardPass"/> 的 ShadowMap）。</summary>
-        public TextureSlot ShadowMapOutputSlot { get; private set; }
-
         // ── 每帧状态 ──
 
         private CameraContext cameraContext;
@@ -153,6 +148,9 @@ namespace HN.HNRP
 
         /// <summary>atlas 重分配后需要在下次 render func 内经 RenderGraph 命令缓冲整图清空。</summary>
         private bool needsAtlasClear;
+
+        /// <summary>本帧是否已产出阴影图集（用于全局绑定判定）。</summary>
+        private bool shadowMapProduced;
 
         private ComputeBuffer shadowLightDatasBuffer;
         private ComputeBuffer shadowMapDatasBuffer;
@@ -254,8 +252,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ShadowMapOutputSlot = new TextureSlot("ShadowMap", SlotDirection.Output);
-            RegisterSlot(ShadowMapOutputSlot);
+            // 本 pass 无 RenderGraph 内容 slot：阴影图集为持久资源，
+            // 消费者（ForwardPass）经显式依赖边触发全局绑定。
         }
 
         /// <inheritdoc />
@@ -267,6 +265,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Record(RenderGraph renderGraph)
         {
+            shadowMapProduced = false;
+
             if (cameraContext == null || !cameraContext.HasCullingResults || cameraContext.Camera == null)
             {
                 return;
@@ -288,15 +288,13 @@ namespace HN.HNRP
 
             passData.shadowMap = builder.WriteTexture(atlasHandle);
 
-            if (ShadowMapOutputSlot != null)
-            {
-                ShadowMapOutputSlot.SetHandle(atlasHandle);
-            }
+            shadowMapProduced = true;
 
             builder.SetRenderFunc((DrawShadowPassData data, RenderGraphContext ctx) =>
             {
                 if (!IsEnabled)
                 {
+                    shadowMapProduced = false;
                     return;
                 }
 
@@ -349,6 +347,7 @@ namespace HN.HNRP
         {
             // 注意：pass 每相机复用，此处仅在模板重建 / 渲染器销毁时被调用。
             ReleaseAtlas();
+            shadowMapProduced = false;
 
             shadowLightDatasBuffer?.Release();
             shadowLightDatasBuffer = null;
@@ -380,8 +379,7 @@ namespace HN.HNRP
         public void BindGlobalShaderResources(CommandBuffer cmd)
         {
             bool available = IsEnabled
-                && ShadowMapOutputSlot != null
-                && ShadowMapOutputSlot.HasHandle
+                && shadowMapProduced
                 && shadowAtlas != null;
 
             // 屏幕空间阴影暂无生产者，恒关闭，避免全局 keyword 残留。

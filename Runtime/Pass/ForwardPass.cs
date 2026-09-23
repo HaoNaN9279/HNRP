@@ -147,41 +147,6 @@ namespace HN.HNRP
         public TextureSlot DepthTargetSlot { get; private set; }
 
         /// <summary>
-        /// 级联阴影图输入 slot。
-        /// </summary>
-        public TextureSlot CascadeShadowMapSlot { get; private set; }
-
-        /// <summary>
-        /// 屏幕空间阴影图输入 slot。
-        /// </summary>
-        public TextureSlot ScreenSpaceShadowMapSlot { get; private set; }
-
-        /// <summary>
-        /// 光照数据计算缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
-        /// </summary>
-        public ComputeBufferSlot LightDatasSlot { get; private set; }
-
-        /// <summary>
-        /// 反射探针图集纹理输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
-        /// </summary>
-        public TextureSlot ReflectionProbeAtlasSlot { get; private set; }
-
-        /// <summary>
-        /// 簇剔除反射探针掩码缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
-        /// </summary>
-        public ComputeBufferSlot ProbeMaskSlot { get; private set; }
-
-        /// <summary>
-        /// 簇剔除反射探针数据缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
-        /// </summary>
-        public ComputeBufferSlot ProbeDatasSlot { get; private set; }
-
-        /// <summary>
-        /// 簇剔除光源掩码缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
-        /// </summary>
-        public ComputeBufferSlot LightMaskSlot { get; private set; }
-
-        /// <summary>
         /// 颜色目标输出 slot（解析后 <see cref="ColorTargetSlot"/> 句柄的透传，
         /// 供下游链式连接）。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
@@ -292,20 +257,6 @@ namespace HN.HNRP
             RegisterSlot(ColorTargetSlot);
             DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
             RegisterSlot(DepthTargetSlot);
-            CascadeShadowMapSlot = new TextureSlot("ShadowMap", SlotDirection.Input);
-            RegisterSlot(CascadeShadowMapSlot);
-            ScreenSpaceShadowMapSlot = new TextureSlot("ScreenSpaceShadowMap", SlotDirection.Input);
-            RegisterSlot(ScreenSpaceShadowMapSlot);
-            LightDatasSlot = new ComputeBufferSlot("LightDatas", SlotDirection.Input);
-            RegisterSlot(LightDatasSlot);
-            ReflectionProbeAtlasSlot = new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
-            RegisterSlot(ReflectionProbeAtlasSlot);
-            ProbeMaskSlot = new ComputeBufferSlot("ProbeMask", SlotDirection.Input);
-            RegisterSlot(ProbeMaskSlot);
-            ProbeDatasSlot = new ComputeBufferSlot("ProbeDatas", SlotDirection.Input);
-            RegisterSlot(ProbeDatasSlot);
-            LightMaskSlot = new ComputeBufferSlot("LightMask", SlotDirection.Input);
-            RegisterSlot(LightMaskSlot);
 
             ColorTargetOutputSlot = new TextureSlot("ColorTargetOutput", SlotDirection.Output);
             RegisterSlot(ColorTargetOutputSlot);
@@ -408,39 +359,11 @@ namespace HN.HNRP
                 depthTarget,
                 usePrepassDepth ? DepthAccess.Read : DepthAccess.ReadWrite);
 
-            // ── 可选输入：声明读取以建立 RenderGraph 依赖 ──
-            // 句柄的实际全局绑定由各生产者 pass 经 IGlobalShaderResource 完成，
-            // 这里只需注册读取，保证生产者先于本 pass 执行且资源存活到绘制。
-
-            if (CascadeShadowMapSlot?.IsConnected == true && CascadeShadowMapSlot.HasHandle)
-            {
-                builder.ReadTexture(CascadeShadowMapSlot.ReadHandle());
-            }
-
-            if (LightDatasSlot?.IsConnected == true && LightDatasSlot.HasHandle)
-            {
-                builder.ReadComputeBuffer(LightDatasSlot.ReadHandle());
-            }
-
-            if (ReflectionProbeAtlasSlot?.IsConnected == true && ReflectionProbeAtlasSlot.HasHandle)
-            {
-                builder.ReadTexture(ReflectionProbeAtlasSlot.ReadHandle());
-            }
-
-            if (ProbeMaskSlot?.IsConnected == true && ProbeMaskSlot.HasHandle)
-            {
-                builder.ReadComputeBuffer(ProbeMaskSlot.ReadHandle());
-            }
-
-            if (ProbeDatasSlot?.IsConnected == true && ProbeDatasSlot.HasHandle)
-            {
-                builder.ReadComputeBuffer(ProbeDatasSlot.ReadHandle());
-            }
-
-            if (LightMaskSlot?.IsConnected == true && LightMaskSlot.HasHandle)
-            {
-                builder.ReadComputeBuffer(LightMaskSlot.ReadHandle());
-            }
+            // ── 全局 shader 资源 ──
+            // 光照数据 / 阴影图 / 探针图集 / 簇剔除掩码等均由各生产者 pass 经
+            // IGlobalShaderResource 自行绑定为全局资源；本 pass 通过显式依赖边
+            // （Pass.Dependencies）发现生产者并在绘制前触发绑定，不再声明任何
+            // 资源 slot，也不从连接状态推断资源内容。
 
             // ── 渲染器列表：从解析后的句柄读取 ──
 
@@ -493,13 +416,14 @@ namespace HN.HNRP
         // ── 辅助 ──
 
         /// <summary>
-        /// 遍历本 pass 已连接的输入 slot，对其属主 pass 中实现
+        /// 遍历本 pass 显式依赖的上游 pass，对其实现
         /// <see cref="IGlobalShaderResource"/> 者调用一次全局资源绑定。
         /// </summary>
         /// <remarks>
-        /// 同一生产者可能经多个输入 slot 连接（如探针的图集 / 掩码 / 数据），
+        /// 依赖列表由 <see cref="RenderGraphBuilder"/> 从蓝图 <see cref="PassDependency"/>
+        /// 解析；同一生产者可能被多条依赖边指向（如探针的图集 / 掩码 / 数据），
         /// 用复用的去重列表保证只绑定一次，渲染循环零分配。
-        /// 连接存在即调用（不要求句柄有效），使生产者在未产出时能主动关闭 keyword。
+        /// 依赖存在即调用（不要求资源已产出），使生产者在未产出时能主动关闭 keyword。
         /// </remarks>
         /// <param name="cmd">接收绑定命令的命令缓冲。</param>
         private void BindConnectedProducerGlobals(CommandBuffer cmd)

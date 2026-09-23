@@ -31,6 +31,15 @@ namespace HN.HNRP
         public List<SlotConnection> Connections { get; }
 
         /// <summary>
+        /// 获取本蓝图声明的显式执行依赖边列表（不携带资源句柄）。
+        /// </summary>
+        /// <remarks>
+        /// 依赖边只表达 pass 间拓扑先后与生产者可发现性；资源内容传递由
+        /// <see cref="Connections"/>（内容 slot）或全局 shader 绑定完成。
+        /// </remarks>
+        public List<PassDependency> Dependencies { get; }
+
+        /// <summary>
         /// 获取本蓝图声明的渲染图设置。
         /// </summary>
         public RenderGraphSettings Settings { get; }
@@ -39,16 +48,19 @@ namespace HN.HNRP
         /// 初始化 <see cref="RenderGraphBlueprint"/> 的新实例。
         /// </summary>
         /// <param name="passes">本渲染图的有序 pass 实例。</param>
-        /// <param name="connections">连接各 pass 的 slot 连接。</param>
+        /// <param name="connections">连接各 pass 的内容 slot 连接。</param>
         /// <param name="settings">渲染图级设置。</param>
+        /// <param name="dependencies">显式执行依赖边；为 <c>null</c> 时视为空列表。</param>
         public RenderGraphBlueprint(
             List<Pass> passes,
             List<SlotConnection> connections,
-            RenderGraphSettings settings)
+            RenderGraphSettings settings,
+            List<PassDependency> dependencies = null)
         {
             Passes = passes;
             Connections = connections;
             Settings = settings;
+            Dependencies = dependencies ?? new List<PassDependency>();
         }
     }
 }

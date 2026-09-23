@@ -103,10 +103,9 @@ namespace HN.HNRP.Tests
         /// <see cref="RenderGraphAsset.Build"/> 之后，每个渲染 pass 的关键输入槽
         /// 均已连接。在 pass 自持资源模型（ADR-017）下，链头的 color/depth/
         /// 渲染器列表槽有意保持未连接 —— pass 从自身参数分配它们；
-        /// 光照/探针数据通过 <see cref="SlotConnection"/> 的 pass 间链传递
-        /// （例如 <c>buildLight.lightDatasBuffer</c> → <c>forwardOpaque.LightDatas</c>），
         /// 颜色目标链为 forwardOpaque → sky → transparency → wireOverlay /
-        /// finalBlit。
+        /// finalBlit。全局 shader 资源（光照 / 阴影 / 探针 / 簇剔除掩码）不再
+        /// 走 slot 连接，而由显式依赖边表达（<see cref="Pass.Dependencies"/>）。
         /// </summary>
         [Test]
         public void Build_ConnectsKeyPassSlots()
@@ -125,26 +124,28 @@ namespace HN.HNRP.Tests
                 return pass!;
             }
 
+            bool HasDependency(Pass pass, string sourcePassName)
+            {
+                return pass.Dependencies.Any(d => d.PassName == sourcePassName);
+            }
+
             // ── forwardOpaque：color / 渲染器列表本地分配（未连接）；
-            //    depth 目标来自 depthNormal 预渲染深度；光照/探针数据来自槽连接 ──
+            //    depth 目标来自 depthNormal 预渲染深度；
+            //    全局资源生产者经显式依赖边发现 ──
 
             var forwardOpaque = (ForwardPass)FindPass("forwardOpaque");
             Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.False,
                 "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.True,
                 "forwardOpaque.DepthTarget should be connected through depthNormal.DepthTargetOutput.");
-            Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
-                "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
-            Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
-                "forwardOpaque.ReflectionProbeAtlas should be connected through a slot connection from clusterProbe.");
-            Assert.That(forwardOpaque.ProbeMaskSlot!.IsConnected, Is.True,
-                "forwardOpaque.ProbeMask should be connected through a slot connection from clusterProbe.");
-            Assert.That(forwardOpaque.ProbeDatasSlot!.IsConnected, Is.True,
-                "forwardOpaque.ProbeDatas should be connected through a slot connection from clusterProbe.");
-            Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
-                "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
-            Assert.That(forwardOpaque.CascadeShadowMapSlot!.IsConnected, Is.True,
-                "forwardOpaque.ShadowMap should be connected through a slot connection from drawShadow.");
+            Assert.That(HasDependency(forwardOpaque, "buildLight"), Is.True,
+                "forwardOpaque should depend on buildLight (LightDatas).");
+            Assert.That(HasDependency(forwardOpaque, "drawShadow"), Is.True,
+                "forwardOpaque should depend on drawShadow (ShadowMap).");
+            Assert.That(HasDependency(forwardOpaque, "clusterProbe"), Is.True,
+                "forwardOpaque should depend on clusterProbe (ReflectionProbe).");
+            Assert.That(HasDependency(forwardOpaque, "clusterLight"), Is.True,
+                "forwardOpaque should depend on clusterLight (LightMask).");
 
             // ── depthNormal：链头 —— 深度 / 法线目标本地分配（未连接），
             //    深度输出接入 forwardOpaque ──
@@ -164,25 +165,21 @@ namespace HN.HNRP.Tests
                 "sky.DepthTarget should be connected through forwardOpaque.DepthTargetOutput.");
 
             // ── transparency：color/depth 自 sky 链式传入，渲染器列表
-            //    本地分配（未连接），光照/探针数据来自槽连接 ──
+            //    本地分配（未连接），全局资源生产者经显式依赖边发现 ──
 
             var transparency = (ForwardPass)FindPass("transparency");
             Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
                 "transparency.ColorTarget should be connected through sky.ColorTargetOutput.");
             Assert.That(transparency.DepthTargetSlot!.IsConnected, Is.True,
                 "transparency.DepthTarget should be connected through sky.DepthTargetOutput.");
-            Assert.That(transparency.LightDatasSlot!.IsConnected, Is.True,
-                "transparency.LightDatas should be connected through a slot connection from buildLight.");
-            Assert.That(transparency.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
-                "transparency.ReflectionProbeAtlas should be connected through a slot connection from clusterProbe.");
-            Assert.That(transparency.ProbeMaskSlot!.IsConnected, Is.True,
-                "transparency.ProbeMask should be connected through a slot connection from clusterProbe.");
-            Assert.That(transparency.ProbeDatasSlot!.IsConnected, Is.True,
-                "transparency.ProbeDatas should be connected through a slot connection from clusterProbe.");
-            Assert.That(transparency.LightMaskSlot!.IsConnected, Is.True,
-                "transparency.LightMask should be connected through a slot connection from clusterLight.");
-            Assert.That(transparency.CascadeShadowMapSlot!.IsConnected, Is.True,
-                "transparency.ShadowMap should be connected through a slot connection from drawShadow.");
+            Assert.That(HasDependency(transparency, "buildLight"), Is.True,
+                "transparency should depend on buildLight (LightDatas).");
+            Assert.That(HasDependency(transparency, "drawShadow"), Is.True,
+                "transparency should depend on drawShadow (ShadowMap).");
+            Assert.That(HasDependency(transparency, "clusterProbe"), Is.True,
+                "transparency should depend on clusterProbe (ReflectionProbe).");
+            Assert.That(HasDependency(transparency, "clusterLight"), Is.True,
+                "transparency should depend on clusterLight (LightMask).");
 
             // ── wireOverlay：color 目标已连接（自 transparency 链式传入）──
 

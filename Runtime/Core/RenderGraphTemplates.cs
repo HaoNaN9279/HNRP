@@ -97,31 +97,32 @@ namespace HN.HNRP
                 },
                 new List<SlotConnection>
                 {
+                    // ── 内容 slot：仅 color / depth 链（RenderGraph 托管）──
                     SlotConnection.Create("forwardOpaque", "ColorTargetOutput", "sky", "ColorTarget"),
                     SlotConnection.Create("forwardOpaque", "DepthTargetOutput", "sky", "DepthTarget"),
                     SlotConnection.Create("sky", "ColorTargetOutput", "transparency", "ColorTarget"),
                     SlotConnection.Create("sky", "DepthTargetOutput", "transparency", "DepthTarget"),
                     SlotConnection.Create("transparency", "ColorTargetOutput", "wireOverlay", "ColorTarget"),
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "transparency", "LightDatas"),
-                    SlotConnection.Create("drawShadow", "ShadowMap", "forwardOpaque", "ShadowMap"),
-                    SlotConnection.Create("drawShadow", "ShadowMap", "transparency", "ShadowMap"),
-                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "transparency", "ReflectionProbeAtlas"),
-                    SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "transparency", "ProbeMask"),
-                    SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "transparency", "ProbeDatas"),
-                    SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "transparency", "LightMask"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
-                    SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
-                    SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "forwardOpaque", "ReflectionProbeAtlas"),
-                    SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
-                    SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
                     SlotConnection.Create("depthNormal", "DepthTargetOutput", "forwardOpaque", "DepthTarget"),
                 },
                 new RenderGraphSettings
                 {
                     SHEvalMode = SHEvalMode.PerPixel,
                     AllowHDR = true,
+                },
+                new List<PassDependency>
+                {
+                    // ── 显式依赖边：全局 shader 资源生产者 → 消费者 ──
+                    PassDependency.Create("buildLight", "clusterLight", "LightDatas"),
+                    PassDependency.Create("buildLight", "forwardOpaque", "LightDatas"),
+                    PassDependency.Create("buildLight", "transparency", "LightDatas"),
+                    PassDependency.Create("drawShadow", "forwardOpaque", "ShadowMap"),
+                    PassDependency.Create("drawShadow", "transparency", "ShadowMap"),
+                    PassDependency.Create("clusterProbe", "forwardOpaque", "ReflectionProbe"),
+                    PassDependency.Create("clusterProbe", "transparency", "ReflectionProbe"),
+                    PassDependency.Create("clusterLight", "forwardOpaque", "LightMask"),
+                    PassDependency.Create("clusterLight", "transparency", "LightMask"),
                 });
         }
 
@@ -148,24 +149,29 @@ namespace HN.HNRP
                 },
                 new List<SlotConnection>
                 {
+                    // ── 内容 slot：仅 color / depth 链（RenderGraph 托管）──
                     SlotConnection.Create("forwardOpaque", "ColorTargetOutput", "sky", "ColorTarget"),
                     SlotConnection.Create("forwardOpaque", "DepthTargetOutput", "sky", "DepthTarget"),
                     SlotConnection.Create("sky", "ColorTargetOutput", "transparency", "ColorTarget"),
                     SlotConnection.Create("sky", "DepthTargetOutput", "transparency", "DepthTarget"),
                     SlotConnection.Create("transparency", "ColorTargetOutput", "wireOverlay", "ColorTarget"),
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "transparency", "LightDatas"),
-                    SlotConnection.Create("drawShadow", "ShadowMap", "forwardOpaque", "ShadowMap"),
-                    SlotConnection.Create("drawShadow", "ShadowMap", "transparency", "ShadowMap"),
-                    SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "transparency", "LightMask"),
-                    SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
-                    SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
                 },
                 new RenderGraphSettings
                 {
                     SHEvalMode = SHEvalMode.PerPixel,
                     AllowHDR = true,
+                },
+                new List<PassDependency>
+                {
+                    // ── 显式依赖边：全局 shader 资源生产者 → 消费者 ──
+                    PassDependency.Create("buildLight", "clusterLight", "LightDatas"),
+                    PassDependency.Create("buildLight", "forwardOpaque", "LightDatas"),
+                    PassDependency.Create("buildLight", "transparency", "LightDatas"),
+                    PassDependency.Create("drawShadow", "forwardOpaque", "ShadowMap"),
+                    PassDependency.Create("drawShadow", "transparency", "ShadowMap"),
+                    PassDependency.Create("clusterLight", "forwardOpaque", "LightMask"),
+                    PassDependency.Create("clusterLight", "transparency", "LightMask"),
                 });
         }
 

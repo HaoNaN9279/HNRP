@@ -2,6 +2,7 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -21,18 +22,24 @@ namespace HN.HNRP
         /// </summary>
         public const string PassNameConst = "Cluster Culling Light";
 
-        // ── Slot ──
+        // ── 持久资源 ──
 
         /// <summary>
-        /// 光照数据缓冲输入 slot。连接到 <see cref="BuildLightDataPass"/> 的输出。
+        /// 簇剔除光照掩码缓冲。持久资源，随本 pass 跨帧存活，由 <see cref="Cleanup"/> 释放。
+        /// 消费者（<see cref="ForwardPass"/>）经显式依赖边发现本 pass 后触发全局绑定。
         /// </summary>
-        public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
+        private ComputeBuffer clusterCullingLightMaskBuffer;
 
         /// <summary>
-        /// 簇剔除光照掩码缓冲输出 slot。
-        /// 连接到前向渲染 pass 的光照掩码输入。
+        /// 本帧是否已产出新的光照掩码（用于全局绑定判定；无 RenderGraph 句柄后，
+        /// 需要显式标记本帧产出，避免绑定上一帧的陈旧缓冲）。
         /// </summary>
-        public ComputeBufferSlot ClusterCullingLightMaskBufferSlot { get; private set; }
+        private bool lightMaskProduced;
+
+        /// <summary>
+        /// 从显式依赖边解析出的光照数据提供者（复用以避免渲染循环分配）。
+        /// </summary>
+        private readonly List<ILightDatasProvider> lightDatasProviders = new();
 
         // ── 相机上下文 ──
 
@@ -68,12 +75,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            LightDatasBufferSlot = new ComputeBufferSlot(
-                "lightDatasBuffer", SlotDirection.Input);
-            RegisterSlot(LightDatasBufferSlot);
-            ClusterCullingLightMaskBufferSlot = new ComputeBufferSlot(
-                "clusterCullingLightMaskBuffer", SlotDirection.Output);
-            RegisterSlot(ClusterCullingLightMaskBufferSlot);
+            // 本 pass 无 RenderGraph 内容 slot：输入光照数据经显式依赖边从
+            // ILightDatasProvider 获取；输出掩码经持久缓冲 + 全局绑定供消费者使用。
         }
 
         /// <inheritdoc />
@@ -95,13 +98,16 @@ namespace HN.HNRP
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
-            if (ClusterCullingLightMaskBufferSlot == null
-                || LightDatasBufferSlot == null)
+            lightMaskProduced = false;
+
+            if (cameraContext == null)
             {
                 return;
             }
 
-            if (cameraContext == null)
+            // 从显式依赖边解析上游光照数据缓冲；缺失时预检跳过本帧。
+            ComputeBuffer lightDatas = ResolveLightDatasBuffer();
+            if (lightDatas == null)
             {
                 return;
             }
@@ -122,32 +128,25 @@ namespace HN.HNRP
                 return;
             }
 
+            // ── 持久掩码缓冲 ──
+
+            HNRenderPipelineUtils.ValidateComputeBuffer(
+                ref clusterCullingLightMaskBuffer,
+                MAX_CLUSTER_MASK_WORDS,
+                sizeof(uint));
+
             using (var builder = renderGraph.AddRenderPass<ClusterCullingLightPassData>(
                 PassName, out var passData))
             {
                 builder.AllowPassCulling(false);
 
-                // ── 输入：光照数据缓冲 ──
+                // ── 输入：光照数据缓冲（持久，来自上游生产者）──
+                // ── 输出：光照掩码缓冲（持久，供全局绑定）──
 
-                if (LightDatasBufferSlot != null
-                    && LightDatasBufferSlot.IsConnected
-                    && LightDatasBufferSlot.HasHandle)
-                {
-                    passData.lightDatasBuffer = builder.ReadComputeBuffer(
-                        LightDatasBufferSlot.ReadHandle());
-                }
+                passData.lightDatasBuffer = lightDatas;
+                passData.clusterCullingLightMaskBuffer = clusterCullingLightMaskBuffer;
 
-                // ── 输出：簇剔除光照掩码缓冲 ──
-
-                ComputeBufferHandle lightMaskBuffer = renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        MAX_CLUSTER_MASK_WORDS,
-                        sizeof(uint))
-                    { name = "Cluster Culling Light Mask Buffer" });
-
-                passData.clusterCullingLightMaskBuffer = builder.WriteComputeBuffer(lightMaskBuffer);
-
-                ClusterCullingLightMaskBufferSlot.SetHandle(lightMaskBuffer);
+                lightMaskProduced = true;
 
                 // ── 准备每帧数据 ──
 
@@ -312,20 +311,22 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // 本 pass 不持有可释放资源。
+            // 释放本 pass 持有的持久掩码缓冲。
+            CoreUtils.SafeRelease(clusterCullingLightMaskBuffer);
+            clusterCullingLightMaskBuffer = null;
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// 已产出簇剔除光照掩码缓冲时，开启 <c>CLUSTER_CULLING_LIGHT</c> keyword 并
+        /// 本帧已产出簇剔除光照掩码缓冲时，开启 <c>CLUSTER_CULLING_LIGHT</c> keyword 并
         /// 绑定 <c>_ClusterCullingLightMaskBuffer</c>；否则关闭该 keyword，避免
         /// 全局状态残留。
         /// </remarks>
         public void BindGlobalShaderResources(CommandBuffer cmd)
         {
             bool available = IsEnabled
-                && ClusterCullingLightMaskBufferSlot != null
-                && ClusterCullingLightMaskBufferSlot.HasHandle;
+                && lightMaskProduced
+                && clusterCullingLightMaskBuffer != null;
 
             if (!available)
             {
@@ -336,10 +337,30 @@ namespace HN.HNRP
             cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingLight);
             cmd.SetGlobalBuffer(
                 PropertyIDs.clusterCullingLightMaskBuffer,
-                ClusterCullingLightMaskBufferSlot.ReadHandle());
+                clusterCullingLightMaskBuffer);
         }
 
         // ── 辅助 ──
+
+        /// <summary>
+        /// 从显式依赖的上游 pass 中解析光照数据缓冲（<see cref="ILightDatasProvider"/>）。
+        /// </summary>
+        /// <returns>上游持有的光照数据缓冲；无可用提供者时为 <c>null</c>。</returns>
+        private ComputeBuffer ResolveLightDatasBuffer()
+        {
+            ConnectedProducerQuery.CollectOwners(this, lightDatasProviders);
+
+            for (int i = 0; i < lightDatasProviders.Count; i++)
+            {
+                ComputeBuffer buffer = lightDatasProviders[i].LightDatasBuffer;
+                if (buffer != null)
+                {
+                    return buffer;
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// 基于屏幕分辨率计算当前帧的簇网格尺寸。
@@ -420,14 +441,14 @@ namespace HN.HNRP
         private sealed class ClusterCullingLightPassData
         {
             /// <summary>
-            /// 光照数据计算缓冲句柄（来自 <see cref="BuildLightDataPass"/> 的输入）。
+            /// 光照数据计算缓冲（来自上游 <see cref="ILightDatasProvider"/>，持久）。
             /// </summary>
-            public ComputeBufferHandle lightDatasBuffer;
+            public ComputeBuffer lightDatasBuffer;
 
             /// <summary>
-            /// 簇剔除光照掩码缓冲句柄（输出）。
+            /// 簇剔除光照掩码缓冲（本 pass 持有的持久资源）。
             /// </summary>
-            public ComputeBufferHandle clusterCullingLightMaskBuffer;
+            public ComputeBuffer clusterCullingLightMaskBuffer;
 
             /// <summary>
             /// 簇剔除 compute shader。

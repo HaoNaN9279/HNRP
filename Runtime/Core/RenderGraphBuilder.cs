@@ -94,8 +94,62 @@ namespace HN.HNRP
                 ConnectPassSlots(sourcePass, conn.SourceSlot, targetPass, conn.TargetSlot);
             }
 
-            // ── 阶段 3：拓扑排序（依赖顺序） ──
-            return TopologicalSort(blueprint.Passes, blueprint.Connections, passMap);
+            // ── 阶段 2.5：解析显式依赖边 ──
+            // 依赖边不携带资源句柄：只注入拓扑先后关系，并让目标 pass 能发现
+            // 其上游生产者（全局资源 / 契约提供者）。
+            ApplyDependencies(blueprint.Dependencies, passMap);
+
+            // ── 阶段 3：拓扑排序（资源依赖边 ∪ 显式依赖边） ──
+            return TopologicalSort(
+                blueprint.Passes,
+                blueprint.Connections,
+                blueprint.Dependencies,
+                passMap);
+        }
+
+        /// <summary>
+        /// 把显式依赖边注入目标 pass 的 <see cref="Pass.Dependencies"/> 列表，
+        /// 使消费者可在绘制前发现上游生产者。名字无法解析时记 Warning 并跳过。
+        /// </summary>
+        /// <param name="dependencies">蓝图的显式依赖边。</param>
+        /// <param name="passMap">阶段 1 中声明的 pass，按实例名索引。</param>
+        private static void ApplyDependencies(
+            List<PassDependency> dependencies,
+            Dictionary<string, Pass> passMap)
+        {
+            if (dependencies == null)
+            {
+                return;
+            }
+
+            foreach (PassDependency dep in dependencies)
+            {
+                if (dep == null || !dep.IsValid())
+                {
+                    Debug.LogWarning(
+                        "RenderGraphBuilder.Build: 跳过无效 PassDependency " +
+                        $"(SourcePass='{dep?.SourcePass}', TargetPass='{dep?.TargetPass}')。");
+                    continue;
+                }
+
+                if (!passMap.TryGetValue(dep.SourcePass, out Pass source))
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphBuilder.Build: PassDependency 引用了未知的 SourcePass " +
+                        $"'{dep.SourcePass}'。");
+                    continue;
+                }
+
+                if (!passMap.TryGetValue(dep.TargetPass, out Pass target))
+                {
+                    Debug.LogWarning(
+                        $"RenderGraphBuilder.Build: PassDependency 引用了未知的 TargetPass " +
+                        $"'{dep.TargetPass}'。");
+                    continue;
+                }
+
+                target.AddDependency(source);
+            }
         }
 
         /// <summary>
@@ -104,7 +158,8 @@ namespace HN.HNRP
         /// <param name="definitionOrder">
         /// 蓝图的声明顺序，作为稳定的次序破平依据。
         /// </param>
-        /// <param name="connections">slot 连接边。</param>
+        /// <param name="connections">内容 slot 连接边。</param>
+        /// <param name="dependencies">显式依赖边（不携带资源句柄）。</param>
         /// <param name="passMap">阶段 1 中声明的 pass，按实例名索引。</param>
         /// <returns>
         /// 稳定拓扑有序的启用 pass；检测到环时按声明顺序返回全部启用 pass。
@@ -112,6 +167,7 @@ namespace HN.HNRP
         private static List<Pass> TopologicalSort(
             List<Pass> definitionOrder,
             List<SlotConnection> connections,
+            List<PassDependency> dependencies,
             Dictionary<string, Pass> passMap)
         {
             // 稳定基准顺序：声明顺序，仅保留实际构建成功的 pass
@@ -155,6 +211,31 @@ namespace HN.HNRP
                     && index.TryGetValue(target, out int targetIndex))
                 {
                     AddEdge(adjacency, inDegree, sourceIndex, targetIndex);
+                }
+            }
+
+            // ── 从显式依赖边构造依赖边 ──
+            if (dependencies != null)
+            {
+                foreach (PassDependency dep in dependencies)
+                {
+                    if (dep == null || !dep.IsValid())
+                    {
+                        continue;
+                    }
+
+                    if (!passMap.TryGetValue(dep.SourcePass, out Pass source)
+                        || !passMap.TryGetValue(dep.TargetPass, out Pass target)
+                        || source == target)
+                    {
+                        continue;
+                    }
+
+                    if (index.TryGetValue(source, out int depSourceIndex)
+                        && index.TryGetValue(target, out int depTargetIndex))
+                    {
+                        AddEdge(adjacency, inDegree, depSourceIndex, depTargetIndex);
+                    }
                 }
             }
 

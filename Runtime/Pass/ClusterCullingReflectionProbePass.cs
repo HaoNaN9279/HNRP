@@ -59,28 +59,6 @@ namespace HN.HNRP
             return texture != null;
         }
 
-        // ── Slot ──
-
-        /// <summary>
-        /// 获取反射探针图集的输出纹理 slot
-        /// （<see cref="TextureSlot"/>，<see cref="SlotDirection.Output"/>）。
-        /// 本 pass 持有并写入图集（Tex2DArray），把其渲染图句柄发布到此 slot，
-        /// 下游 pass 无需单独的资源节点即可连接。
-        /// </summary>
-        public TextureSlot ReflectionProbeAtlasOutputSlot { get; private set; }
-
-        /// <summary>
-        /// 获取簇剔除反射探针掩码缓冲的输出计算缓冲 slot
-        /// （<see cref="ComputeBufferSlot"/>，<see cref="SlotDirection.Output"/>）。
-        /// </summary>
-        public ComputeBufferSlot ClusterCullingReflectionProbeMaskBufferSlot { get; private set; }
-
-        /// <summary>
-        /// 获取簇剔除反射探针数据缓冲的输出计算缓冲 slot
-        /// （<see cref="ComputeBufferSlot"/>，<see cref="SlotDirection.Output"/>）。
-        /// </summary>
-        public ComputeBufferSlot ClusterCullingReflectionProbeDatasBufferSlot { get; private set; }
-
         // ── 可配置参数 ──
 
         /// <summary>
@@ -119,6 +97,22 @@ namespace HN.HNRP
 
         /// <summary>图集重分配后需要在下次 render func 内整图清空。</summary>
         private bool needsAtlasClear;
+
+        // ── 持久缓冲（随本 pass 实例跨帧保留，见 ADR-020）──
+        // 掩码 / 剔除数据 / 采样数据缓冲均为持久资源：消费者（ForwardPass）经显式
+        // 依赖边发现本 pass 后触发全局绑定，不再经 RenderGraph 句柄传递。
+
+        /// <summary>簇剔除反射探针掩码缓冲（StructuredBuffer&lt;uint&gt;）。</summary>
+        private ComputeBuffer reflectionProbeMaskBuffer;
+
+        /// <summary>剔除数据缓冲（ReflectionProbeData4CS 布局）。</summary>
+        private ComputeBuffer reflectionProbeCullingDatasBuffer;
+
+        /// <summary>采样数据缓冲（ClusterCullingReflectionProbeDatas 布局）。</summary>
+        private ComputeBuffer reflectionProbeSampleDatasBuffer;
+
+        /// <summary>本帧是否已产出新的图集内容与缓冲（全局绑定判定）。</summary>
+        private bool reflectionProbeOutputProduced;
 
         // ── 可复用暂存缓冲（每帧零 GC）──
         // 渲染循环每帧填充这些预分配缓冲，而不新建数组/列表。
@@ -207,14 +201,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            ReflectionProbeAtlasOutputSlot = new TextureSlot("reflectionProbeAtlasOutput", SlotDirection.Output);
-            RegisterSlot(ReflectionProbeAtlasOutputSlot);
-            ClusterCullingReflectionProbeMaskBufferSlot = new ComputeBufferSlot(
-                "clusterCullingReflectionProbeMaskBuffer", SlotDirection.Output);
-            RegisterSlot(ClusterCullingReflectionProbeMaskBufferSlot);
-            ClusterCullingReflectionProbeDatasBufferSlot = new ComputeBufferSlot(
-                "clusterCullingReflectionProbeDatasBuffer", SlotDirection.Output);
-            RegisterSlot(ClusterCullingReflectionProbeDatasBufferSlot);
+            // 本 pass 无 RenderGraph 内容 slot：图集与缓冲均为持久资源，
+            // 经显式依赖边 + 全局绑定供消费者使用。
         }
 
         /// <inheritdoc />
@@ -391,9 +379,24 @@ namespace HN.HNRP
                 probeCount++;
             }
 
-            // ── 输入/输出：反射探针图集 ──
-            // 图集归本 pass 所有（持久 Tex2DArray），导入渲染图后写入，
-            // 并透传到输出 slot 供下游 pass 使用。
+            // ── 输入/输出：反射探针图集与持久缓冲 ──
+            // 图集与掩码/数据缓冲均归本 pass 所有（持久资源，跨帧保留）；
+            // 图集导入渲染图后写入，缓冲经全局绑定供消费者使用。
+
+            reflectionProbeOutputProduced = false;
+
+            HNRenderPipelineUtils.ValidateComputeBuffer(
+                ref reflectionProbeMaskBuffer,
+                MaxClusterMaskWords,
+                sizeof(uint));
+            HNRenderPipelineUtils.ValidateComputeBuffer(
+                ref reflectionProbeCullingDatasBuffer,
+                MaxReflectionProbesOnScreen,
+                UnsafeUtility.SizeOf<ReflectionProbeData4CS>());
+            HNRenderPipelineUtils.ValidateComputeBuffer(
+                ref reflectionProbeSampleDatasBuffer,
+                MaxReflectionProbesOnScreen,
+                UnsafeUtility.SizeOf<ClusterCullingReflectionProbeDatas>());
 
             TextureHandle atlasHandle = renderGraph.ImportTexture(reflectionProbeAtlas);
             if (!atlasHandle.IsValid())
@@ -403,11 +406,6 @@ namespace HN.HNRP
                 return;
             }
 
-            if (ReflectionProbeAtlasOutputSlot != null)
-            {
-                ReflectionProbeAtlasOutputSlot.SetHandle(atlasHandle);
-            }
-
             using (var builder = renderGraph.AddRenderPass<ClusterCullingReflectionProbePassData>(
                 PassName, out var passData))
             {
@@ -415,40 +413,15 @@ namespace HN.HNRP
 
                 passData.reflectionProbeAtlas = builder.WriteTexture(atlasHandle);
 
-                // ── 输出：掩码缓冲 ──
+                // ── 输出：掩码缓冲（持久）──
+                // ── 输出：剔除数据缓冲（持久，ReflectionProbeData4CS 布局）──
+                // ── 输出：采样数据缓冲（持久，ClusterCullingReflectionProbeDatas 布局）──
 
-                ComputeBufferHandle maskHandle = renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        MaxClusterMaskWords,
-                        sizeof(uint))
-                    { name = "Cluster Culling Reflection Probe Mask Buffer" });
+                passData.clusterCullingReflectionProbeMaskBuffer = reflectionProbeMaskBuffer;
+                passData.cullingDatasBuffer = reflectionProbeCullingDatasBuffer;
+                passData.sampleDatasBuffer = reflectionProbeSampleDatasBuffer;
 
-                passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(maskHandle);
-
-                // ── 输出：剔除数据缓冲（ReflectionProbeData4CS 布局）──
-
-                ComputeBufferHandle cullingDatasHandle = renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        MaxReflectionProbesOnScreen,
-                        UnsafeUtility.SizeOf<ReflectionProbeData4CS>())
-                    { name = "Cluster Culling Reflection Probe Culling Datas Buffer" });
-
-                passData.cullingDatasBuffer = builder.WriteComputeBuffer(cullingDatasHandle);
-
-                // ── 输出：采样数据缓冲（ClusterCullingReflectionProbeDatas 布局）──
-
-                ComputeBufferHandle sampleDatasHandle = renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        MaxReflectionProbesOnScreen,
-                        UnsafeUtility.SizeOf<ClusterCullingReflectionProbeDatas>())
-                    { name = "Cluster Culling Reflection Probe Datas Buffer" });
-
-                passData.sampleDatasBuffer = builder.WriteComputeBuffer(sampleDatasHandle);
-
-                // ── 把真实渲染图句柄发布到输出 slot ──
-
-                ClusterCullingReflectionProbeMaskBufferSlot!.SetHandle(maskHandle);
-                ClusterCullingReflectionProbeDatasBufferSlot!.SetHandle(sampleDatasHandle);
+                reflectionProbeOutputProduced = true;
 
                 // ── compute shader 配置 ──
 
@@ -512,6 +485,7 @@ namespace HN.HNRP
                             // 记录期被外部禁用：本帧不会写入图集，已标记为
                             // 「有内容」的驻留状态必须作废，避免下次错误跳过写入。
                             atlasContentInvalid = true;
+                            reflectionProbeOutputProduced = false;
                             return;
                         }
 
@@ -647,12 +621,20 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// 释放图集（持久资源）。分配表与暂存缓冲随实例一并清空。
+        /// 释放图集与三个持久缓冲。分配表与暂存缓冲随实例一并清空。
         /// </remarks>
         public override void Cleanup()
         {
             reflectionProbeAtlas?.Release();
             reflectionProbeAtlas = null;
+
+            CoreUtils.SafeRelease(reflectionProbeMaskBuffer);
+            reflectionProbeMaskBuffer = null;
+            CoreUtils.SafeRelease(reflectionProbeCullingDatasBuffer);
+            reflectionProbeCullingDatasBuffer = null;
+            CoreUtils.SafeRelease(reflectionProbeSampleDatasBuffer);
+            reflectionProbeSampleDatasBuffer = null;
+            reflectionProbeOutputProduced = false;
 
             textureAllocator = null;
             allocatedResolution = 0;
@@ -669,18 +651,17 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// 图集、掩码缓冲与探针数据缓冲三者齐备（且本 pass 启用）时，开启
-        /// <c>CLUSTER_CULLING_REFLECTION_PROBE</c> keyword 并绑定对应全局资源；
+        /// 图集、掩码缓冲与探针数据缓冲三者齐备（且本帧已产出、本 pass 启用）时，
+        /// 开启 <c>CLUSTER_CULLING_REFLECTION_PROBE</c> keyword 并绑定对应全局资源；
         /// 否则关闭该 keyword，避免全局状态残留。
         /// </remarks>
         public void BindGlobalShaderResources(CommandBuffer cmd)
         {
             bool available = IsEnabled
+                && reflectionProbeOutputProduced
                 && reflectionProbeAtlas != null
-                && ClusterCullingReflectionProbeMaskBufferSlot != null
-                && ClusterCullingReflectionProbeMaskBufferSlot.HasHandle
-                && ClusterCullingReflectionProbeDatasBufferSlot != null
-                && ClusterCullingReflectionProbeDatasBufferSlot.HasHandle;
+                && reflectionProbeMaskBuffer != null
+                && reflectionProbeSampleDatasBuffer != null;
 
             if (!available)
             {
@@ -694,10 +675,10 @@ namespace HN.HNRP
                 (RenderTargetIdentifier)reflectionProbeAtlas);
             cmd.SetGlobalBuffer(
                 PropertyIDs.clusterCullingReflectionProbeMaskBuffer,
-                ClusterCullingReflectionProbeMaskBufferSlot.ReadHandle());
+                reflectionProbeMaskBuffer);
             cmd.SetGlobalBuffer(
                 PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
-                ClusterCullingReflectionProbeDatasBufferSlot.ReadHandle());
+                reflectionProbeSampleDatasBuffer);
         }
 
         // ── 资源 ──
@@ -1138,21 +1119,21 @@ namespace HN.HNRP
             public TextureHandle reflectionProbeAtlas;
 
             /// <summary>
-            /// 簇剔除掩码缓冲句柄。
+            /// 簇剔除掩码缓冲（本 pass 持有的持久资源）。
             /// </summary>
-            public ComputeBufferHandle clusterCullingReflectionProbeMaskBuffer;
+            public ComputeBuffer clusterCullingReflectionProbeMaskBuffer;
 
             /// <summary>
-            /// 簇剔除探针剔除数据缓冲句柄
+            /// 簇剔除探针剔除数据缓冲
             /// （<see cref="ReflectionProbeData4CS"/> 布局，喂给 compute shader）。
             /// </summary>
-            public ComputeBufferHandle cullingDatasBuffer;
+            public ComputeBuffer cullingDatasBuffer;
 
             /// <summary>
-            /// 簇剔除探针采样数据缓冲句柄
+            /// 簇剔除探针采样数据缓冲
             /// （<see cref="ClusterCullingReflectionProbeDatas"/> 布局，由 shader 消费）。
             /// </summary>
-            public ComputeBufferHandle sampleDatasBuffer;
+            public ComputeBuffer sampleDatasBuffer;
 
             /// <summary>
             /// 簇剔除 compute shader。

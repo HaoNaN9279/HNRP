@@ -18,17 +18,24 @@ namespace HN.HNRP
     /// 构建光照数据：把可见光打包进计算缓冲，供前向/簇剔除等 pass 消费。
     /// </summary>
     [Pass(PassNameConst)]
-    public sealed class BuildLightDataPass : Pass, IGlobalShaderResource
+    public sealed class BuildLightDataPass : Pass, IGlobalShaderResource, ILightDatasProvider
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。与旧 <see cref="BuildLightDataPass.PassName"/> 一致。
         /// </summary>
         public const string PassNameConst = "Build Light Data";
 
-        // ── Slot ──
+        // ── 持久资源 ──
 
-        /// <summary>光照数据计算缓冲输出 slot。</summary>
-        public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
+        /// <summary>
+        /// 光照数据结构化缓冲。持久资源，随本 pass 实例跨帧存活，
+        /// 由 <see cref="Cleanup"/> 释放。消费者经显式依赖边直接引用，
+        /// 不再经 RenderGraph 资源句柄传递。
+        /// </summary>
+        private ComputeBuffer lightDatasBuffer;
+
+        /// <inheritdoc />
+        public ComputeBuffer LightDatasBuffer => lightDatasBuffer;
 
         // ── 每帧状态 ──
 
@@ -71,8 +78,8 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void SetupSlots()
         {
-            LightDatasBufferSlot = new ComputeBufferSlot("lightDatasBuffer", SlotDirection.Output);
-            RegisterSlot(LightDatasBufferSlot);
+            // 本 pass 无 RenderGraph 内容 slot：光照数据经持久缓冲 + 显式依赖边
+            // 传递给消费者（ClusterCullingLight 局部 SRV / ForwardPass 全局绑定）。
         }
 
         /// <inheritdoc />
@@ -91,7 +98,7 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// 创建按最大光源数尺寸的瞬时计算缓冲，调度并行 <see cref="BuildLightDataJob"/>
+        /// 确保按最大光源数尺寸的持久计算缓冲已分配，调度并行 <see cref="BuildLightDataJob"/>
         /// 把可见光打包进 <see cref="LightData"/> 结构体，并记录一个把完成的 job
         /// 输出上传到 GPU 缓冲的渲染函数。
         /// </remarks>
@@ -115,16 +122,12 @@ namespace HN.HNRP
                     }
                 }
 
-                ComputeBufferHandle lightDatasBuffer = renderGraph.CreateComputeBuffer(
-                    new ComputeBufferDesc(
-                        maxLightCount,
-                        UnsafeUtility.SizeOf<LightData>())
-                    { name = "Light Datas Buffer" });
-
-                passData.lightDatasBuffer = builder.WriteComputeBuffer(lightDatasBuffer);
-
-                // 发布真实渲染图句柄，使下游 pass 能经 ReadHandle() 读取。
-                LightDatasBufferSlot.SetHandle(lightDatasBuffer);
+                // 持久缓冲：光照数据跨帧复用。消费者经显式依赖边直接引用本 pass
+                // 持有的持久 ComputeBuffer（不再经 RenderGraph 句柄传递）。
+                HNRenderPipelineUtils.ValidateComputeBuffer(
+                    ref lightDatasBuffer,
+                    maxLightCount,
+                    UnsafeUtility.SizeOf<LightData>());
 
                 renderingLayerMasks = new NativeArray<uint>(renderingLayerMaskList, Allocator.TempJob);
                 lightDatas = new NativeArray<LightData>(lightCount, Allocator.TempJob);
@@ -150,7 +153,7 @@ namespace HN.HNRP
 
                         if (IsEnabled)
                         {
-                            ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
+                            ctx.cmd.SetBufferData(lightDatasBuffer, data.lightDatas);
                         }
 
                         // 两个 TempJob 原生数组在 job 完成后必须释放，
@@ -164,23 +167,23 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // 除渲染函数内释放的每帧瞬时分配外，不持有其他可释放资源。
+            // 释放本 pass 持有的持久光照数据缓冲。
+            CoreUtils.SafeRelease(lightDatasBuffer);
+            lightDatasBuffer = null;
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// 把已产出的 <c>_LightDatasBuffer</c> 设为全局；未产出（被禁用 / 提前退出）
+        /// 把已产出的 <c>_LightDatasBuffer</c> 设为全局；未产出（被禁用 / 未分配）
         /// 时不绑定。本 pass 不控制任何全局 keyword。
         /// </remarks>
         public void BindGlobalShaderResources(CommandBuffer cmd)
         {
-            if (IsEnabled
-                && LightDatasBufferSlot != null
-                && LightDatasBufferSlot.HasHandle)
+            if (IsEnabled && lightDatasBuffer != null)
             {
                 cmd.SetGlobalBuffer(
                     PropertyIDs.LightDatasBuffer,
-                    LightDatasBufferSlot.ReadHandle());
+                    lightDatasBuffer);
             }
         }
 
@@ -188,16 +191,9 @@ namespace HN.HNRP
 
         /// <summary>
         /// <see cref="BuildLightDataPass"/> 的渲染图 pass 数据容器。
-        /// 持有由 <c>builder.WriteComputeBuffer</c> 填充的计算缓冲句柄。
         /// </summary>
         private class BuildLightDataPassData
         {
-            /// <summary>
-            /// 光照数据计算缓冲句柄。在 <see cref="Record"/> 中由
-            /// <c>builder.WriteComputeBuffer</c> 填充。
-            /// </summary>
-            public ComputeBufferHandle lightDatasBuffer;
-
             /// <summary>
             /// 上传打包光照数据前需完成的 job 句柄。
             /// </summary>
