@@ -44,6 +44,8 @@ struct ShadowCasterVaryings
 
 ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 {
+    HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_BEGIN();
+
     ShadowCasterVaryings output;
     ZERO_INITIALIZE(ShadowCasterVaryings, output);
 
@@ -83,11 +85,15 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 #endif
     output.positionWS = positionWS;
     output.normalWS = normalWS;
+    HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_AFTERVERTEX(output);
+    HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_END();
     return output;
 }
 
 half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
 {
+    HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_BEGIN();
+
 #if defined(_ALPHATEST_ON)
 #if defined(_BASEMAP)
     float4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv0);
@@ -127,6 +133,7 @@ half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
     }
 
     linearDepth = saturate(linearDepth);
+    HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_END();
     return half4(linearDepth, 0.0, 0.0, 1.0);
 }
 

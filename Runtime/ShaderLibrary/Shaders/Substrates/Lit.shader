@@ -33,9 +33,14 @@ Shader "HNRP/Lit"
         _ZTestMode("__ztestmode", Float) = 4
         _ZWrite("__zwrite", Float) = 0
         _QueueOffset("__queueoffset", Float) = 0.0
+
+        // 组合生成器在此注入各包参数属性（HNRP_PACKAGE_PROPERTY_ANCHOR）。
     }
 
     HLSLINCLUDE
+
+        // 组合生成器在此注入组合头 include（HNRP_PACKAGE_INCLUDE_ANCHOR）。
+        // 组合生成器在此注入各包局部关键字 pragma（HNRP_PACKAGE_KEYWORD_ANCHOR）。
 
     ENDHLSL
 
@@ -86,7 +91,7 @@ Shader "HNRP/Lit"
 
             #pragma enable_d3d11_debug_symbols
 
-            #include "../Lit/LitForward.hlsl"
+            #include "Assets/HNRP/Runtime/ShaderLibrary/Lit/LitForward.hlsl"
             ENDHLSL
         }
 
@@ -120,7 +125,7 @@ Shader "HNRP/Lit"
 
             #pragma enable_d3d11_debug_symbols
 
-            #include "../Lit/LitShadowCaster.hlsl"
+            #include "Assets/HNRP/Runtime/ShaderLibrary/Lit/LitShadowCaster.hlsl"
             ENDHLSL
         }
 
@@ -151,7 +156,7 @@ Shader "HNRP/Lit"
 
             #pragma enable_d3d11_debug_symbols
 
-            #include "../Lit/LitDepthOnly.hlsl"
+            #include "Assets/HNRP/Runtime/ShaderLibrary/Lit/LitDepthOnly.hlsl"
             ENDHLSL
         }
 
@@ -185,7 +190,7 @@ Shader "HNRP/Lit"
 
             #pragma enable_d3d11_debug_symbols
 
-            #include "../Lit/LitDepthNormal.hlsl"
+            #include "Assets/HNRP/Runtime/ShaderLibrary/Lit/LitDepthNormal.hlsl"
             ENDHLSL
         }
     }

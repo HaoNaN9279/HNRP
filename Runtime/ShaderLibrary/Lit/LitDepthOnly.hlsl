@@ -28,6 +28,8 @@ struct DepthOnlyVaryings
 
 DepthOnlyVaryings DepthOnlyVert(DepthOnlyAttributes input)
 {
+    HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_BEGIN();
+
     DepthOnlyVaryings output;
     ZERO_INITIALIZE(DepthOnlyVaryings, output);
 
@@ -38,11 +40,15 @@ DepthOnlyVaryings DepthOnlyVert(DepthOnlyAttributes input)
 #if defined(ATTRIBUTES_NEED_UV0)
     output.uv0 = input.uv0;
 #endif
+    HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_AFTERVERTEX(output);
+    HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_END();
     return output;
 }
 
 half4 DepthOnlyFrag(DepthOnlyVaryings input) : SV_Target
 {
+    HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_BEGIN();
+
     UNITY_SETUP_INSTANCE_ID(input);
 
 #if defined(_ALPHATEST_ON)
@@ -56,6 +62,7 @@ half4 DepthOnlyFrag(DepthOnlyVaryings input) : SV_Target
 #endif
 
     // ColorMask 0：返回值被丢弃，深度由片元写入深度目标。
+    HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_END();
     return half4(0.0, 0.0, 0.0, 0.0);
 }
 

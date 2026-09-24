@@ -14,6 +14,7 @@ namespace HN.HNRP.Editor
             new LitSurfaceOptionsBlock((uint)LitGUIBlocks.LitSurfaceOptionsBlock),
             new LitSurfaceInputBlock((uint)LitGUIBlocks.LitSurfaceInputBlock),
             new LitAdvancedOptionsBlock((uint)LitGUIBlocks.LitAdvancedOptionsBlock),
+            new PackageListBlock((uint)LitGUIBlocks.PackageListBlock),
         };
 
         protected override void DrawGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
@@ -49,6 +50,7 @@ namespace HN.HNRP.Editor
             LitSurfaceOptionsBlock = 1 << 0,
             LitSurfaceInputBlock = 1 << 1,
             LitAdvancedOptionsBlock = 1 << 2,
+            PackageListBlock = 1 << 3,
         }
 
 

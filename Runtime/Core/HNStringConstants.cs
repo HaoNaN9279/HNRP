@@ -191,4 +191,39 @@ namespace HN.HNRP
             cmd.DisableShaderKeyword(clusterCullingLight);
         }
     }
+
+
+    /// <summary>
+    /// ShaderLibrary 包（Package）系统使用的材质 override tag 名。
+    /// </summary>
+    public static class HNRPPackageTags
+    {
+        /// <summary>
+        /// 材质上记录「基底 + 有序包列表」的 override tag。
+        /// 值格式：<c>&lt;substrateId&gt;|&lt;pkgId1&gt;|&lt;pkgId2&gt;</c>。
+        /// </summary>
+        public static readonly string Packages = "HNRPPackages";
+    }
+
+
+    /// <summary>
+    /// 项目内关键目录路径（Unity 资产路径，以 <c>Assets/</c> 开头）。
+    /// </summary>
+    public static class HNRPProjectPaths
+    {
+        /// <summary>工程根目录（本仓库在 Unity 工程中的挂载点）。</summary>
+        public static readonly string ProjectRoot = "Assets/HNRP";
+
+        /// <summary>ShaderLibrary 目录。</summary>
+        public static readonly string ShaderLibrary = "Assets/HNRP/Runtime/ShaderLibrary";
+
+        /// <summary>基底 shader 目录。</summary>
+        public static readonly string Shaders = "Assets/HNRP/Runtime/ShaderLibrary/Shaders";
+
+        /// <summary>基底 shader 存放目录（每个基底一个 shader，单独成文件夹）。</summary>
+        public static readonly string Substrates = "Assets/HNRP/Runtime/ShaderLibrary/Shaders/Substrates";
+
+        /// <summary>包生成产物目录（组合头 / 生成 shader）。</summary>
+        public static readonly string GeneratedShaders = "Assets/HNRP/Runtime/ShaderLibrary/Generated";
+    }
 }

@@ -15,15 +15,19 @@
 
 PackedVaryings VertMain(Attributes attributes)
 {
+    HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_BEGIN();
+
     UNITY_SETUP_INSTANCE_ID(attributes);
 
     VertexInput vertexInput;
     ZERO_INITIALIZE(VertexInput, vertexInput);
     BuildVertexInput(attributes, vertexInput);
+    HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVERTEXINPUT(vertexInput);
 
     LitVaryings litVaryings;
     ZERO_INITIALIZE(LitVaryings, litVaryings);
     BuildLitVaryings(vertexInput, litVaryings);
+    HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVARYINGS(litVaryings);
     
     PackedVaryings packedVaryings;
     ZERO_INITIALIZE(PackedVaryings, packedVaryings);
@@ -31,11 +35,15 @@ PackedVaryings VertMain(Attributes attributes)
 
     UNITY_TRANSFER_INSTANCE_ID(attributes, packedVaryings);
 
+    HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_END();
+
     return packedVaryings;
 }
 
 float4 FragMain(PackedVaryings packedVaryings)
 {
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_BEGIN();
+
     UNITY_SETUP_INSTANCE_ID(packedVaryings);
 
 #ifdef HN_DEBUG_PER_PIXEL
@@ -45,10 +53,12 @@ float4 FragMain(PackedVaryings packedVaryings)
     LitVaryings litVaryings;
     ZERO_INITIALIZE(LitVaryings, litVaryings);
     BuildUnpackVaryings(packedVaryings, litVaryings);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERUNPACKVARYINGS(litVaryings);
 
     LitSurfaceData litSurfaceData;
     ZERO_INITIALIZE(LitSurfaceData, litSurfaceData);
     BuildLitSurfaceData(litVaryings, litSurfaceData);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERSURFACEDATA(litSurfaceData, litVaryings);
 
     PreBRDFData preBRDFData;
     ZERO_INITIALIZE(PreBRDFData, preBRDFData);
@@ -57,10 +67,12 @@ float4 FragMain(PackedVaryings packedVaryings)
     BRDFData brdfData;
     ZERO_INITIALIZE(BRDFData, brdfData);
     BuildBRDFData(litSurfaceData, preBRDFData, brdfData);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERBRDFDATA(brdfData, litSurfaceData);
     
     LightingInputData lightingInputData;
     ZERO_INITIALIZE(LightingInputData, lightingInputData);
     BuildLightingInputData(litVaryings, brdfData, lightingInputData);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTINGINPUT(lightingInputData);
 
     BRDFLightingData brdfLightingData;
     ZERO_INITIALIZE(BRDFLightingData, brdfLightingData);
@@ -69,10 +81,12 @@ float4 FragMain(PackedVaryings packedVaryings)
     LightingData lightingData;
     ZERO_INITIALIZE(LightingData, lightingData);
     BuildLightingData(litSurfaceData, brdfData, lightingInputData, brdfLightingData, lightingData);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTING(lightingData, brdfData, litSurfaceData);
 
     LightingOutputData lightingOutputData;
     ZERO_INITIALIZE(LightingOutputData, lightingOutputData);
     BuildLightingOutputData(litSurfaceData, lightingData, lightingOutputData);
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTEROUTPUT(lightingOutputData, litSurfaceData);
 
 // #if defined(USE_UV0_VARYING)
 //     float test = 1;
@@ -100,6 +114,8 @@ float4 FragMain(PackedVaryings packedVaryings)
 
     outColor.rgb = HN_DebugApplyPerPixelColor(debugRaw, outColor.rgb);
 #endif
+
+    HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_END();
 
     return outColor;
 }

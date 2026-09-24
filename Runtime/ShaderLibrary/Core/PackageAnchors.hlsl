@@ -1,0 +1,164 @@
+#ifndef HNRP_PACKAGE_ANCHORS_INCLUDED
+#define HNRP_PACKAGE_ANCHORS_INCLUDED
+
+// 基底锚点默认空宏（方案 D5）。
+//
+// 基底 hlsl 只负责在各个阶段位置「调用」锚点宏；组合头（Generated/*.hlsl）
+// 会为本组合实际使用的锚点预先定义非空版本。此处为所有锚点兜底为「无操作」。
+//
+// 锚点名格式：HNRP_PKG_EMIT_<SUBSTRATE>_<PASS>_<STAGE>_<POSITION>（全大写）。
+// 锚点签名唯一真源在 C#：HN.HNRP.HNRPSubstrateAnchors。本文件的默认宏名集合
+// 由 EditMode 测试 / 菜单（SubstrateAnchorValidator）与本文件逐项对照校验。
+
+// 注意：不使用变参宏（HLSL 预处理器不支持 Variadic macros）。
+
+// ---- 材质属性 / 纹理声明段（默认空，组合头覆盖）----
+#ifndef HNRP_PKG_MATERIAL_DECLARATIONS
+    #define HNRP_PKG_MATERIAL_DECLARATIONS
+#endif
+
+#ifndef HNRP_PKG_TEXTURE_DECLARATIONS
+    #define HNRP_PKG_TEXTURE_DECLARATIONS
+#endif
+
+// ---- varyings 字段 / 打包 / 解包（默认空，组合头覆盖）----
+#ifndef HNRP_PKG_VARYINGS_FIELDS
+    #define HNRP_PKG_VARYINGS_FIELDS
+#endif
+
+#ifndef HNRP_PKG_SET_VARYINGS
+    #define HNRP_PKG_SET_VARYINGS(packed, lit, pointer)
+#endif
+
+#ifndef HNRP_PKG_GET_VARYINGS
+    #define HNRP_PKG_GET_VARYINGS(packed, lit, pointer)
+#endif
+
+// ==== Lit / Forward / Vertex ====
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_BEGIN
+    #define HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVERTEXINPUT
+    #define HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVERTEXINPUT(vertexInput)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVARYINGS
+    #define HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_AFTERVARYINGS(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_END
+    #define HNRP_PKG_EMIT_LIT_FORWARD_VERTEX_END()
+#endif
+
+// ==== Lit / Forward / Fragment ====
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_BEGIN
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERUNPACKVARYINGS
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERUNPACKVARYINGS(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERSURFACEDATA
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERSURFACEDATA(surface, varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERBRDFDATA
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERBRDFDATA(brdf, surface)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTINGINPUT
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTINGINPUT(lightingInput)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTING
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTERLIGHTING(lighting, brdf, surface)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTEROUTPUT
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_AFTEROUTPUT(output, surface)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_END
+    #define HNRP_PKG_EMIT_LIT_FORWARD_FRAGMENT_END()
+#endif
+
+// ==== Lit / DepthNormal / Vertex ====
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_BEGIN
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_AFTERVARYINGS
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_AFTERVARYINGS(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_END
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_END()
+#endif
+
+// ==== Lit / DepthNormal / Fragment ====
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_BEGIN
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERUNPACKVARYINGS
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERUNPACKVARYINGS(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERSURFACEDATA
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERSURFACEDATA(surface, varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_END
+    #define HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_END()
+#endif
+
+// ==== Lit / DepthOnly / Vertex ====
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_BEGIN
+    #define HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_AFTERVERTEX
+    #define HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_AFTERVERTEX(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_END
+    #define HNRP_PKG_EMIT_LIT_DEPTHONLY_VERTEX_END()
+#endif
+
+// ==== Lit / DepthOnly / Fragment ====
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_BEGIN
+    #define HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_END
+    #define HNRP_PKG_EMIT_LIT_DEPTHONLY_FRAGMENT_END()
+#endif
+
+// ==== Lit / ShadowCaster / Vertex ====
+#ifndef HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_BEGIN
+    #define HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_AFTERVERTEX
+    #define HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_AFTERVERTEX(varyings)
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_END
+    #define HNRP_PKG_EMIT_LIT_SHADOWCASTER_VERTEX_END()
+#endif
+
+// ==== Lit / ShadowCaster / Fragment ====
+#ifndef HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_BEGIN
+    #define HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_BEGIN()
+#endif
+#ifndef HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_END
+    #define HNRP_PKG_EMIT_LIT_SHADOWCASTER_FRAGMENT_END()
+#endif
+
+// ==== 包声明区 DSL（编译期全部为空宏；元数据由编辑器解析）====
+// 参数 / varyings / keywords 的声明写在包 hlsl 的 HNRP_PACKAGE_BEGIN..END 区间内。
+// 这些宏不产生任何代码，仅作文档与解析来源。
+
+#define HNRP_PACKAGE_BEGIN
+#define HNRP_PACKAGE_END
+
+// 参数（每类型一宏）
+#define HNRP_PACKAGE_FLOAT(name, display, defaultValue)
+#define HNRP_PACKAGE_RANGE(name, display, minValue, maxValue, defaultValue)
+#define HNRP_PACKAGE_INT(name, display, defaultValue)
+#define HNRP_PACKAGE_TOGGLE(name, display, defaultValue)
+#define HNRP_PACKAGE_TOGGLE_KEYWORD(name, display, defaultValue, keyword)
+#define HNRP_PACKAGE_COLOR(name, display, r, g, b, a)
+#define HNRP_PACKAGE_VECTOR(name, display, x, y, z, w)
+#define HNRP_PACKAGE_TEXTURE(name, display)
+#define HNRP_PACKAGE_CUBE(name, display)
+#define HNRP_PACKAGE_ENUM(name, display, defaultValue, labels)
+#define HNRP_PACKAGE_TOOLTIP(name, tooltip)
+
+// varyings / 局部关键字
+#define HNRP_PACKAGE_VARYING(type, name, doc)
+#define HNRP_PACKAGE_KEYWORD(name, doc)
+
+#endif

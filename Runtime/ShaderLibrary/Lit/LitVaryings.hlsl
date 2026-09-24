@@ -17,6 +17,8 @@ struct LitVaryings
     float4 color;
     float2 staticLightmapUV;
     float3 vertexSH;
+    // 包 varyings 字段（组合头注入）。
+    HNRP_PKG_VARYINGS_FIELDS
 };
 
 void BuildPackVaryings(LitVaryings litVaryings, out PackedVaryings packedVaryings)
@@ -36,12 +38,18 @@ void BuildPackVaryings(LitVaryings litVaryings, out PackedVaryings packedVarying
     SET_VARYINGS_COLOR(packedVaryings, litVaryings.color);
     SET_VARYINGS_STATIC_LIGHTMAP_UV(packedVaryings, litVaryings.staticLightmapUV);
     SET_VARYINGS_VERTEX_SH(packedVaryings, litVaryings.vertexSH);
+
+    // 包 varyings 打包（组合头注入，追加在基底字段之后）。
+    HNRP_PKG_SET_VARYINGS(packedVaryings, litVaryings, pointer);
 }
 
 void BuildUnpackVaryings(PackedVaryings packedVaryings, out LitVaryings litVaryings)
 {
     ZERO_INITIALIZE(LitVaryings, litVaryings);
     int pointer = VARYINGS_FLOAT_COUNT - 1;
+
+    // 包 varyings 解包（组合头注入，从高端先行，与 SET 镜像）。
+    HNRP_PKG_GET_VARYINGS(packedVaryings, litVaryings, pointer);
 
     GET_VARYINGS_VERTEX_SH(packedVaryings, litVaryings.vertexSH);
     GET_VARYINGS_STATIC_LIGHTMAP_UV(packedVaryings, litVaryings.staticLightmapUV);

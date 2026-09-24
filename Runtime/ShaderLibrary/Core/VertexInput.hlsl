@@ -31,7 +31,7 @@ void BuildVertexInput(Attributes attributes, out VertexInput vertexInput)
 #endif
 #if defined(ATTRIBUTES_NEED_UV1)
     vertexInput.uv1 = attributes.uv1;
-    vertexInput.staticLightmapUV = attruvytes.uv1;
+    vertexInput.staticLightmapUV = attributes.uv1;
 #endif
 #if defined(ATTRIBUTES_NEED_UV2)
     vertexInput.uv2 = attributes.uv2;

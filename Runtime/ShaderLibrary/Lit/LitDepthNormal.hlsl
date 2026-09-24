@@ -13,6 +13,8 @@
 
 PackedVaryings DepthNormalVert(Attributes attributes)
 {
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_BEGIN();
+
     UNITY_SETUP_INSTANCE_ID(attributes);
 
     VertexInput vertexInput;
@@ -22,6 +24,7 @@ PackedVaryings DepthNormalVert(Attributes attributes)
     LitVaryings litVaryings;
     ZERO_INITIALIZE(LitVaryings, litVaryings);
     BuildLitVaryings(vertexInput, litVaryings);
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_AFTERVARYINGS(litVaryings);
 
     PackedVaryings packedVaryings;
     ZERO_INITIALIZE(PackedVaryings, packedVaryings);
@@ -29,25 +32,33 @@ PackedVaryings DepthNormalVert(Attributes attributes)
 
     UNITY_TRANSFER_INSTANCE_ID(attributes, packedVaryings);
 
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_VERTEX_END();
+
     return packedVaryings;
 }
 
 float4 DepthNormalFrag(PackedVaryings packedVaryings) : SV_Target
 {
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_BEGIN();
+
     UNITY_SETUP_INSTANCE_ID(packedVaryings);
 
     LitVaryings litVaryings;
     ZERO_INITIALIZE(LitVaryings, litVaryings);
     BuildUnpackVaryings(packedVaryings, litVaryings);
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERUNPACKVARYINGS(litVaryings);
 
     LitSurfaceData litSurfaceData;
     ZERO_INITIALIZE(LitSurfaceData, litSurfaceData);
     BuildLitSurfaceData(litVaryings, litSurfaceData);
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_AFTERSURFACEDATA(litSurfaceData, litVaryings);
 
     NormalData normalData = GetNormalData(
         litVaryings.normalWS,
         litVaryings.tangentWS,
         litSurfaceData.normalTS);
+
+    HNRP_PKG_EMIT_LIT_DEPTHNORMAL_FRAGMENT_END();
 
     return float4(normalData.normalWS * 0.5 + 0.5, 0.0);
 }
