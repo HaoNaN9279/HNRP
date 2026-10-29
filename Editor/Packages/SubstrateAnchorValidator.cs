@@ -44,9 +44,12 @@ namespace HN.HNRP.Editor
             }
 
             var expected = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (HNRPAnchorDescriptor anchor in HNRPSubstrateAnchors.GetAnchors(HNRPSubstrateId.Lit))
+            foreach (HNRPSubstrateDescriptor descriptor in HNRPSubstrateRegistry.All)
             {
-                expected[anchor.MacroName] = anchor.Contexts != null ? anchor.Contexts.Length : 0;
+                foreach (HNRPAnchorDescriptor anchor in HNRPSubstrateAnchors.GetAnchors(descriptor.Id))
+                {
+                    expected[anchor.MacroName] = anchor.Contexts != null ? anchor.Contexts.Length : 0;
+                }
             }
 
             foreach (KeyValuePair<string, int> pair in expected)

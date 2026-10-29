@@ -192,6 +192,7 @@ namespace HN.HNRP
         {
             BuildStructInfos();
             AnchorsBySubstrate[HNRPSubstrateId.Lit] = BuildLitAnchors();
+            AnchorsBySubstrate[HNRPSubstrateId.Unlit] = BuildUnlitAnchors();
         }
 
         /// <summary>获取某基底的全部锚点。</summary>
@@ -357,6 +358,71 @@ namespace HN.HNRP
             return list;
         }
 
+        private static List<HNRPAnchorDescriptor> BuildUnlitAnchors()
+        {
+            const HNRPSubstrateId unlit = HNRPSubstrateId.Unlit;
+
+            var list = new List<HNRPAnchorDescriptor>
+            {
+                // Forward / Vertex
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Vertex, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Vertex, HNRPAnchorPosition.AfterVertexInput,
+                    Ctx("VertexInput", "vertexInput", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Vertex, HNRPAnchorPosition.AfterVaryings,
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Vertex, HNRPAnchorPosition.End),
+
+                // Forward / Fragment（无光照 / GI 锚点）
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Fragment, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Fragment, HNRPAnchorPosition.AfterUnpackVaryings,
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Fragment, HNRPAnchorPosition.AfterSurfaceData,
+                    Ctx("UnlitSurfaceData", "surface", HNRPContextAccess.InOut),
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.In)),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Fragment, HNRPAnchorPosition.AfterOutput,
+                    Ctx("UnlitOutputData", "output", HNRPContextAccess.InOut),
+                    Ctx("UnlitSurfaceData", "surface", HNRPContextAccess.In)),
+                Anchor(unlit, HNRPPassKind.Forward, HNRPShaderStage.Fragment, HNRPAnchorPosition.End),
+
+                // DepthNormal / Vertex
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Vertex, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Vertex, HNRPAnchorPosition.AfterVaryings,
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Vertex, HNRPAnchorPosition.End),
+
+                // DepthNormal / Fragment
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Fragment, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Fragment, HNRPAnchorPosition.AfterUnpackVaryings,
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Fragment, HNRPAnchorPosition.AfterSurfaceData,
+                    Ctx("UnlitSurfaceData", "surface", HNRPContextAccess.InOut),
+                    Ctx("UnlitVaryings", "varyings", HNRPContextAccess.In)),
+                Anchor(unlit, HNRPPassKind.DepthNormal, HNRPShaderStage.Fragment, HNRPAnchorPosition.End),
+
+                // DepthOnly / Vertex
+                Anchor(unlit, HNRPPassKind.DepthOnly, HNRPShaderStage.Vertex, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.DepthOnly, HNRPShaderStage.Vertex, HNRPAnchorPosition.AfterVertex,
+                    Ctx("UnlitDepthOnlyVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.DepthOnly, HNRPShaderStage.Vertex, HNRPAnchorPosition.End),
+
+                // DepthOnly / Fragment
+                Anchor(unlit, HNRPPassKind.DepthOnly, HNRPShaderStage.Fragment, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.DepthOnly, HNRPShaderStage.Fragment, HNRPAnchorPosition.End),
+
+                // ShadowCaster / Vertex
+                Anchor(unlit, HNRPPassKind.ShadowCaster, HNRPShaderStage.Vertex, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.ShadowCaster, HNRPShaderStage.Vertex, HNRPAnchorPosition.AfterVertex,
+                    Ctx("UnlitShadowCasterVaryings", "varyings", HNRPContextAccess.InOut)),
+                Anchor(unlit, HNRPPassKind.ShadowCaster, HNRPShaderStage.Vertex, HNRPAnchorPosition.End),
+
+                // ShadowCaster / Fragment
+                Anchor(unlit, HNRPPassKind.ShadowCaster, HNRPShaderStage.Fragment, HNRPAnchorPosition.Begin),
+                Anchor(unlit, HNRPPassKind.ShadowCaster, HNRPShaderStage.Fragment, HNRPAnchorPosition.End),
+            };
+
+            return list;
+        }
+
         private static void BuildStructInfos()
         {
             Add("VertexInput", new[]
@@ -448,6 +514,45 @@ namespace HN.HNRP
             });
 
             Add("ShadowCasterVaryings", new[]
+            {
+                F("positionCS", "float4", "光源裁剪空间位置"),
+                F("uv0", "float2", "主 UV（用于 alpha clip）"),
+                F("positionWS", "float3", "世界空间位置"),
+                F("normalWS", "float3", "世界空间法线"),
+            });
+
+            Add("UnlitVaryings", new[]
+            {
+                F("positionCS", "float4", "裁剪空间位置"),
+                F("positionWS", "float3", "世界空间位置"),
+                F("normalWS", "float3", "世界空间法线"),
+                F("tangentWS", "float4", "世界空间切线（w 为手性符号）"),
+                F("uv0", "float2", "主 UV"),
+                F("uv1", "float2", "次 UV"),
+                F("uv2", "float2", "动态光照贴图 UV"),
+                F("uv3", "float2", "第三套 UV"),
+                F("color", "float4", "顶点色"),
+            });
+
+            Add("UnlitSurfaceData", new[]
+            {
+                F("color", "float3", "颜色参数 × 贴图采样结果"),
+                F("alpha", "float", "透明度"),
+            });
+
+            Add("UnlitOutputData", new[]
+            {
+                F("color", "float3", "输出颜色（透明预乘时已乘 alpha）"),
+                F("alpha", "float", "透明度"),
+            });
+
+            Add("UnlitDepthOnlyVaryings", new[]
+            {
+                F("positionCS", "float4", "裁剪空间位置"),
+                F("uv0", "float2", "主 UV（用于 alpha clip）"),
+            });
+
+            Add("UnlitShadowCasterVaryings", new[]
             {
                 F("positionCS", "float4", "光源裁剪空间位置"),
                 F("uv0", "float2", "主 UV（用于 alpha clip）"),

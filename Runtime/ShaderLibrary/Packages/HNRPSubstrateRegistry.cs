@@ -30,7 +30,7 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// 基底注册表：id → 描述。当前实现 Lit；Unlit / Cel 为预留。
+    /// 基底注册表：id → 描述。当前实现 Lit / Unlit；Cel 为预留。
     /// </summary>
     public static class HNRPSubstrateRegistry
     {
@@ -75,6 +75,21 @@ namespace HN.HNRP
                         HNRPProjectPaths.ShaderLibrary + "/Lit/LitVaryings.hlsl",
                         HNRPProjectPaths.ShaderLibrary + "/Lit/LitSurfaceData.hlsl",
                         HNRPProjectPaths.ShaderLibrary + "/Lit/LitLighting.hlsl",
+                    },
+                },
+                new HNRPSubstrateDescriptor
+                {
+                    Id = HNRPSubstrateId.Unlit,
+                    IdString = "Unlit",
+                    DisplayName = "Unlit",
+                    ShaderTemplatePath = HNRPProjectPaths.Substrates + "/Unlit.shader",
+                    CustomEditorType = "HN.HNRP.Editor.UnlitGUI",
+                    PreludeIncludes = new[]
+                    {
+                        HNRPProjectPaths.ShaderLibrary + "/Unlit/UnlitInput.hlsl",
+                        HNRPProjectPaths.ShaderLibrary + "/Unlit/UnlitVaryingsDefine.hlsl",
+                        HNRPProjectPaths.ShaderLibrary + "/Unlit/UnlitVaryings.hlsl",
+                        HNRPProjectPaths.ShaderLibrary + "/Unlit/UnlitSurfaceData.hlsl",
                     },
                 },
             };

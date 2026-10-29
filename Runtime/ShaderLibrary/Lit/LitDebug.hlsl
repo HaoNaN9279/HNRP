@@ -2,6 +2,7 @@
 #define HNRP_LIT_DEBUG_INCLUDED
 
 #include "../Debug/DebugColorMap.hlsl"
+#include "../Debug/DebugChannelIds.hlsl"
 
 // 群集掩码缓冲与簇索引推导（与光照 / GI 循环使用同一套函数，保证簇归属一致）。
 #include "../Light/ClusterCullingLight.hlsl"
@@ -9,32 +10,13 @@
 
 // HNRP 渲染调试 —— Lit 前向 pass 暴露的每像素通道。
 //
-// 通道 ID 必须与 C# 侧 ForwardPass.DebugChannels 的声明顺序一致。
-// 新增通道时同步修改两处即可，无需改动管线或显示 pass。
+// 通道 ID 定义在 ../Debug/DebugChannelIds.hlsl（跨基底共享），必须与 C# 侧
+// ForwardPass.DebugChannels 的声明顺序一致。新增通道时同步修改两处即可，
+// 无需改动管线或显示 pass。
 //
 // 说明：每像素值的求值必然发生在「有像素的地方」，即本着色器；因此所有每像素通道
 // （含数据来自其它 pass 的群集计数通道）都由这里实现。群集通道读取的是
 // ClusterCullingLightPass / ClusterCullingReflectionProbePass 绑定到全局的掩码缓冲。
-
-#define HN_LIT_DEBUG_ALBEDO                0
-#define HN_LIT_DEBUG_NORMAL_WS             1
-#define HN_LIT_DEBUG_SMOOTHNESS            2
-#define HN_LIT_DEBUG_METALLIC              3
-#define HN_LIT_DEBUG_OCCLUSION             4
-#define HN_LIT_DEBUG_EMISSION              5
-#define HN_LIT_DEBUG_POSITION_WS           6
-#define HN_LIT_DEBUG_MAIN_LIGHT_DIFFUSE    7
-#define HN_LIT_DEBUG_MAIN_LIGHT_SPECULAR   8
-#define HN_LIT_DEBUG_ADD_LIGHT_DIFFUSE     9
-#define HN_LIT_DEBUG_INDIRECT_DIFFUSE      10
-#define HN_LIT_DEBUG_INDIRECT_SPECULAR     11
-#define HN_LIT_DEBUG_ALPHA                 12
-#define HN_LIT_DEBUG_NDOTV                 13
-#define HN_LIT_DEBUG_ROUGHNESS             14
-#define HN_LIT_DEBUG_FINAL_COLOR           15
-#define HN_LIT_DEBUG_CLUSTER_LIGHT_COUNT   16
-#define HN_LIT_DEBUG_CLUSTER_PROBE_COUNT   17
-#define HN_LIT_DEBUG_SHADOW_FILTER_RADIUS  18
 
 // 统计群集掩码中实际置位的条目数。
 // word 0 是压缩范围头（min|max），掩码从 word 1 起。
@@ -72,55 +54,55 @@ float4 HN_DebugLitChannelValue(
 {
     switch (channelId)
     {
-        case HN_LIT_DEBUG_ALBEDO:
+        case HN_DEBUG_ALBEDO:
             return float4(surface.albedo, 1.0);
 
-        case HN_LIT_DEBUG_NORMAL_WS:
+        case HN_DEBUG_NORMAL_WS:
             return float4(brdf.normalWS, 1.0);
 
-        case HN_LIT_DEBUG_SMOOTHNESS:
+        case HN_DEBUG_SMOOTHNESS:
             return float4(surface.smoothness, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_METALLIC:
+        case HN_DEBUG_METALLIC:
             return float4(surface.metallic, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_OCCLUSION:
+        case HN_DEBUG_OCCLUSION:
             return float4(surface.occlusion, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_EMISSION:
+        case HN_DEBUG_EMISSION:
             return float4(surface.emission, 1.0);
 
-        case HN_LIT_DEBUG_POSITION_WS:
+        case HN_DEBUG_POSITION_WS:
             return float4(varyings.positionWS, 1.0);
 
-        case HN_LIT_DEBUG_MAIN_LIGHT_DIFFUSE:
+        case HN_DEBUG_MAIN_LIGHT_DIFFUSE:
             return float4(lighting.mainDirectLight.diffuse, 1.0);
 
-        case HN_LIT_DEBUG_MAIN_LIGHT_SPECULAR:
+        case HN_DEBUG_MAIN_LIGHT_SPECULAR:
             return float4(lighting.mainDirectLight.specular, 1.0);
 
-        case HN_LIT_DEBUG_ADD_LIGHT_DIFFUSE:
+        case HN_DEBUG_ADD_LIGHT_DIFFUSE:
             return float4(lighting.additionalDirectLight.diffuse, 1.0);
 
-        case HN_LIT_DEBUG_INDIRECT_DIFFUSE:
+        case HN_DEBUG_INDIRECT_DIFFUSE:
             return float4(lighting.indirectLight.diffuse, 1.0);
 
-        case HN_LIT_DEBUG_INDIRECT_SPECULAR:
+        case HN_DEBUG_INDIRECT_SPECULAR:
             return float4(lighting.indirectLight.specular, 1.0);
 
-        case HN_LIT_DEBUG_ALPHA:
+        case HN_DEBUG_ALPHA:
             return float4(surface.alpha, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_NDOTV:
+        case HN_DEBUG_NDOTV:
             return float4(brdf.NdotV, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_ROUGHNESS:
+        case HN_DEBUG_ROUGHNESS:
             return float4(brdf.perceptualRoughness, 0.0, 0.0, 1.0);
 
-        case HN_LIT_DEBUG_FINAL_COLOR:
+        case HN_DEBUG_FINAL_COLOR:
             return float4(output.lightingColor, 1.0);
 
-        case HN_LIT_DEBUG_CLUSTER_LIGHT_COUNT:
+        case HN_DEBUG_CLUSTER_LIGHT_COUNT:
         {
             // 本像素所属簇内被剔除保留的光源数量（热力图：暗→亮 = 少→多）。
 #if defined(CLUSTER_CULLING_LIGHT)
@@ -139,7 +121,7 @@ float4 HN_DebugLitChannelValue(
 #endif
         }
 
-        case HN_LIT_DEBUG_CLUSTER_PROBE_COUNT:
+        case HN_DEBUG_CLUSTER_PROBE_COUNT:
         {
             // 本像素所属簇内被剔除保留的反射探针数量。
 #if defined(CLUSTER_CULLING_REFLECTION_PROBE)
@@ -157,7 +139,7 @@ float4 HN_DebugLitChannelValue(
 #endif
         }
 
-        case HN_LIT_DEBUG_SHADOW_FILTER_RADIUS:
+        case HN_DEBUG_SHADOW_FILTER_RADIUS:
             // 本像素 soft shadow（PCSS）实际使用的滤波半径（texel）。
             // 0 = 未使用软阴影（无软阴影光源 / 该像素无阴影）。
             return float4(_HNRPShadowDebugPcss, 0.0, 0.0, 1.0);

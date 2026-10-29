@@ -9,7 +9,7 @@ namespace HN.HNRP
         /// <summary>Lit 基底（Forward / ShadowCaster / DepthOnly / DepthNormal）。</summary>
         Lit = 0,
 
-        /// <summary>Unlit 基底（预留）。</summary>
+        /// <summary>Unlit 基底（Forward / ShadowCaster / DepthOnly / DepthNormal）。</summary>
         Unlit = 1,
 
         /// <summary>Cel 基底（预留）。</summary>

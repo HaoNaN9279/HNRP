@@ -27,7 +27,7 @@ namespace HN.HNRP
         /// </summary>
         /// <remarks>
         /// <para>
-        /// 通道 ID 必须与 <c>LitDebug.hlsl</c> 的 <c>HN_LIT_DEBUG_*</c> 宏一致。
+        /// 通道 ID 必须与 <c>Debug/DebugChannelIds.hlsl</c> 的 <c>HN_DEBUG_*</c> 宏一致。
         /// 每条通道自带颜色映射预设：取值域不同（[0,1] 的材质参数、[-1,1] 的法线分量、
         /// 米级的坐标、0..N 的群集计数），用同一套参数看只会得到整屏纯色。
         /// </para>

@@ -1,8 +1,8 @@
 # HNRP ShaderLibrary 包（Package）系统开发方案
 
 > 目标：在 ShaderLibrary 中建立「基底（Substrate）+ 包（Package）」体系。
-> 基底 = Lit / 未来 Unlit、Cel；包 = 可注入基底 vs/ps 各阶段的 hlsl 扩展单元。
-> 状态：已实施（P1–P4）。实施偏差见文末「实施说明」。
+> 基底 = Lit / Unlit / 未来 Cel；包 = 可注入基底 vs/ps 各阶段的 hlsl 扩展单元。
+> 状态：已实施（P1–P4）。Unlit 基底已接入（Forward / ShadowCaster / DepthOnly / DepthNormal + Package 锚点 + 调试子集）。
 
 ---
 
